@@ -1,0 +1,5 @@
+export const ENEMY_DEFEAT_ENERGY_REWARD = 10;
+export const FREEZE_REMOVAL_AV_ADVANCE = 0.5;
+export const IMPRISONMENT_BASE_DELAY = 0.30;
+export const ENTANGLEMENT_BASE_DELAY = 0.20;
+export const LEVEL_CONSTANT_80 = 3768;

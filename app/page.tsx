@@ -1,65 +1,529 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  Character,
+  FinalStats,
+  ILightConeData,
+  IRelicData,
+  IOrnamentData,
+  RelicSet,
+  OrnamentSet,
+  Enemy,
+  SimulationLogEntry,
+  Element,
+  ELEMENTS,
+  SimulationWorkerMessage,
+  SimulationWorkerResult,
+  PartyMember,
+  PartyConfig,
+  CharacterRotationConfig,
+  EnemyConfig,
+  SimulationConfig, // Added
+  BattleResult, // Added
+} from '@/app/types';
+import { runSimulation } from '@/app/simulator/engine/simulation'; // Added
+import { calculateFinalStats } from '@/app/simulator/statBuilder';
+import CharacterStatsDisplay from '@/app/components/CharacterStatsDisplay';
+import SimulationLogTable from '@/app/components/SimulationLogTable';
+import PartySlotCard from '@/app/components/PartySlotCard';
+import CharacterConfigPanel from '@/app/components/CharacterConfigPanel';
+
+// Data Imports
+import { ALL_CHARACTERS } from '@/app/data/characters';
+import * as lightCones from '@/app/data/light-cones';
+import * as relicSets from '@/app/data/relics';
+import * as ornamentSets from '@/app/data/ornaments';
+import * as enemies from '@/app/data/enemies';
+
+// Data Lists
+const characterList: Character[] = ALL_CHARACTERS;
+const lightConeList: ILightConeData[] = Object.values(lightCones);
+const relicSetList: RelicSet[] = Object.values(relicSets);
+const ornamentSetList: OrnamentSet[] = Object.values(ornamentSets);
+const enemyList: Enemy[] = Object.values(enemies).filter((e: any) => e && typeof e === 'object' && 'baseStats' in e) as Enemy[];
+
+const MAX_PARTY_SIZE = 4;
+
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  padding: '16px',
+  gap: '24px',
+  maxWidth: '1600px',
+  margin: '0 auto',
+};
+
+const mainLayoutStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '300px 1fr 500px', // Widened right column
+  gap: '24px',
+};
+
+const sectionStyle: React.CSSProperties = {
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: '#444',
+  padding: '16px',
+  borderRadius: '8px',
+  backgroundColor: '#0d0d0d',
+};
+
+const partyGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: '16px',
+};
+
+const selectorStyle: React.CSSProperties = {
+  backgroundColor: 'black',
+  color: 'white',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: '#555',
+  borderRadius: '4px',
+  padding: '6px',
+  width: '100%',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#2a4a2a',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: '#3a6a3a',
+  borderRadius: '4px',
+  color: 'white',
+  padding: '10px 16px',
+  cursor: 'pointer',
+  fontSize: '1em',
+  fontWeight: 'bold',
+  width: '100%',
+};
+
+const addButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  backgroundColor: '#2a3a4a',
+  borderColor: '#3a5a6a',
+  borderStyle: 'dashed',
+};
+
+const weaknessGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: '8px',
+  marginTop: '8px',
+};
 
 export default function Home() {
+  // --- PARTY STATE ---
+  const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
+  const [activeCharacterIndex, setActiveCharacterIndex] = useState<number | null>(null);
+
+  // --- ENEMY STATE ---
+  const [weaknesses, setWeaknesses] = useState(new Set<Element>());
+  const [enemyLevel, setEnemyLevel] = useState(80);
+  const [enemyMaxHp, setEnemyMaxHp] = useState(10000);
+  const [enemyToughness, setEnemyToughness] = useState(180);
+  const [enemySpd, setEnemySpd] = useState(132); // Default Speed
+
+  // --- SIMULATION STATE ---
+  const [rounds, setRounds] = useState(5);
+  const [simulationLog, setSimulationLog] = useState<SimulationLogEntry[]>([]);
+  const [finalStats, setFinalStats] = useState<Map<string, FinalStats>>(new Map());
+  const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
+
+  // Web Worker (Disabled for debugging)
+  // const simulationWorker = useRef<Worker | null>(null);
+
+  // useEffect(() => {
+  //   simulationWorker.current = new Worker(new URL('./workers/simulationWorker.ts', import.meta.url));
+
+  //   simulationWorker.current.onmessage = (event: MessageEvent<SimulationWorkerResult>) => {
+  //     if (event.data.type === 'SIMULATION_COMPLETE') {
+  //       setSimulationLog(event.data.gameState.log);
+  //     }
+  //   };
+
+  //   return () => {
+  //     simulationWorker.current?.terminate();
+  //   };
+  // }, []);
+
+  // --- PARTY MANAGEMENT ---
+  const handleAddCharacter = () => {
+    if (partyMembers.length >= MAX_PARTY_SIZE) return;
+
+    const defaultChar = characterList[0]; // Default to first character
+    const defaultRelics: IRelicData[] = [
+      { type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [], set: relicSetList[0] },
+      { type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [], set: relicSetList[0] },
+      { type: 'Body', level: 15, mainStat: { stat: 'def_pct', value: 0.54 }, subStats: [], set: relicSetList[0] },
+      { type: 'Feet', level: 15, mainStat: { stat: 'spd', value: 25 }, subStats: [], set: relicSetList[0] },
+    ];
+    const defaultOrnaments: IOrnamentData[] = [
+      { type: 'Planar Sphere', level: 15, mainStat: { stat: 'ice_dmg_boost', value: 0.388 }, subStats: [], set: ornamentSetList[0] },
+      { type: 'Link Rope', level: 15, mainStat: { stat: 'energy_regen_rate', value: 0.194 }, subStats: [], set: ornamentSetList[0] },
+    ];
+
+    const newMember: PartyMember = {
+      character: {
+        ...defaultChar,
+        relics: defaultRelics,
+        ornaments: defaultOrnaments,
+      },
+      config: {
+        rotation: ['s', 'b', 'b'],
+        ultStrategy: 'immediate',
+        ultCooldown: 0,
+      },
+      enabled: true,
+      eidolonLevel: 0, // 初期値は無凸（0）
+    };
+
+    setPartyMembers([...partyMembers, newMember]);
+    setActiveCharacterIndex(partyMembers.length);
+  };
+
+  const handleRemoveCharacter = (index: number) => {
+    const newMembers = partyMembers.filter((_, i) => i !== index);
+    setPartyMembers(newMembers);
+    if (activeCharacterIndex === index) {
+      setActiveCharacterIndex(null);
+    } else if (activeCharacterIndex !== null && activeCharacterIndex > index) {
+      setActiveCharacterIndex(activeCharacterIndex - 1);
+    }
+  };
+
+  const handleCharacterSelect = (index: number, charId: string) => {
+    const selectedChar = characterList.find((c) => c.id === charId);
+    if (!selectedChar) return;
+
+    const newMembers = [...partyMembers];
+    newMembers[index] = {
+      ...newMembers[index],
+      character: {
+        ...selectedChar,
+        relics: newMembers[index].character.relics,
+        ornaments: newMembers[index].character.ornaments,
+        equippedLightCone: newMembers[index].character.equippedLightCone,
+      },
+    };
+    setPartyMembers(newMembers);
+  };
+
+  const handleCharacterUpdate = (index: number, updatedCharacter: Character) => {
+    const newMembers = [...partyMembers];
+    newMembers[index] = {
+      ...newMembers[index],
+      character: updatedCharacter,
+    };
+    setPartyMembers(newMembers);
+  };
+
+  const handleConfigUpdate = (index: number, updatedConfig: CharacterRotationConfig) => {
+    const newMembers = [...partyMembers];
+    newMembers[index] = {
+      ...newMembers[index],
+      config: updatedConfig,
+    };
+    setPartyMembers(newMembers);
+  };
+
+  // --- SIMULATION ---
+  const handleRunSimulation = () => {
+    if (partyMembers.length === 0) {
+      alert('パーティメンバーを追加してください。');
+      return;
+    }
+
+    // if (!simulationWorker.current) {
+    //   alert('シミュレーションワーカーが利用できません。');
+    //   return;
+    // }
+
+    const enemyConfig: EnemyConfig = {
+      level: enemyLevel,
+      maxHp: enemyMaxHp,
+      toughness: enemyToughness,
+      spd: enemySpd,
+    };
+
+    const partyConfig: PartyConfig = {
+      members: partyMembers,
+    };
+
+    // Direct Execution (Bypassing Worker)
+    const config: SimulationConfig = {
+      characters: partyMembers.map((m) => m.character),
+      enemies: enemyList,
+      weaknesses: weaknesses,
+      enemyConfig: enemyConfig,
+      characterConfig: undefined,
+      partyConfig: partyConfig,
+      rounds: rounds,
+    };
+
+    try {
+      const finalState = runSimulation(config);
+      setSimulationLog(finalState.log);
+      setBattleResult(finalState.result);
+    } catch (e) {
+      console.error("Simulation failed:", e);
+      alert("シミュレーション中にエラーが発生しました。コンソールを確認してください。");
+    }
+
+    // const sanitizeForWorker = <T,>(data: T): T => {
+    //   return JSON.parse(JSON.stringify(data));
+    // };
+
+    // const workerMessage: SimulationWorkerMessage = {
+    //   type: 'START_SIMULATION',
+    //   characters: sanitizeForWorker(partyMembers.map((m) => m.character)),
+    //   enemies: sanitizeForWorker(enemyList),
+    //   weaknesses: Array.from(weaknesses),
+    //   enemyConfig: enemyConfig,
+    //   characterConfig: undefined, // 後方互換用（使用しない）
+    //   partyConfig: sanitizeForWorker(partyConfig),
+    //   rounds: rounds,
+    // };
+
+    // simulationWorker.current.postMessage(workerMessage);
+  };
+
+  // Calculate stats for active character
+  useEffect(() => {
+    const newStatsMap = new Map<string, FinalStats>();
+    partyMembers.forEach((member) => {
+      const stats = calculateFinalStats(member.character);
+      newStatsMap.set(member.character.id, stats);
+    });
+    setFinalStats(newStatsMap);
+  }, [partyMembers]);
+
+  const activeCharacter = activeCharacterIndex !== null ? partyMembers[activeCharacterIndex]?.character : null;
+  const activeConfig = activeCharacterIndex !== null ? partyMembers[activeCharacterIndex]?.config : null;
+  const activeStats = activeCharacter ? finalStats.get(activeCharacter.id) : null;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main>
+      <h1 style={{ padding: '0 16px' }}>崩壊スターレイル パーティビルドシミュレーター</h1>
+
+      <div style={containerStyle}>
+        <div style={mainLayoutStyle}>
+          {/* 左サイドバー: 共通設定 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={sectionStyle}>
+              <h3>敵の弱点属性</h3>
+              <div style={weaknessGridStyle}>
+                {ELEMENTS.map((element) => (
+                  <label key={element} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      type="checkbox"
+                      checked={weaknesses.has(element)}
+                      onChange={(e) => {
+                        const newWeaknesses = new Set(weaknesses);
+                        if (e.target.checked) {
+                          newWeaknesses.add(element);
+                        } else {
+                          newWeaknesses.delete(element);
+                        }
+                        setWeaknesses(newWeaknesses);
+                      }}
+                    />
+                    {element}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={sectionStyle}>
+              <h3>敵のステータス</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label>
+                  レベル:
+                  <input
+                    type="number"
+                    value={enemyLevel}
+                    onChange={(e) => setEnemyLevel(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+                <label>
+                  最大HP:
+                  <input
+                    type="number"
+                    value={enemyMaxHp}
+                    onChange={(e) => setEnemyMaxHp(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+                <label>
+                  靭性値:
+                  <input
+                    type="number"
+                    value={enemyToughness}
+                    onChange={(e) => setEnemyToughness(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+                <label>
+                  速度:
+                  <input
+                    type="number"
+                    value={enemySpd}
+                    onChange={(e) => setEnemySpd(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div style={sectionStyle}>
+              <h3>シミュレーション設定</h3>
+              <label>
+                ラウンド数:
+                <input
+                  type="number"
+                  value={rounds}
+                  onChange={(e) => setRounds(Number(e.target.value))}
+                  style={{ ...selectorStyle, marginLeft: '8px' }}
+                />
+              </label>
+            </div>
+
+            <button style={buttonStyle} onClick={handleRunSimulation}>
+              シミュレーション実行
+            </button>
+          </div>
+
+          {/* 中央: パーティ編成 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={sectionStyle}>
+              <h2 style={{ margin: '0 0 16px 0' }}>パーティ編成</h2>
+              <div style={partyGridStyle}>
+                {Array.from({ length: MAX_PARTY_SIZE }).map((_, index) => {
+                  const member = partyMembers[index];
+                  return (
+                    <PartySlotCard
+                      key={index}
+                      slotIndex={index}
+                      character={member?.character || null}
+                      characterList={characterList}
+                      config={member?.config} // Pass config
+                      onCharacterSelect={(charId) => handleCharacterSelect(index, charId)}
+                      onRemove={() => handleRemoveCharacter(index)}
+                      onConfigure={() => setActiveCharacterIndex(index)}
+                      onConfigUpdate={(updatedConfig) => handleConfigUpdate(index, updatedConfig)} // Pass config update handler
+                      isActive={activeCharacterIndex === index}
+                      eidolonLevel={member?.eidolonLevel || 0}
+                    // onEidolonChange removed from here, moved to ConfigPanel
+                    />
+                  );
+                })}
+              </div>
+
+              {partyMembers.length < MAX_PARTY_SIZE && (
+                <button style={{ ...addButtonStyle, marginTop: '16px' }} onClick={handleAddCharacter}>
+                  + キャラクター追加
+                </button>
+              )}
+            </div>
+
+            {/* 戦闘結果サマリー */}
+            {battleResult && (
+              <div style={sectionStyle}>
+                <h2>戦闘結果サマリー</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '1.2em' }}>
+                    <strong>合計与ダメージ: </strong>
+                    <span style={{ color: '#ffcc00' }}>{Math.floor(battleResult.totalDamageDealt).toLocaleString()}</span>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #444', color: '#888' }}>
+                        <th style={{ textAlign: 'left', padding: '8px' }}>キャラ</th>
+                        <th style={{ textAlign: 'right', padding: '8px' }}>与ダメージ</th>
+                        <th style={{ textAlign: 'right', padding: '8px' }}>与回復</th>
+                        <th style={{ textAlign: 'right', padding: '8px' }}>与バリア</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(battleResult.characterStats).map(([charId, stats]) => {
+                        const charName = partyMembers.find(m => m.character.id === charId)?.character.name || charId;
+                        return (
+                          <tr key={charId} style={{ borderBottom: '1px solid #333' }}>
+                            <td style={{ padding: '8px' }}>{charName}</td>
+                            <td style={{ textAlign: 'right', padding: '8px', color: stats.damageDealt > 0 ? '#ffaaaa' : 'inherit' }}>
+                              {Math.floor(stats.damageDealt).toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '8px', color: stats.healingDealt > 0 ? '#aaffaa' : 'inherit' }}>
+                              {Math.floor(stats.healingDealt).toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '8px', color: stats.shieldProvided > 0 ? '#aaaaff' : 'inherit' }}>
+                              {Math.floor(stats.shieldProvided).toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* シミュレーションログ */}
+            <div style={sectionStyle}>
+              <h2>シミュレーションログ</h2>
+              <SimulationLogTable logs={simulationLog || []} />
+            </div>
+          </div>
+
+          {/* 右サイドバー: 個別設定 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {activeCharacter && activeConfig && activeCharacterIndex !== null ? (
+              <>
+                {/* Stats Display Moved to Top */}
+                {activeStats && (
+                  <div style={sectionStyle}>
+                    <h3>ステータス</h3>
+                    <CharacterStatsDisplay
+                      character={activeCharacter}
+                      stats={activeStats}
+                      currentHp={activeStats.hp}
+                      currentShield={0}
+                    />
+                  </div>
+                )}
+
+                <CharacterConfigPanel
+                  character={activeCharacter}
+                  characterIndex={activeCharacterIndex}
+                  lightConeList={lightConeList}
+                  relicSetList={relicSetList}
+                  ornamentSetList={ornamentSetList}
+                  config={activeConfig}
+                  eidolonLevel={partyMembers[activeCharacterIndex].eidolonLevel} // Pass Eidolon Level
+                  onCharacterUpdate={(updatedChar) => handleCharacterUpdate(activeCharacterIndex, updatedChar)}
+                  onConfigUpdate={(updatedConfig) => handleConfigUpdate(activeCharacterIndex, updatedConfig)}
+                  onEidolonChange={(level) => { // Handle Eidolon Change
+                    const newMembers = [...partyMembers];
+                    newMembers[activeCharacterIndex] = {
+                      ...newMembers[activeCharacterIndex],
+                      eidolonLevel: level
+                    };
+                    setPartyMembers(newMembers);
+                  }}
+                />
+              </>
+            ) : (
+              <div style={{ ...sectionStyle, textAlign: 'center', color: '#666' }}>
+                キャラクタースロットを選択して設定してください
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

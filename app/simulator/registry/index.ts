@@ -1,0 +1,50 @@
+import { IEventHandlerFactory } from '../engine/types';
+import { march7thHandlerFactory } from '../../data/characters/march-7th';
+import { tribbieHandlerFactory } from '../../data/characters/tribbie';
+import { kafkaHandlerFactory } from '../../data/characters/kafka';
+import { luochaHandlerFactory } from '../../data/characters/luocha-handler';
+import { archarHandlerFactory } from '../../data/characters/archar';
+
+type HandlerFactory = IEventHandlerFactory;
+
+class Registry {
+    private characterHandlers: Map<string, HandlerFactory> = new Map();
+    private lightConeHandlers: Map<string, HandlerFactory> = new Map();
+    private relicHandlers: Map<string, HandlerFactory> = new Map();
+
+    // Character Registration
+    registerCharacter(id: string, factory: HandlerFactory) {
+        this.characterHandlers.set(id, factory);
+    }
+
+    getCharacterFactory(id: string): HandlerFactory | undefined {
+        return this.characterHandlers.get(id);
+    }
+
+    // Light Cone Registration
+    registerLightCone(id: string, factory: HandlerFactory) {
+        this.lightConeHandlers.set(id, factory);
+    }
+
+    getLightConeFactory(id: string): HandlerFactory | undefined {
+        return this.lightConeHandlers.get(id);
+    }
+
+    // Relic Registration
+    registerRelic(id: string, factory: HandlerFactory) {
+        this.relicHandlers.set(id, factory);
+    }
+
+    getRelicFactory(id: string): HandlerFactory | undefined {
+        return this.relicHandlers.get(id);
+    }
+}
+
+export const registry = new Registry();
+
+// Register Characters
+registry.registerCharacter('march-7th', march7thHandlerFactory);
+registry.registerCharacter('tribbie', tribbieHandlerFactory);
+registry.registerCharacter('kafka', kafkaHandlerFactory);
+registry.registerCharacter('luocha', luochaHandlerFactory);
+registry.registerCharacter('archar', archarHandlerFactory);
