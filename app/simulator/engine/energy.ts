@@ -1,4 +1,4 @@
-import { Unit } from './types';
+import { Unit, GameState } from './types';
 
 /**
  * Calculates the actual energy gain based on Base EP and Energy Regeneration Rate (ERR).
@@ -18,18 +18,47 @@ export function calculateEnergyGain(baseEp: number, err: number): number {
  * Applies ERR to the base amount, and adds flat amount directly (if any).
  * 
  * @param unit The unit to add energy to.
- * @param baseEp The base amount of energy to gain (affected by ERR).
+ * @param baseEp The base amount of energy to gain (affected by ERR unless skipERR is true).
  * @param flatEp Optional flat amount of energy to gain (NOT affected by ERR). Default 0.
+ * @param skipERR If true, ERR is not applied to baseEp. Default false.
  * @returns The updated unit with new EP.
  */
-export function addEnergy(unit: Unit, baseEp: number, flatEp: number = 0): Unit {
+export function addEnergy(unit: Unit, baseEp: number, flatEp: number = 0, skipERR: boolean = false): Unit {
     const err = unit.stats.energy_regen_rate || 0;
-    const gain = calculateEnergyGain(baseEp, err) + flatEp;
+    const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);
+    const gain = baseGain + flatEp;
     const newEp = Math.min(unit.stats.max_ep, unit.ep + gain);
 
     return {
         ...unit,
         ep: newEp
+    };
+}
+
+/**
+ * Adds energy to a unit in a GameState, respecting the maximum energy limit.
+ * 
+ * @param state Current game state
+ * @param unitId ID of the unit to add energy to
+ * @param baseEp The base amount of energy to gain (affected by ERR unless skipERR is true).
+ * @param flatEp Optional flat amount of energy to gain (NOT affected by ERR). Default 0.
+ * @param skipERR If true, ERR is not applied to baseEp. Default false.
+ * @returns Updated game state
+ */
+export function addEnergyToUnit(
+    state: GameState,
+    unitId: string,
+    baseEp: number,
+    flatEp: number = 0,
+    skipERR: boolean = false
+): GameState {
+    const unit = state.units.find(u => u.id === unitId);
+    if (!unit) return state;
+
+    const updatedUnit = addEnergy(unit, baseEp, flatEp, skipERR);
+    return {
+        ...state,
+        units: state.units.map(u => u.id === unitId ? updatedUnit : u)
     };
 }
 
@@ -47,3 +76,4 @@ export function initializeEnergy(unit: Unit, percentage: number = 0.5): Unit {
         ep: Math.min(unit.stats.max_ep, startEp)
     };
 }
+

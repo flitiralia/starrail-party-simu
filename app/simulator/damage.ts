@@ -41,22 +41,31 @@ const elementToVulnMap: Record<Element, StatKey> = {
   Imaginary: 'imaginary_vuln',
 };
 
-function calculateBaseDmg(source: Unit, ability: IAbility): number {
+function calculateBaseDmg(source: Unit, ability: IAbility, accumulatorValue?: number): number {
   if (!ability.damage) return 0;
-  const scalingValue = source.stats[ability.damage.scaling];
+
+  // accumulated_healingスケーリングの場合は渡された累計値を使用
+  let scalingValue: number;
+  if (ability.damage.scaling === 'accumulated_healing') {
+    scalingValue = accumulatorValue || 0;
+  } else {
+    scalingValue = source.stats[ability.damage.scaling];
+  }
 
   if (ability.damage.type === 'simple') {
-    return scalingValue * ability.damage.multiplier;
+    if (ability.damage.hits && ability.damage.hits.length > 0) {
+      return scalingValue * ability.damage.hits[0].multiplier;
+    }
   } else if (ability.damage.type === 'blast') {
-    // For base damage calculation, we might need context (main target vs adjacent).
-    // But this function seems to calculate "potential" base damage or main target damage?
-    // Looking at usage might be needed, but for now let's return mainMultiplier.
-    return scalingValue * ability.damage.mainMultiplier;
+    if (ability.damage.mainHits && ability.damage.mainHits.length > 0) {
+      return scalingValue * ability.damage.mainHits[0].multiplier;
+    }
   } else if (ability.damage.type === 'bounce') {
-    // Return first hit multiplier? Or sum?
-    // Usually base damage is per hit.
-    // Let's return the first multiplier for now or 0 if empty.
-    return scalingValue * (ability.damage.multipliers[0] || 0);
+    if (ability.damage.hits && ability.damage.hits.length > 0) {
+      return scalingValue * ability.damage.hits[0].multiplier;
+    }
+  } else if (ability.damage.type === 'aoe') {
+    return scalingValue * (ability.damage.hits[0]?.multiplier || 0);
   }
   return 0;
 }
@@ -107,15 +116,21 @@ function calculateDefMultiplier(source: Unit, target: Unit, dynamicDefIgnore: nu
   return (sourceLevel + 20) / ((targetLevel + 20) * (1 - defReductionStat) * (1 - totalDefIgnore) + (sourceLevel + 20));
 }
 
-function calculateCritMultiplier(source: Unit, modifiers: DamageCalculationModifiers = {}): number {
+export interface CritResult {
+  multiplier: number;
+  isCrit: boolean;
+}
+
+export function calculateCritMultiplierWithInfo(source: Unit, modifiers: DamageCalculationModifiers = {}): CritResult {
   const dynamicCritRate = modifiers.critRate || 0;
   const dynamicCritDmg = modifiers.critDmg || 0;
 
   const critRate = Math.min((source.stats.crit_rate || 0) + dynamicCritRate, 1); // Cap crit rate at 100%
   const critDmg = (source.stats.crit_dmg || 0) + dynamicCritDmg;
 
-  // Calculate expected damage multiplier from crits
-  return 1 + (critRate * critDmg);
+  // 乱数で会心を判定（毎ヒットごとにロール）
+  const isCrit = Math.random() < critRate;
+  return { multiplier: isCrit ? (1 + critDmg) : 1, isCrit };
 }
 
 export function calculateToughnessBrokenMultiplier(target: Unit): number {
@@ -142,8 +157,11 @@ function calculateVulnerabilityMultiplier(source: Unit, target: Unit): number {
   const vulnKey = elementToVulnMap[source.element];
   const elementVuln = target.stats[vulnKey] || 0;
 
-  // Total vulnerability (additive)
-  const totalVulnerability = allTypeVuln + elementVuln;
+  // Damage taken reduction (buff on target that reduces incoming damage)
+  const dmgTakenReduction = target.stats.dmg_taken_reduction || 0;
+
+  // Total vulnerability (additive) - damage reduction (subtractive)
+  const totalVulnerability = allTypeVuln + elementVuln - dmgTakenReduction;
 
   return 1 + totalVulnerability;
 }
@@ -170,6 +188,75 @@ export interface DamageCalculationModifiers {
   critRate?: number; // 動的会心率
   critDmg?: number; // 動的会心ダメージ
   allTypeDmg?: number; // 動的与ダメージバフ
+  atkBoost?: number; // 動的攻撃力バフ（ルアン・メェイE2等）
+}
+
+export interface DamageResultWithCritInfo {
+  damage: number;
+  isCrit: boolean;
+  // ダメージ計算係数
+  breakdownMultipliers?: {
+    baseDmg: number;       // 基礎ダメージ
+    critMult: number;      // 会心系数
+    dmgBoostMult: number;  // 与ダメージ係数
+    defMult: number;       // 防御係数
+    resMult: number;       // 属性耐性係数
+    vulnMult: number;      // 被ダメージ係数
+    brokenMult: number;    // 撃破係数
+  };
+}
+
+export function calculateDamageWithCritInfo(
+  source: Unit,
+  target: Unit,
+  ability: IAbility,
+  action: Action,
+  modifiers: DamageCalculationModifiers = {},
+  accumulatorValue?: number, // 累計値（accumulated_healingスケーリング用）
+): DamageResultWithCritInfo {
+  // abilityにダメージ情報がない場合、計算をスキップ
+  if (!ability.damage) return { damage: 0, isCrit: false };
+
+  let baseDmg = calculateBaseDmg(source, ability, accumulatorValue);
+
+  // ATKブースト適用（ルアン・メェイE2等）
+  if (modifiers.atkBoost && ability.damage.scaling === 'atk') {
+    baseDmg *= (1 + modifiers.atkBoost);
+  }
+
+  const critResult = calculateCritMultiplierWithInfo(source, modifiers);
+  const dmgBoostMultiplier = calculateDmgBoost(source, action, modifiers);
+  const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
+  const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
+  const resMultiplier = calculateResMultiplier(source, target);
+  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target);
+
+  let finalDamage = baseDmg * critResult.multiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnerabilityMultiplier * toughnessBrokenMultiplier;
+
+  // Calculate Additional Damage
+  if (ability.additionalDamage && ability.additionalDamage.length > 0) {
+    for (const addDmgLogic of ability.additionalDamage) {
+      const tempAbility: IAbility = { ...ability, damage: addDmgLogic };
+      const { additionalDamage, ...rest } = tempAbility;
+      const safeAbility = { ...rest, additionalDamage: undefined };
+      const additionalResult = calculateDamageWithCritInfo(source, target, safeAbility, action, modifiers);
+      finalDamage += additionalResult.damage;
+    }
+  }
+
+  return {
+    damage: finalDamage,
+    isCrit: critResult.isCrit,
+    breakdownMultipliers: {
+      baseDmg,
+      critMult: critResult.multiplier,
+      dmgBoostMult: dmgBoostMultiplier,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnerabilityMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
 }
 
 export function calculateDamage(
@@ -177,93 +264,10 @@ export function calculateDamage(
   target: Unit,
   ability: IAbility,
   action: Action,
-  modifiers: DamageCalculationModifiers = {}, // 動的修飾子を追加
-): number {
-  // abilityにダメージ情報がない場合、計算をスキップ
-  if (!ability.damage) return 0;
-
-  const baseDmg = calculateBaseDmg(source, ability);
-  const critMultiplier = calculateCritMultiplier(source, modifiers);
-  const dmgBoostMultiplier = calculateDmgBoost(source, action, modifiers);
-  const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0); // dynamicDefIgnoreを渡す
-  const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
-  // TODO: abilityのElementに基づいてResMultiplierを計算できるように修正が必要
-  const resMultiplier = calculateResMultiplier(source, target);
-  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target);
-
-  let finalDamage = baseDmg * critMultiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnerabilityMultiplier * toughnessBrokenMultiplier;
-
-  // Calculate Additional Damage
-  if (ability.additionalDamage && ability.additionalDamage.length > 0) {
-    for (const addDmgLogic of ability.additionalDamage) {
-      // Create a temporary ability context for the additional damage
-      // We reuse the same ability metadata but swap the damage logic
-      const tempAbility: IAbility = { ...ability, damage: addDmgLogic };
-
-      // Recursively calculate damage for this component
-      // Note: Additional damage might have different scaling or multipliers
-      // But it usually shares the same crit/dmgBoost/def/res/vuln unless specified otherwise.
-      // However, some additional damage (like Break) doesn't crit or use dmg boost.
-      // But E4 says "deals Ice DMG equal to 30% of DEF". This usually implies standard damage formula
-      // but with different base. It CAN crit and uses DMG boost.
-      // So calling calculateDamage recursively is correct IF we want standard formula.
-      // BUT we need to avoid infinite recursion if we pass the same ability.
-      // We passed a NEW ability object with `damage` set to `addDmgLogic` and `additionalDamage` undefined (implicitly from spread? No, spread copies it).
-      // We must ensure `additionalDamage` is removed from tempAbility to avoid recursion.
-
-      const { additionalDamage, ...rest } = tempAbility;
-      const safeAbility = { ...rest, additionalDamage: undefined }; // Explicitly remove
-
-      finalDamage += calculateDamage(source, target, safeAbility, action, modifiers);
-    }
-  }
-
-  return finalDamage;
-}
-
-/**
- * Calculates the toughness reduction of an action.
- * @param source The unit performing the action.
- * @param ability The ability data used.
- * @param modifiers Dynamic modifiers including break efficiency.
- * @returns The amount of toughness to reduce.
- */
-export function calculateToughnessReduction(
-  source: Unit,
-  ability: IAbility,
   modifiers: DamageCalculationModifiers = {},
-  baseReductionOverride?: number, // Optional override
-  hitType?: 'main' | 'adjacent' | 'bounce' | 'other' // Added hitType
+  accumulatorValue?: number,
 ): number {
-  // 1. Base Reduction from Ability or Override
-  let baseReduction = baseReductionOverride ?? 0;
-
-  if (baseReduction === 0 && ability.toughnessReduction !== undefined) {
-    if (typeof ability.toughnessReduction === 'number') {
-      baseReduction = ability.toughnessReduction;
-    } else {
-      // Object case: { main: number, adjacent: number }
-      if (hitType === 'adjacent') {
-        baseReduction = ability.toughnessReduction.adjacent;
-      } else {
-        baseReduction = ability.toughnessReduction.main;
-      }
-    }
-  }
-
-  // Fallback if not defined in data (based on user feedback: 10/20/30)
-  if (baseReduction === 0 && ability.toughnessReduction === undefined) {
-    if (ability.type === 'Basic ATK') baseReduction = 10;
-    else if (ability.type === 'Skill') baseReduction = 20; // Assuming single target default
-    else if (ability.type === 'Ultimate') baseReduction = 30; // Assuming single target default
-  }
-
-  // 2. Break Efficiency Boost (Source stats + Dynamic modifiers)
-  const statEfficiency = source.stats.break_efficiency_boost || 0;
-  const dynamicEfficiency = modifiers.breakEfficiencyBoost || 0;
-  const totalEfficiency = 1 + statEfficiency + dynamicEfficiency;
-
-  return baseReduction * totalEfficiency;
+  return calculateDamageWithCritInfo(source, target, ability, action, modifiers, accumulatorValue).damage;
 }
 
 /**
@@ -534,7 +538,8 @@ export function calculateNormalAdditionalDamage(
   const dmgBoostMultiplier = 1 + elementalDmgBoost + allTypeDmgBoost + dynamicDmgBoost;
 
   // 2. Crit Multiplier
-  const critMultiplier = calculateCritMultiplier(source, modifiers);
+  const critResult = calculateCritMultiplierWithInfo(source, modifiers);
+  const critMultiplier = critResult.multiplier;
 
   // 3. Defense Multiplier
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
@@ -572,7 +577,7 @@ export function calculateHeal(
   const outgoingHealBoost = source.stats.outgoing_healing_boost || 0;
   // Assuming incoming_heal_boost might exist in stats or modifiers, but for now just outgoing.
   // If target has incoming heal boost, it should be in stats.
-  const incomingHealBoost = (target.stats as any).incoming_heal_boost || 0;
+  const incomingHealBoost = target.stats.incoming_heal_boost || 0;
 
   return baseHeal * (1 + outgoingHealBoost + incomingHealBoost);
 }

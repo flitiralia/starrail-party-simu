@@ -1,27 +1,77 @@
-import { GameState, Unit, IEventHandler } from './types';
+import { GameState, Unit, IEventHandler, IEffectEvent } from './types';
 import { adjustActionValueForSpeedChange } from './actionValue';
 import { IEffect } from '../effect/types';
 import { recalculateUnitStats } from '../statBuilder';
+import { publishEvent } from './dispatcher';
+import { updatePassiveBuffs } from '../effect/relicHandler';
 
 export function addEffect(state: GameState, targetId: string, effect: IEffect): GameState {
     const targetIndex = state.units.findIndex(u => u.id === targetId);
     if (targetIndex === -1) return state;
 
+    // Debuff immunity check
+    const target = state.units[targetIndex];
+    if (target.debuffImmune && effect.category === 'DEBUFF') {
+        console.log(`[EffectManager] Debuff ${effect.name} blocked: ${target.name} is immune to debuffs`);
+        return state;
+    }
+
     let newState = { ...state };
 
     // 0. Check for duplicates (Same ID AND Same Source)
-    // If found, remove the old effect first (Overwrite behavior)
     const existingUnit = state.units[targetIndex];
     const duplicateEffect = existingUnit.effects.find(e => e.id === effect.id && e.sourceUnitId === effect.sourceUnitId);
+
     if (duplicateEffect) {
-        newState = removeEffect(newState, targetId, duplicateEffect.id);
+        // Update existing effect
+        const currentStack = duplicateEffect.stackCount || 1;
+        const maxStack = effect.maxStacks || duplicateEffect.maxStacks || 1;
+        const newStack = Math.min(currentStack + 1, maxStack);
+
+        console.log(`[EffectManager] Updating effect ${effect.name}: stack ${currentStack} -> ${newStack}, duration refreshed to ${effect.duration}`);
+
+        duplicateEffect.stackCount = newStack;
+        duplicateEffect.duration = effect.duration;
+
+        const updatedEffects = existingUnit.effects.map(e =>
+            (e.id === effect.id && e.sourceUnitId === effect.sourceUnitId) ? duplicateEffect : e
+        );
+
+        let updatedTarget = {
+            ...existingUnit,
+            effects: updatedEffects
+        };
+
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
+
+        if (existingUnit.stats.spd !== updatedTarget.stats.spd) {
+            updatedTarget = adjustActionValueForSpeedChange(updatedTarget, existingUnit.stats.spd, updatedTarget.stats.spd);
+        }
+
+        newState = {
+            ...newState,
+            units: newState.units.map((u, i) => i === targetIndex ? updatedTarget : u)
+        };
+
+        // Propagate to Summons
+        newState = propagateStatsToSummons(newState, targetId);
+
+        const effectAppliedEvent: IEffectEvent = {
+            type: 'ON_EFFECT_APPLIED',
+            sourceId: effect.sourceUnitId,
+            targetId: targetId,
+            effect: duplicateEffect
+        };
+
+        newState = publishEvent(newState, effectAppliedEvent);
+
+        return newState;
     }
 
     // 1. Register Event Handler if applicable
     if (effect.subscribesTo && effect.onEvent) {
-        const handlerId = effect.id; // Use effect ID as handler ID
+        const handlerId = effect.id;
 
-        // Check if handler already exists (shouldn't happen for unique effect IDs but safety first)
         if (!newState.eventHandlerLogics[handlerId]) {
             const handler: IEventHandler = {
                 id: handlerId,
@@ -40,8 +90,7 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
         }
     }
 
-    // 2. Apply effect logic (immediate changes like stats)
-    // We pass the target from the current newState
+    // 2. Apply effect logic
     const currentTarget = newState.units[targetIndex];
     if (effect.onApply) {
         newState = effect.onApply(currentTarget, newState);
@@ -49,22 +98,26 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
         newState = effect.apply(currentTarget, newState);
     }
 
+    // ★ skipFirstTurnDecrementがtrueの場合、appliedDuringTurnOfを設定
+    let effectToAdd = effect;
+    if (effect.skipFirstTurnDecrement && newState.currentTurnOwnerId) {
+        effectToAdd = {
+            ...effect,
+            appliedDuringTurnOf: newState.currentTurnOwnerId
+        };
+    }
+
     // 3. Add effect to unit's list AND Recalculate Stats
-    // Fetch fresh unit in case apply() modified it
     const freshTargetIndex = newState.units.findIndex(u => u.id === targetId);
     if (freshTargetIndex !== -1) {
         const freshTarget = newState.units[freshTargetIndex];
         let updatedTarget = {
             ...freshTarget,
-            effects: [...freshTarget.effects, effect]
+            effects: [...freshTarget.effects, effectToAdd]
         };
 
-        // Recalculate Stats
-        console.log(`[EffectManager] Recalculating stats for ${updatedTarget.name} after adding effect ${effect.name}`);
-        updatedTarget.stats = recalculateUnitStats(updatedTarget);
-        // Note: We should NOT reset AV to initial value (10000/spd) when adding effects mid-turn.
-        // Only adjust AV if SPD actually changed.
-        // HSR Formula: NewAV = OldAV * (OldSpd / NewSpd)
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
+
         if (freshTarget.stats.spd !== updatedTarget.stats.spd) {
             updatedTarget = adjustActionValueForSpeedChange(updatedTarget, freshTarget.stats.spd, updatedTarget.stats.spd);
         }
@@ -73,7 +126,22 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
             ...newState,
             units: newState.units.map((u, i) => i === freshTargetIndex ? updatedTarget : u)
         };
+
+        // Propagate to Summons
+        newState = propagateStatsToSummons(newState, targetId);
     }
+
+    const effectAppliedEvent: IEffectEvent = {
+        type: 'ON_EFFECT_APPLIED',
+        sourceId: effect.sourceUnitId,
+        targetId: targetId,
+        effect: effect
+    };
+
+    newState = publishEvent(newState, effectAppliedEvent);
+
+    // Update passive buffs (e.g. Relic effects that depend on active buffs)
+    newState = updatePassiveBuffs(newState);
 
     return newState;
 }
@@ -88,6 +156,22 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
 
     if (!effect) return state;
 
+    // 0. Recursive removal of linked effects (Global Scan)
+    // Scan ALL units for effects linked to this one
+    // Note: Creating a list of removals first to avoid modifying state while iterating units array logic
+    const globalRemovals: { unitId: string; effectId: string }[] = [];
+
+    newState.units.forEach(u => {
+        const linkedEffects = u.effects.filter(e =>
+            e.durationType === 'LINKED' && e.linkedEffectId === effectId
+        );
+        linkedEffects.forEach(le => globalRemovals.push({ unitId: u.id, effectId: le.id }));
+    });
+
+    for (const removal of globalRemovals) {
+        newState = removeEffect(newState, removal.unitId, removal.effectId);
+    }
+
     // 1. Unregister Event Handler
     if (effect.subscribesTo && effect.onEvent) {
         newState.eventHandlers = newState.eventHandlers.filter(h => h.id !== effectId);
@@ -95,7 +179,7 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
         newState.eventHandlerLogics = remainingLogics;
     }
 
-    // 2. Remove effect logic (revert changes)
+    // 2. Remove effect logic
     if (effect.onRemove) {
         newState = effect.onRemove(target, newState);
     } else if (effect.remove) {
@@ -111,10 +195,8 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
             effects: freshTarget.effects.filter(e => e.id !== effectId)
         };
 
-        // Recalculate Stats
-        updatedTarget.stats = recalculateUnitStats(updatedTarget);
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
 
-        // Update AV if SPD changed
         if (freshTarget.stats.spd !== updatedTarget.stats.spd) {
             updatedTarget = adjustActionValueForSpeedChange(updatedTarget, freshTarget.stats.spd, updatedTarget.stats.spd);
         }
@@ -123,7 +205,50 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
             ...newState,
             units: newState.units.map((u, i) => i === freshTargetIndex ? updatedTarget : u)
         };
+
+        // Propagate to Summons
+        newState = propagateStatsToSummons(newState, targetId);
     }
 
+    const effectRemovedEvent: IEffectEvent = {
+        type: 'ON_EFFECT_REMOVED',
+        sourceId: effect.sourceUnitId,
+        targetId: targetId,
+        effect: effect
+    };
+
+    newState = publishEvent(newState, effectRemovedEvent);
+
+    // Update passive buffs (e.g. Relic effects that depend on active buffs)
+    newState = updatePassiveBuffs(newState);
+
+    return newState;
+}
+
+// Helper to propagate stats to summons when owner updates
+function propagateStatsToSummons(state: GameState, ownerId: string): GameState {
+    let newState = state;
+    const summons = state.units.filter(u => u.isSummon && u.ownerId === ownerId);
+
+    for (const summon of summons) {
+        const summonIndex = newState.units.findIndex(u => u.id === summon.id);
+        if (summonIndex === -1) continue;
+
+        const currentSummon = newState.units[summonIndex];
+        let updatedSummon = { ...currentSummon };
+        const oldSummonSpd = currentSummon.stats.spd;
+
+        // This will access the *already updated* owner in newState.units
+        updatedSummon.stats = recalculateUnitStats(updatedSummon, newState.units);
+
+        if (oldSummonSpd !== updatedSummon.stats.spd) {
+            updatedSummon = adjustActionValueForSpeedChange(updatedSummon, oldSummonSpd, updatedSummon.stats.spd);
+        }
+
+        newState = {
+            ...newState,
+            units: newState.units.map((u, i) => i === summonIndex ? updatedSummon : u)
+        };
+    }
     return newState;
 }

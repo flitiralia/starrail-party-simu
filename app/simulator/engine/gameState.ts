@@ -5,6 +5,7 @@ import { initializeEnergy } from './energy';
 import { registry } from '../registry/index';
 import { IEffect } from '../effect/types';
 import { addEffect } from './effectManager';
+import { registerLightConeEventHandlers } from './lightConeHandlers';
 
 /**
  * GameStateから特定のユニットを検索します。
@@ -35,13 +36,12 @@ export function updateUnit(state: GameState, id: string, updates: Partial<Unit>)
  * @param enemies The array of enemies to fight.
  * @param weaknesses A set of elements the enemy is weak to.
  * @param enemyConfig The user-defined stats for the enemy.
- * @param characterConfig The user-defined action strategy for the character.
- * @returns The initial GameState object.
+ * @param config The simulation configuration.e object.
  */
 export function createInitialGameState(
   config: SimulationConfig,
 ): GameState {
-  const { characters, enemies, weaknesses, characterConfig, partyConfig, enemyConfig } = config;
+  const { characters, enemies, weaknesses, partyConfig, enemyConfig } = config;
 
   const characterUnits: Unit[] = characters.map((char, index) => {
     const stats = calculateFinalStats(char, true); // Exclude conditional buffs for initial state (handled by handlers)
@@ -55,9 +55,6 @@ export function createInitialGameState(
       charConfig = member.config;
       eidolonLevel = member.eidolonLevel || 0; // 星魂レベルを取得
       console.log(`[createInitialGameState] Character ${char.id} Eidolon Level: ${eidolonLevel}`);
-    } else if (characterConfig) {
-      // 後方互換性: 古いcharacterConfigを使用
-      charConfig = characterConfig;
     }
 
     // Clone abilities to avoid mutating original data
@@ -189,8 +186,8 @@ export function createInitialGameState(
     const stats = {
       ...createEmptyStatRecord(),
       hp: enemyConfig.maxHp, // Override with user config
-      atk: enemy.baseStats.atk,
-      def: enemy.baseStats.def,
+      atk: enemyConfig.atk ?? enemy.baseStats.atk, // Use config or base
+      def: enemyConfig.def ?? enemy.baseStats.def, // Use config or base
       spd: enemyConfig.spd, // Override with user config
     };
 
@@ -233,7 +230,7 @@ export function createInitialGameState(
   // Note: Event handlers are registered via dispatch in runSimulation.
   // We only initialize the GameState structure here.
 
-  const initialState: GameState = { // 明示的に GameState 型を指定
+  let initialState: GameState = { // 明示的に GameState 型を指定
     units: [...characterUnits, ...enemyUnits],
     skillPoints: 3,
     maxSkillPoints: 5, // Default max SP
@@ -243,13 +240,23 @@ export function createInitialGameState(
     eventHandlerLogics: {},
     damageModifiers: {}, // 新しく追加された一時修飾子を空で初期化
     cooldowns: {}, // クールダウンマップを空で初期化
+    cooldownMetadata: {}, // クールダウンメタデータを空で初期化
     pendingActions: [], // アクションスタックを空で初期化
     actionQueue: [], // Will be initialized in simulation start or via helper
     result: {
       totalDamageDealt: 0,
       characterStats: {},
     },
+    auras: [], // オーラを空で初期化
   };
+
+  // 光円錐イベントハンドラー登録
+  for (let i = 0; i < characters.length; i++) {
+    const char = characters[i];
+    const unitId = char.id;
+    initialState = registerLightConeEventHandlers(initialState, char, unitId);
+  }
+
   return initialState;
 }
 
@@ -300,7 +307,7 @@ export function applyCharacterMechanics(unit: Unit): Unit {
             {
               type: 'simple',
               scaling: 'def',
-              multiplier: 0.30
+              hits: [{ multiplier: 0.30, toughnessReduction: 0 }]
             }
           ]
         };

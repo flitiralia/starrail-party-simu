@@ -1,4 +1,7 @@
 import { RelicSet } from '../../types';
+import { isShieldEffect } from '../../simulator/effect/utils';
+import { addEffect } from '../../simulator/engine/effectManager';
+import { IEffect } from '../../simulator/effect/types';
 
 export const HERMIT_WHO_HID_THE_LIGHT_OF_THE_STARS: RelicSet = {
   id: 'hermit_who_hid_the_light_of_the_stars',
@@ -7,9 +10,8 @@ export const HERMIT_WHO_HID_THE_LIGHT_OF_THE_STARS: RelicSet = {
     {
       pieces: 2,
       description: '付与するバリアの耐久値+10%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'shield_strength_boost',
           value: 0.1,
           target: 'self'
@@ -19,41 +21,52 @@ export const HERMIT_WHO_HID_THE_LIGHT_OF_THE_STARS: RelicSet = {
     {
       pieces: 4,
       description: '装備キャラが付与するバリアの耐久値+12%。装備キャラが付与したバリアを持つ味方の会心ダメージ+15%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'shield_strength_boost',
           value: 0.12,
           target: 'self'
         },
+      ],
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
-          events: ['ON_BEFORE_DAMAGE_CALCULATION'],
+          events: ['ON_EFFECT_APPLIED'],
           handler: (event, state, sourceUnitId) => {
-            // This handler runs for every damage event.
-            // We need to check if the attacker (event.sourceId) has a shield from the wearer (sourceUnitId).
+            // ON_EFFECT_APPLIEDイベントのみ処理
+            if (event.type !== 'ON_EFFECT_APPLIED') return state;
 
-            const attacker = state.units.find(u => u.id === event.sourceId);
-            if (!attacker) return state;
+            const effectEvent = event as import('../../simulator/engine/types').IEffectEvent;
+            const appliedEffect = effectEvent.effect;
 
-            // Check for shield from wearer
-            // Assuming shield effects have sourceUnitId set correctly
-            const hasShieldFromWearer = attacker.effects.some(e =>
-              (e.category === 'BUFF' && e.name.includes('バリア')) && // Or check type/id convention
-              e.sourceUnitId === sourceUnitId
-            );
-
-            if (hasShieldFromWearer) {
-              return {
-                ...state,
-                damageModifiers: {
-                  ...state.damageModifiers,
-                  critDmg: (state.damageModifiers.critDmg || 0) + 0.15
-                }
-              };
+            // シールドが装備者から付与されたか確認
+            if (!isShieldEffect(appliedEffect) || appliedEffect.sourceUnitId !== sourceUnitId) {
+              return state;
             }
 
-            return state;
+            const targetId = effectEvent.targetId;
+
+            // 会心ダメージバフを付与（シールドと連動）
+            const critBuff: IEffect = {
+              id: `hermit-crit-${targetId}-${appliedEffect.id}`,
+              name: '星の光を隠した隠者',
+              category: 'BUFF',
+              sourceUnitId: sourceUnitId,
+              durationType: 'LINKED',
+              linkedEffectId: appliedEffect.id,  // シールドIDと連動
+              duration: 0,  // LINKEDの場合は無視される
+              modifiers: [
+                {
+                  target: 'crit_dmg',
+                  source: '星の光を隠した隠者',
+                  type: 'add',
+                  value: 0.15
+                }
+              ],
+              apply: (t, s) => s,
+              remove: (t, s) => s
+            };
+
+            return addEffect(state, targetId, critBuff);
           }
         }
       ],

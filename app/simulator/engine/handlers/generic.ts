@@ -55,7 +55,7 @@ export function createGenericLightConeHandlerFactory(lightCone: ILightConeData, 
             const unit = { ...newState.units[unitIndex] };
             let statsChanged = false;
 
-            for (const effect of lightCone.effects) {
+            for (const effect of lightCone.effects || []) {
                 // If custom handler is present, delegate logic to it
                 if (effect.customHandler) {
                     if (effect.condition) {
@@ -122,10 +122,11 @@ export function createGenericLightConeHandlerFactory(lightCone: ILightConeData, 
 
                         statsChanged = true;
                         newState.log.push({
-                            actionType: 'Buff',
+                            actionType: 'バフ',
                             sourceId: sourceUnitId,
+                            characterName: unit.name,
                             targetId: sourceUnitId,
-                            details: `Applied ${lightCone.name} effect: ${effect.targetStat} +${value}`
+                            details: `${lightCone.name} 効果適用: ${effect.targetStat} +${value}`
                         });
                     } else if (!conditionMet && existingModifierIndex !== -1) {
                         console.log(`[GenericLightConeHandler] Removing buff: ${lightCone.name} from ${unit.name}`);
@@ -142,10 +143,11 @@ export function createGenericLightConeHandlerFactory(lightCone: ILightConeData, 
 
                         statsChanged = true;
                         newState.log.push({
-                            actionType: 'BuffRemoved',
+                            actionType: 'バフ解除',
                             sourceId: sourceUnitId,
+                            characterName: unit.name,
                             targetId: sourceUnitId,
-                            details: `Removed ${lightCone.name} effect`
+                            details: `${lightCone.name} 効果解除`
                         });
                     }
                 }

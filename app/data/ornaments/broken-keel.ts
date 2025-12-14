@@ -7,19 +7,18 @@ export const BROKEN_KEEL: OrnamentSet = {
     {
       pieces: 2,
       description: '装備キャラの効果抵抗+10%。装備キャラの効果抵抗が30%以上の時、味方全体の会心ダメージ+10%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'effect_res',
           value: 0.1,
           target: 'self',
         },
         {
-          type: 'PASSIVE_STAT',
           stat: 'crit_dmg',
           value: 0.1,
           target: 'all_allies',
           condition: (stats) => stats.effect_res >= 0.3,
+          evaluationTiming: 'dynamic'
         },
       ],
     },

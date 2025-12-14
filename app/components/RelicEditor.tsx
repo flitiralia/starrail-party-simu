@@ -34,6 +34,8 @@ const RELIC_SLOTS = [
     { id: 'rope', name: 'Link Rope', options: ['hp_pct', 'atk_pct', 'def_pct', 'break_effect', 'energy_regen_rate'] },
 ];
 
+type RelicMode = '4pc' | '2+2';
+
 interface RelicEditorProps {
     relics: IRelicData[];
     ornaments: IOrnamentData[];
@@ -43,6 +45,19 @@ interface RelicEditorProps {
 }
 
 export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, relicSetList, ornamentSetList, onUpdate }) => {
+    // モード状態: 4セット or 2+2
+    const [relicMode, setRelicMode] = useState<RelicMode>(() => {
+        // 既存の遺物から初期モードを判定
+        if (relics.length >= 4) {
+            const set1 = relics[0]?.set?.id;
+            const set2 = relics[2]?.set?.id;
+            if (set1 && set2 && set1 !== set2) {
+                return '2+2';
+            }
+        }
+        return '4pc';
+    });
+
     // Helper to update a specific relic/ornament
     const updateItem = (type: 'relic' | 'ornament', index: number, newData: IRelicData | IOrnamentData) => {
         if (type === 'relic') {
@@ -56,20 +71,135 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
         }
     };
 
+    // 4セット用: 全遺物に同じセットを適用
     const handleRelicSetChange = (setId: string) => {
+        if (setId === '') {
+            onUpdate([], ornaments);
+            return;
+        }
         const newSet = relicSetList.find(s => s.id === setId);
         if (!newSet) return;
 
-        const newRelics = relics.map(r => ({ ...r, set: newSet }));
-        onUpdate(newRelics, ornaments);
+        if (relics.length > 0) {
+            const newRelics = relics.map(r => ({ ...r, set: newSet }));
+            onUpdate(newRelics, ornaments);
+        } else {
+            const newRelics: IRelicData[] = [
+                { set: newSet, type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [] },
+                { set: newSet, type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [] },
+                { set: newSet, type: 'Body', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+                { set: newSet, type: 'Feet', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+            ];
+            onUpdate(newRelics, ornaments);
+        }
+    };
+
+    // 2+2用: セット1 (Head/Hands) の変更
+    const handleRelicSet1Change = (setId: string) => {
+        if (setId === '') {
+            // 空選択時: Head/Handsを削除（Body/Feetは維持）
+            if (relics.length >= 4) {
+                const newRelics = relics.slice(2); // Body/Feetのみ残す
+                onUpdate(newRelics, ornaments);
+            } else {
+                onUpdate([], ornaments);
+            }
+            return;
+        }
+        const newSet = relicSetList.find(s => s.id === setId);
+        if (!newSet) return;
+
+        const currentSet2 = relics[2]?.set || relics[0]?.set;
+
+        if (relics.length >= 4) {
+            const newRelics = [...relics];
+            newRelics[0] = { ...newRelics[0], set: newSet };
+            newRelics[1] = { ...newRelics[1], set: newSet };
+            onUpdate(newRelics, ornaments);
+        } else if (relics.length >= 2 && currentSet2) {
+            // Body/Feetがある場合は4つにする
+            const newRelics: IRelicData[] = [
+                { set: newSet, type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [] },
+                { set: newSet, type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [] },
+                relics[0],
+                relics[1],
+            ];
+            onUpdate(newRelics, ornaments);
+        } else {
+            // 初期化
+            const newRelics: IRelicData[] = [
+                { set: newSet, type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [] },
+                { set: newSet, type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [] },
+            ];
+            onUpdate(newRelics, ornaments);
+        }
+    };
+
+    // 2+2用: セット2 (Body/Feet) の変更
+    const handleRelicSet2Change = (setId: string) => {
+        if (setId === '') {
+            // 空選択時: Body/Feetを削除（Head/Handsは維持）
+            if (relics.length >= 2) {
+                const newRelics = relics.slice(0, 2); // Head/Handsのみ残す
+                onUpdate(newRelics, ornaments);
+            } else {
+                onUpdate([], ornaments);
+            }
+            return;
+        }
+        const newSet = relicSetList.find(s => s.id === setId);
+        if (!newSet) return;
+
+        const currentSet1 = relics[0]?.set;
+
+        if (relics.length >= 4) {
+            const newRelics = [...relics];
+            newRelics[2] = { ...newRelics[2], set: newSet };
+            newRelics[3] = { ...newRelics[3], set: newSet };
+            onUpdate(newRelics, ornaments);
+        } else if (relics.length >= 2 && currentSet1) {
+            // Head/Handsがある場合は4つにする
+            const newRelics: IRelicData[] = [
+                relics[0],
+                relics[1],
+                { set: newSet, type: 'Body', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+                { set: newSet, type: 'Feet', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+            ];
+            onUpdate(newRelics, ornaments);
+        } else {
+            // 初期化
+            const newRelics: IRelicData[] = [
+                { set: newSet, type: 'Body', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+                { set: newSet, type: 'Feet', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+            ];
+            onUpdate(newRelics, ornaments);
+        }
+    };
+
+    // モード切替時の処理
+    const handleModeChange = (newMode: RelicMode) => {
+        setRelicMode(newMode);
+        // モード切替時は遺物をリセットしない（既存の状態を維持）
     };
 
     const handleOrnamentSetChange = (setId: string) => {
+        if (setId === '') {
+            onUpdate(relics, []);
+            return;
+        }
         const newSet = ornamentSetList.find(s => s.id === setId);
         if (!newSet) return;
 
-        const newOrnaments = ornaments.map(o => ({ ...o, set: newSet }));
-        onUpdate(relics, newOrnaments);
+        if (ornaments.length > 0) {
+            const newOrnaments = ornaments.map(o => ({ ...o, set: newSet }));
+            onUpdate(relics, newOrnaments);
+        } else {
+            const newOrnaments: IOrnamentData[] = [
+                { set: newSet, type: 'Planar Sphere', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+                { set: newSet, type: 'Link Rope', level: 15, mainStat: { stat: 'hp_pct', value: 0.432 }, subStats: [] },
+            ];
+            onUpdate(relics, newOrnaments);
+        }
     };
 
     const handleMainStatChange = (type: 'relic' | 'ornament', index: number, statKey: string) => {
@@ -93,13 +223,10 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
             newSubStats[index] = { ...newSubStats[index], value: Number(val) };
         }
 
-        // Update Head Relic
         updateItem('relic', 0, { ...relics[0], subStats: newSubStats });
     };
 
     const addSubStat = () => {
-        // No limit on global sub stats count in this UI, or maybe reasonable limit like 20?
-        // Game has 4 per relic * 6 = 24 max.
         if (subStats.length >= 24) return;
         const newSubStats = [...subStats, { stat: 'atk' as StatKey, value: 0 }];
         updateItem('relic', 0, { ...relics[0], subStats: newSubStats });
@@ -110,35 +237,114 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
         updateItem('relic', 0, { ...relics[0], subStats: newSubStats });
     };
 
+    // 現在のセットIDを取得
+    const currentSet1Id = relics[0]?.set?.id || '';
+    const currentSet2Id = relics[2]?.set?.id || '';
+
     return (
         <div className="p-4 border rounded bg-gray-800 text-white">
             <h3 className="text-lg font-bold mb-4">Relic Stats Configuration</h3>
 
+            {/* Mode Toggle */}
+            <div className="mb-4 flex gap-4 items-center">
+                <label className="text-sm font-bold">遺物構成:</label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                        type="radio"
+                        name="relicMode"
+                        checked={relicMode === '4pc'}
+                        onChange={() => handleModeChange('4pc')}
+                        className="accent-blue-500"
+                    />
+                    <span className="text-sm">4セット</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                        type="radio"
+                        name="relicMode"
+                        checked={relicMode === '2+2'}
+                        onChange={() => handleModeChange('2+2')}
+                        className="accent-blue-500"
+                    />
+                    <span className="text-sm">2+2セット</span>
+                </label>
+            </div>
+
             {/* Set Selection */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label className="block text-sm font-bold mb-1">Relic Set (4pc)</label>
-                    <select
-                        value={relics[0]?.set?.id || ''}
-                        onChange={(e) => handleRelicSetChange(e.target.value)}
-                        className="w-full p-2 bg-gray-700 rounded text-sm"
-                    >
-                        <option value="">Select Relic Set</option>
-                        {relicSetList.map(set => (
-                            <option key={set.id} value={set.id}>{set.name}</option>
-                        ))}
-                    </select>
-                    {/* Relic Set Description */}
-                    {relics[0]?.set && (
-                        <div className="mt-2 text-xs text-gray-400">
-                            {relics[0].set.setBonuses.map((bonus, idx) => (
-                                <div key={idx} className="mb-1">
-                                    <span className="font-semibold text-gray-300">{bonus.pieces}pc:</span> {bonus.description}
-                                </div>
+                {relicMode === '4pc' ? (
+                    /* 4セットモード */
+                    <div>
+                        <label className="block text-sm font-bold mb-1">Relic Set (4pc)</label>
+                        <select
+                            value={currentSet1Id}
+                            onChange={(e) => handleRelicSetChange(e.target.value)}
+                            className="w-full p-2 bg-gray-700 rounded text-sm"
+                        >
+                            <option value="">装備なし</option>
+                            {relicSetList.map(set => (
+                                <option key={set.id} value={set.id}>{set.name}</option>
                             ))}
+                        </select>
+                        {relics[0]?.set && (
+                            <div className="mt-2 text-xs text-gray-400">
+                                {relics[0].set.setBonuses.map((bonus, idx) => (
+                                    <div key={idx} className="mb-1">
+                                        <span className="font-semibold text-gray-300">{bonus.pieces}pc:</span> {bonus.description}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    /* 2+2セットモード */
+                    <>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">セット1 (Head/Hands)</label>
+                            <select
+                                value={currentSet1Id}
+                                onChange={(e) => handleRelicSet1Change(e.target.value)}
+                                className="w-full p-2 bg-gray-700 rounded text-sm"
+                            >
+                                <option value="">選択してください</option>
+                                {relicSetList.map(set => (
+                                    <option key={set.id} value={set.id}>{set.name}</option>
+                                ))}
+                            </select>
+                            {relics[0]?.set && (
+                                <div className="mt-2 text-xs text-gray-400">
+                                    {relics[0].set.setBonuses.filter(b => b.pieces === 2).map((bonus, idx) => (
+                                        <div key={idx} className="mb-1">
+                                            <span className="font-semibold text-gray-300">2pc:</span> {bonus.description}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">セット2 (Body/Feet)</label>
+                            <select
+                                value={currentSet2Id}
+                                onChange={(e) => handleRelicSet2Change(e.target.value)}
+                                className="w-full p-2 bg-gray-700 rounded text-sm"
+                            >
+                                <option value="">選択してください</option>
+                                {relicSetList.map(set => (
+                                    <option key={set.id} value={set.id}>{set.name}</option>
+                                ))}
+                            </select>
+                            {relics[2]?.set && (
+                                <div className="mt-2 text-xs text-gray-400">
+                                    {relics[2].set.setBonuses.filter(b => b.pieces === 2).map((bonus, idx) => (
+                                        <div key={idx} className="mb-1">
+                                            <span className="font-semibold text-gray-300">2pc:</span> {bonus.description}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
                 <div>
                     <label className="block text-sm font-bold mb-1">Ornament Set (2pc)</label>
                     <select
@@ -146,12 +352,11 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                         onChange={(e) => handleOrnamentSetChange(e.target.value)}
                         className="w-full p-2 bg-gray-700 rounded text-sm"
                     >
-                        <option value="">Select Ornament Set</option>
+                        <option value="">装備なし</option>
                         {ornamentSetList.map(set => (
                             <option key={set.id} value={set.id}>{set.name}</option>
                         ))}
                     </select>
-                    {/* Ornament Set Description */}
                     {ornaments[0]?.set && (
                         <div className="mt-2 text-xs text-gray-400">
                             {ornaments[0].set.setBonuses.map((bonus, idx) => (
@@ -170,9 +375,11 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                 {relics.map((relic, index) => {
                     const slotId = ['head', 'hands', 'body', 'feet'][index];
                     const slotDef = RELIC_SLOTS.find(s => s.id === slotId);
+                    const setName = relic.set?.name || '未設定';
                     return (
                         <div key={slotId} className="bg-gray-700 p-2 rounded">
                             <div className="text-sm font-bold mb-1">{slotDef?.name}</div>
+                            <div className="text-xs text-blue-300 mb-1">{setName}</div>
                             {slotDef?.fixedMainStat ? (
                                 <div className="text-xs text-gray-300">
                                     {slotDef.fixedMainStat}: {relic.mainStat.value}

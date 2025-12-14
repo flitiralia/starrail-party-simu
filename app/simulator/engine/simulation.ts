@@ -2,18 +2,20 @@ import { Character, Enemy, Element, SimulationLogEntry } from '../../types';
 import { createInitialGameState } from './gameState';
 import { dispatch, publishEvent, applyDamage, applyUnifiedDamage } from './dispatcher';
 import { GameState, Unit, CharacterConfig, IEventHandler, IEventHandlerLogic, SimulationConfig, IEventHandlerFactory, Action, RegisterHandlersAction, EventType, IEvent, DoTDamageEvent } from './types';
-import { initializeActionQueue, updateActionQueue, advanceTimeline, calculateActionValue, addActionValue, actionAdvance } from './actionValue';
+import { initializeActionQueue, updateActionQueue, advanceTimeline, calculateActionValue, addActionValue } from './actionValue';
+import { advanceAction } from './utils';
 import { LightConeRegistry, RelicRegistry } from './handlers/registry';
 import { createGenericLightConeHandlerFactory } from './handlers/generic';
 import { march7thHandlerFactory } from '../../data/characters/march-7th';
 import { tribbieHandlerFactory } from '../../data/characters/tribbie';
-import { DoTEffect, BreakStatusEffect } from '../effect/types';
+import { DoTEffect, BreakStatusEffect, IEffect } from '../effect/types';
 import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect } from '../effect/utils';
 import { calculateBreakDoTDamage, calculateNormalDoTDamage, calculateBreakAdditionalDamage } from '../damage';
 import { LEVEL_CONSTANT_80, FREEZE_REMOVAL_AV_ADVANCE } from './constants';
 import * as relicData from '../../data/relics';
 import * as ornamentData from '../../data/ornaments';
 import { registry } from '../registry';
+import { removeEffect, addEffect } from './effectManager';
 
 // Create a lookup map for all relic/ornament sets
 const allRelicSets = new Map<string, any>();
@@ -22,32 +24,120 @@ Object.values(ornamentData).forEach((set: any) => allRelicSets.set(set.id, set))
 
 const MAX_TURNS = 500;
 
+// Helper to select target based on Aggro
+function selectTarget(units: Unit[]): string {
+    if (units.length === 0) return '';
+
+    // Sort logic (optional, but good for deterministic fallback if needed)
+    // Calculate total aggro
+    const totalAggro = units.reduce((sum, u) => sum + (u.stats.aggro || u.baseStats.aggro || 100), 0);
+
+    // Random value
+    const rand = Math.random() * totalAggro;
+
+    let currentSum = 0;
+    for (const unit of units) {
+        // Use current calculated aggro if available, valid fallback to base or default
+        // Note: unit.stats.aggro should be populated by calculateFinalStats
+        const unitAggro = unit.stats.aggro || unit.baseStats.aggro || 100;
+        currentSum += unitAggro;
+        if (rand < currentSum) {
+            return unit.id;
+        }
+    }
+
+    // Fallback (should not reach here unless rounding errors)
+    return units[0]?.id || '';
+}
+
 function determineNextAction(unit: Unit, state: GameState): Action {
     const { config } = unit;
 
     if (!config) { // It's an enemy or has no config
-        const aliveAllies = state.units.filter(u => !u.isEnemy && u.hp > 0);
-        return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveAllies[0].id };
+        // 召喚物（記憶の精霊など）はターン時に精霊スキルを発動
+        if (unit.isSummon) {
+            const aliveEnemies = state.units.filter(u => u.isEnemy && u.hp > 0);
+            return { type: 'SKILL', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+        }
+
+        // 敵の場合は通常攻撃
+        // untargetableフラグがtrueのユニット（龍霊など）はターゲットにならない
+        // 記憶の精霊（untargetable: false）はターゲット可能
+        const aliveAllies = state.units.filter(u => !u.isEnemy && u.hp > 0 && !u.untargetable);
+        const targetId = selectTarget(aliveAllies);
+        return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
     }
 
     // 自分のターンで必殺技を使うかどうか（割り込みではない）
+    if (unit.id.includes('toukou')) {
+        // console.log(`[Debug] determineNextAction for ${unit.name} (${unit.id})`);
+    }
+
     if (unit.ep >= unit.stats.max_ep && unit.ultCooldown === 0 && config.ultStrategy !== 'immediate') {
         if (config.ultStrategy === 'cooldown') { // 'cooldown' 戦略などの場合
             return { type: 'ULTIMATE', sourceId: unit.id };
         }
     }
 
-    // 2. Follow rotation
+
+    const aliveEnemies = state.units.filter(u => u.isEnemy && u.hp > 0);
+
+    // 2. Custom Logic Override (e.g. Archer Continuous Skill)
+    if (unit.id === 'archar' && config.rotationMode === 'spam_skill') {
+        const circuitBuff = unit.effects.find(e => e.id === `archar-circuit-${unit.id}`);
+        const triggerSp = config.spamSkillTriggerSp ?? 4;
+        // If in Circuit Connection OR SP >= trigger, force Skill
+        if ((circuitBuff || state.skillPoints >= triggerSp) && state.skillPoints >= 2) {
+            const ability = unit.abilities.skill;
+            // Check for PREVENT_TURN_END tag in buffs
+            const preventTurnEnd = unit.effects.some(e => e.tags?.includes('PREVENT_TURN_END'));
+            return {
+                type: 'SKILL',
+                sourceId: unit.id,
+                targetId: aliveEnemies[0]?.id, // Default to enemy
+                flags: preventTurnEnd ? { skipTurnEnd: true } : undefined
+            };
+        } else {
+            // If condition not met in spam_skill mode, default to Basic Attack immediately
+            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+        }
+    }
+
+    // 3. Follow rotation
     const rotation = config.rotation;
     const actionChar = rotation[unit.rotationIndex % rotation.length];
 
-    const aliveEnemies = state.units.filter(u => u.isEnemy && u.hp > 0);
     let targetId = aliveEnemies[0]?.id; // Default to enemy
 
-    if (actionChar === 's' && state.skillPoints > 0) {
+    // ★ SKILL_SILENCE チェック ★
+    // エフェクトに 'SKILL_SILENCE' タグがある場合、スキルを使用できない（強制的に通常攻撃へ）
+    const isSkillSilenced = unit.effects.some(e => e.tags?.includes('SKILL_SILENCE'));
+
+    // ★ ENHANCED_BASIC チェック ★
+    // エフェクトに 'ENHANCED_BASIC' タグがある場合、通常攻撃が強化通常攻撃に置き換わる
+    const hasEnhancedBasic = unit.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+
+    if (isSkillSilenced) {
+        console.log(`[Simulation] ${unit.name} is silenced (SKILL_SILENCE). Forcing ${hasEnhancedBasic ? 'Enhanced ' : ''}Basic Attack.`);
+        if (hasEnhancedBasic && unit.abilities.enhancedBasic) {
+            return { type: 'ENHANCED_BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
+        }
+        return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
+    }
+
+    if (actionChar === 's' && (state.skillPoints > 0 || unit.isSummon)) {
         const ability = unit.abilities.skill;
-        if (ability.targetType === 'ally' || ability.targetType === 'self') {
-            targetId = unit.id; // Target self for simplicity
+        if (ability.targetType === 'ally' || ability.targetType === 'self' || ability.targetType === 'all_allies') {
+            targetId = unit.id; // Target self for simplicity by default
+
+            // ★ Manual Target Selection Override ★
+            if (config.skillTargetId) {
+                const manualTarget = state.units.find(u => u.id === config.skillTargetId);
+                // Can target if alive
+                if (manualTarget && manualTarget.hp > 0 && !manualTarget.isEnemy) {
+                    targetId = manualTarget.id;
+                }
+            }
         }
 
         // Check for PREVENT_TURN_END tag in buffs
@@ -61,7 +151,10 @@ function determineNextAction(unit: Unit, state: GameState): Action {
         };
     }
 
-    // Default to Basic Attack if rotation is 'b' or if 's' and no SP
+    // Default to Basic Attack (or Enhanced Basic if tag is present)
+    if (hasEnhancedBasic && unit.abilities.enhancedBasic) {
+        return { type: 'ENHANCED_BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+    }
     return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
 }
 
@@ -190,16 +283,16 @@ function processTurnStartDurations(state: GameState, actingUnitId: string): Game
     updatedUnit.effects = updatedUnit.effects
         .map(effect => {
             // DoTエフェクトのみターン数減算
-            // DoTエフェクトおよびTURN_START_BASEDのバフのターン数減算
-            if (effect.durationType === 'TURN_START_BASED' && (isDoTEffect(effect) || effect.category === 'BUFF')) {
+            // DoTエフェクトおよびTURN_START_BASEDのバフ/デバフのターン数減算
+            if (effect.durationType === 'TURN_START_BASED' && (isDoTEffect(effect) || effect.category === 'BUFF' || effect.category === 'DEBUFF')) {
                 return { ...effect, duration: effect.duration - 1 };
             }
             return effect;
         })
         .filter(effect => {
             // DoTエフェクトで期限切れのものを削除
-            // DoTエフェクトおよびTURN_START_BASEDのバフで期限切れのものを削除
-            if (effect.durationType === 'TURN_START_BASED' && (isDoTEffect(effect) || effect.category === 'BUFF')) {
+            // DoTエフェクトおよびTURN_START_BASEDのバフ/デバフで期限切れのものを削除
+            if (effect.durationType === 'TURN_START_BASED' && (isDoTEffect(effect) || effect.category === 'BUFF' || effect.category === 'DEBUFF')) {
                 if (effect.duration <= 0) {
                     // 期限切れ: removeコールバックを呼ぶ
                     if (effect.remove) {
@@ -235,33 +328,42 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
     unitInNewState.rotationIndex = newRotationIndex;
     unitInNewState.ultCooldown = newUltCooldown;
 
-    // Reset Action Value for the next turn (AV model)
-    const baseAV = calculateActionValue(unitInNewState.stats.spd);
-    console.log(`[Debug] updateTurnEndState: Unit ${unitInNewState.name}, Action ${action.type}, OldAV ${unitInNewState.actionValue}, NewAV ${(unitInNewState.actionValue || 0) + baseAV}`);
-    // AV increase is handled by addActionValue at the end of the function
-
     // ★ Buff Duration Management (Turn End) ★
-    // Only process TURN_END_BASED and DURATION_BASED (backward compatibility)
+    // Only process TURN_END_BASED effects
     // TURN_START_BASED effects (DoTs) are already processed in Phase 3
-    unitInNewState.effects = unitInNewState.effects
-        .map(effect => {
-            if (effect.durationType === 'TURN_END_BASED' || effect.durationType === 'DURATION_BASED') {
-                return { ...effect, duration: effect.duration - 1 };
+    let currentState = state;
+    const filteredEffects: typeof unitInNewState.effects = [];
+
+    for (const effect of unitInNewState.effects) {
+        if (effect.durationType === 'TURN_END_BASED') {
+            // skipFirstTurnDecrementフラグがあり、かつ獲得ターン中の場合はスキップ
+            if (effect.skipFirstTurnDecrement && effect.appliedDuringTurnOf === actingUnit.id) {
+                // フラグをクリアして次回から減少
+                filteredEffects.push({ ...effect, appliedDuringTurnOf: undefined });
+                continue;
             }
-            return effect; // PERMANENT and TURN_START_BASED are kept unchanged
-        })
-        .filter(effect => {
-            if (effect.durationType === 'TURN_END_BASED' || effect.durationType === 'DURATION_BASED') {
-                if (effect.duration <= 0) {
-                    // Expired: call remove callback
-                    if (effect.remove) {
-                        state = effect.remove(unitInNewState, state);
-                    }
-                    return false; // Remove effect
+
+            const updatedEffect = { ...effect, duration: effect.duration - 1 };
+
+            if (updatedEffect.duration <= 0) {
+                // Expired: call remove callback with latest state
+                if (effect.remove) {
+                    // 最新のユニットを取得してremoveを呼ぶ
+                    const freshUnit = currentState.units.find(u => u.id === actingUnit.id)!;
+                    currentState = effect.remove(freshUnit, currentState);
                 }
+                // エフェクトを削除（配列に追加しない）
+                continue;
             }
-            return true; // Keep effect (PERMANENT, TURN_START_BASED, or not expired)
-        });
+
+            filteredEffects.push(updatedEffect);
+        } else {
+            // PERMANENT and TURN_START_BASED are kept unchanged
+            filteredEffects.push(effect);
+        }
+    }
+
+    unitInNewState.effects = filteredEffects;
 
     // ★ Handler Cooldown Management ★
     const newCooldowns: Record<string, number> = {};
@@ -278,9 +380,9 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
         cooldowns: newCooldowns,
     };
 
-    // Add BaseAV and Re-sort Action Queue
-    const nextBaseAV = calculateActionValue(unitInNewState.stats.spd);
-    return addActionValue(nextState, unitInNewState.id, nextBaseAV);
+    // ★ターン開始時にAVを設定する方式に変更したため、ここでのAV加算は不要
+    // 行動順短縮効果がターン中に適用されるため、ターン終了時にAV加算すると二重加算になる
+    return updateActionQueue(nextState);
 }
 
 export function stepSimulation(state: GameState): GameState {
@@ -309,6 +411,34 @@ export function stepSimulation(state: GameState): GameState {
         return {
             ...newState,
             actionQueue: newState.actionQueue.filter(e => e.unitId !== nextEntry.unitId)
+        };
+    }
+
+    // ★現在ターン中のユニットIDを設定（バフ獲得ターン減少スキップ判定用）
+    newState = {
+        ...newState,
+        currentTurnOwnerId: currentActingUnit.id
+    };
+
+    // ★ターン開始時に次のAVを設定（ゲーム仕様準拠）
+    // これにより、行動中に発動する行動順短縮（ダンス・ダンス・ダンス等）が正しく反映される
+    // 召喚物を含む全ユニットに適用（召喚物のAV管理バグ修正）
+    {
+        const baseAV = 10000 / currentActingUnit.stats.spd;
+        currentActingUnit = { ...currentActingUnit, actionValue: baseAV };
+
+        // actionQueueも更新
+        const queueIdx = newState.actionQueue.findIndex(e => e.unitId === currentActingUnit!.id);
+        if (queueIdx !== -1) {
+            const newQueue = [...newState.actionQueue];
+            newQueue[queueIdx] = { ...newQueue[queueIdx], actionValue: baseAV };
+            newState = { ...newState, actionQueue: newQueue };
+        }
+
+        // unitsも更新
+        newState = {
+            ...newState,
+            units: newState.units.map(u => u.id === currentActingUnit!.id ? currentActingUnit! : u)
         };
     }
 
@@ -422,8 +552,8 @@ export function stepSimulation(state: GameState): GameState {
             log: [...newState.log, {
                 characterName: affectedUnit.name,
                 actionTime: newState.time,
-                actionType: 'TurnSkipped',
-                details: `${ccEffect.statusType} (Turn Skipped)`,
+                actionType: 'ターンスキップ',
+                details: `${ccEffect.statusType} (ターンスキップ)`,
                 sourceId: affectedUnit.id,
                 skillPointsAfterAction: newState.skillPoints,
                 damageDealt: 0,
@@ -449,7 +579,7 @@ export function stepSimulation(state: GameState): GameState {
         if (shouldAdvanceAV) {
             const updatedUnit = newState.units.find(u => u.id === affectedUnit.id)!;
             // 50% AV Advance
-            newState = actionAdvance(newState, updatedUnit.id, FREEZE_REMOVAL_AV_ADVANCE);
+            newState = advanceAction(newState, updatedUnit.id, FREEZE_REMOVAL_AV_ADVANCE);
         }
 
         newState = updateActionQueue(newState);
@@ -465,19 +595,84 @@ export function stepSimulation(state: GameState): GameState {
     // Moved after DoT/Freeze processing based on user feedback
     if (currentActingUnit!.isEnemy) {
         if (currentActingUnit!.toughness <= 0) {
-            // 弱点撃破状態を延長する効果（靭性回復をスキップさせる効果）があるかチェック
-            // 例: ルアン・メェの残梅など
-            const skipRecovery = currentActingUnit!.effects.some(e => e.tags?.includes('SKIP_TOUGHNESS_RECOVERY'));
+            // ★ 弱点撃破回復試行イベントを発火（残梅ハンドラー用）
+            newState = publishEvent(newState, {
+                type: 'ON_WEAKNESS_BREAK_RECOVERY_ATTEMPT',
+                sourceId: currentActingUnit!.id,
+                targetId: currentActingUnit!.id
+            });
+
+            // 最新状態を取得（ハンドラーで変更された可能性）
+            currentActingUnit = newState.units.find(u => u.id === currentActingUnit!.id)!;
+
+            // 残梅のSKIP_TOUGHNESS_RECOVERYタグで回復スキップ判定
+            const skipRecovery = currentActingUnit.effects.some(
+                e => e.tags?.includes('SKIP_TOUGHNESS_RECOVERY')
+            );
 
             if (!skipRecovery) {
+                // 靳性回復
                 currentActingUnit = {
-                    ...currentActingUnit!,
-                    toughness: currentActingUnit!.maxToughness,
+                    ...currentActingUnit,
+                    toughness: currentActingUnit.maxToughness,
                 };
+
+                // 残梅再付与不可マーカーを削除
+                const noReapplyEffect = currentActingUnit.effects.find(e => e.name === '残梅再付与不可');
+                if (noReapplyEffect) {
+                    newState = removeEffect(newState, currentActingUnit.id, noReapplyEffect.id);
+                    currentActingUnit = newState.units.find(u => u.id === currentActingUnit!.id)!;
+                }
+
                 newState = {
                     ...newState,
                     units: newState.units.map(u => u.id === currentActingUnit!.id ? currentActingUnit! : u),
                 };
+            } else {
+                // ★ 残梅発動時：敵のターンをスキップ
+                // 靭性回復がスキップされた場合、敵は行動せずにターン終了
+                newState.log.push({
+                    actionType: 'ターンスキップ',
+                    characterName: currentActingUnit.name,
+                    details: '残梅: 弱点撃破状態を維持'
+                } as any);
+
+                // ★ 残梅を消費し、再付与不可マーカーを付与
+                const zanBaiEffects = currentActingUnit.effects.filter(e =>
+                    e.name === '残梅' && e.tags?.includes('SKIP_TOUGHNESS_RECOVERY')
+                );
+                for (const zanBai of zanBaiEffects) {
+                    // 残梅を消費
+                    newState = removeEffect(newState, currentActingUnit.id, zanBai.id);
+
+                    // 再付与不可マーカーを付与
+                    const noReapplyEffect: IEffect = {
+                        id: `ruan-mei-zanbai-no-reapply-${zanBai.sourceUnitId}-${currentActingUnit.id}`,
+                        name: '残梅再付与不可',
+                        category: 'DEBUFF',
+                        sourceUnitId: zanBai.sourceUnitId,
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        ignoreResistance: true,
+                        onApply: (t: Unit, s: GameState) => s,
+                        onRemove: (t: Unit, s: GameState) => s,
+                        apply: (t: Unit, s: GameState) => s,
+                        remove: (t: Unit, s: GameState) => s,
+                    };
+                    newState = addEffect(newState, currentActingUnit.id, noReapplyEffect);
+                }
+
+                // 最新状態を取得
+                currentActingUnit = newState.units.find(u => u.id === currentActingUnit!.id)!;
+
+                // ターン終了処理（Action Queueの更新）
+                newState = updateTurnEndState(newState, currentActingUnit, { type: 'TURN_SKIP', sourceId: currentActingUnit.id, reason: '残梅' });
+                newState = updateActionQueue(newState);
+
+                // 割り込みチェック
+                newState = checkAndExecuteInterruptingUltimates(newState);
+
+                return newState;
             }
         }
     }
@@ -488,43 +683,61 @@ export function stepSimulation(state: GameState): GameState {
     // 4. Dispatch Action
     newState = dispatch(newState, action);
 
-    // ★ 割り込みチェックフェーズ (Post-Action) ★
-    // Action execution (including energy gain) may have filled EP to max
-    // Check for interrupting ultimates before processing pending actions
+    // ★ 追加攻撃処理（ターン終了前に実行）★
+    // pendingActionsをすべて処理してから必殺技チェックとターン終了処理に進む
+    let pendingIterations = 0;
+    const MAX_PENDING_ITERATIONS = 50; // 無限ループ防止
+    while (newState.pendingActions.length > 0 && pendingIterations < MAX_PENDING_ITERATIONS) {
+        const pendingAction = newState.pendingActions[0];
+        newState = {
+            ...newState,
+            pendingActions: newState.pendingActions.slice(1) // イミュータブルに削除
+        };
+        if (pendingAction) {
+            newState = dispatch(newState, pendingAction);
+        }
+        pendingIterations++;
+    }
+
+    // ★ 割り込みチェックフェーズ (全アクション完了後) ★
+    // 全アクション（メイン＋追加攻撃）完了後に必殺技チェック
     newState = checkAndExecuteInterruptingUltimates(newState);
 
     // 5. Post-Action Updates
     if (action.type !== 'ULTIMATE' && action.type !== 'FOLLOW_UP_ATTACK') {
         let skipTurnEnd = (action as any).flags?.skipTurnEnd;
 
-        // Check if the unit has PREVENT_TURN_END tag in the NEW state (e.g. applied during action)
-        if (!skipTurnEnd && action.type === 'SKILL') {
-            const actingUnitInNewState = newState.units.find(u => u.id === currentActingUnit!.id);
-            if (actingUnitInNewState) {
-                console.log(`[Simulation] Checking Turn End for ${actingUnitInNewState.name}. Effects: ${actingUnitInNewState.effects.map(e => `${e.name}(tags:${e.tags})`).join(', ')}`);
-                if (actingUnitInNewState.effects.some(e => e.tags?.includes('PREVENT_TURN_END'))) {
-                    skipTurnEnd = true;
-                }
+        // Check if the unit has PREVENT_TURN_END tag in the NEW state
+        // IMPORTANT: このチェックはアクション完了後（エフェクト削除後）の状態で行う
+        const actingUnitInNewState = newState.units.find(u => u.id === currentActingUnit!.id);
+        if (actingUnitInNewState) {
+            console.log(`[Simulation] Checking Turn End for ${actingUnitInNewState.name}. Effects: ${actingUnitInNewState.effects.map(e => `${e.name}(tags:${e.tags})`).join(', ')}`);
+
+            // 最新のエフェクト状態に基づいて判断
+            const hasPREVENT_TURN_END = actingUnitInNewState.effects.some(e => e.tags?.includes('PREVENT_TURN_END'));
+
+            if (hasPREVENT_TURN_END) {
+                // バフがまだ存在する場合のみターン終了をスキップ
+                skipTurnEnd = true;
+            } else if (skipTurnEnd) {
+                // アクション中にPREVENT_TURN_ENDバフが削除された場合（回路接続終了など）
+                // ターン終了を許可
+                console.log(`[Simulation] PREVENT_TURN_END was removed during action for ${actingUnitInNewState.name}. Allowing Turn End.`);
+                skipTurnEnd = false;
             }
         }
 
         if (!skipTurnEnd) {
+            // ★ ON_TURN_END イベント発行（ターン終了時のハンドラトリガー）
+            newState = publishEvent(newState, { type: 'ON_TURN_END', sourceId: currentActingUnit!.id, value: 0 });
             newState = updateTurnEndState(newState, currentActingUnit!, action);
         } else {
             console.log(`[Simulation] Skipping Turn End for ${currentActingUnit!.name} due to skipTurnEnd flag/tag.`);
         }
     }
 
-    // ★ 割り込みチェックフェーズ (End of Turn) ★
+    // ★ 割り込みチェックフェーズ (ターン終了後) ★
     newState = checkAndExecuteInterruptingUltimates(newState);
-
-    // 6. Process Pending Actions
-    while (newState.pendingActions.length > 0) {
-        const pendingAction = newState.pendingActions.shift();
-        if (pendingAction) {
-            newState = dispatch(newState, pendingAction);
-        }
-    }
 
     return newState;
 }

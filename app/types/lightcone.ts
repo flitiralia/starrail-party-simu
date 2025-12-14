@@ -1,5 +1,5 @@
-import { Path, IEffect, StatKey, FinalStats } from './index';
-import { Unit, GameState } from '../simulator/engine/types'; // Unit, GameStateをengine/typesからインポート
+import { Path, IEffect, StatKey, FinalStats, EventType } from './index';
+import { Unit, GameState, GameEvent } from '../simulator/engine/types';
 
 /**
  * 光円錐の基礎ステータス（レベル80）
@@ -17,26 +17,76 @@ export interface LightConeBaseStats {
 export type SuperimpositionValue = [number, number, number, number, number];
 
 /**
- * 光円錐が持つ効果のデータ構造
- * name: 効果名
- * description: ゲーム内テキスト
- * properties: 計算に使用する具体的な数値。キーで効果を識別し、値に重畳ランクごとの数値を格納する。
+ * クールダウンリセットのタイミング
+ * - 'wearer_turn': 装備キャラのターン開始時のみリセット（デフォルト）
+ * - 'any_turn': 任意のターン開始時にリセット（輪契など被弾トリガーがある場合）
  */
-export interface ILightConeEffect extends IEffect { // IEffectを継承し、LightConeEffectをILightConeEffectにリネーム
-  effectValue?: SuperimpositionValue; // 効果量（例：ダメージ増加率など）を重畳ランクごとに持つ
-  targetStat?: StatKey; // どのStatKeyに影響するか
-  condition?: (stats: FinalStats) => boolean; // 条件付き効果のための判定関数
-  customHandler?: boolean; // カスタムハンドラを使用するかどうか
-  // apply/removeメソッドはIEffectから継承される
+export type CooldownResetType = 'wearer_turn' | 'any_turn';
+
+/**
+ * パッシブ効果（ステータス変更のみ）
+ */
+export interface PassiveLightConeEffect {
+  id: string;
+  name: string;
+  category: 'BUFF' | 'DEBUFF';
+  targetStat: StatKey;
+  effectValue: SuperimpositionValue;
+  condition?: (stats: FinalStats) => boolean;
+  calculateValue?: (stats: FinalStats, superimposition: number) => number; // 動的計算用
+}
+
+/**
+ * イベント駆動ハンドラー
+ */
+export interface LightConeEventHandler {
+  id: string;
+  name: string;
+  events: EventType[];
+  cooldownResetType?: CooldownResetType; // デフォルト: 'wearer_turn'
+  handler: (
+    event: GameEvent,
+    state: GameState,
+    unit: Unit,
+    superimposition: number
+  ) => GameState;
+}
+
+/**
+ * 光円錐が持つ効果のデータ構造（DEPRECATED）
+ * 新規実装ではPassiveLightConeEffectまたはLightConeEventHandlerを使用してください
+ */
+export interface ILightConeEffect extends IEffect {
+  effectValue?: SuperimpositionValue;
+  targetStat?: StatKey;
+  condition?: (stats: FinalStats) => boolean;
+  customHandler?: boolean;
+  cooldownResetType?: CooldownResetType;
 }
 
 /**
  * 光円錐全体のデータ構造
  */
-export interface ILightConeData { // LightConeをILightConeDataにリネーム
+/**
+ * 重畳ランク1から5に対応する説明文の値配列
+ */
+export type SuperimpositionDescriptionValues = [string[], string[], string[], string[], string[]];
+
+export interface ILightConeData {
   id: string;
   name: string;
+  description: string;
+  /** プレースホルダー({0}, {1}, ...)付きの説明文テンプレート */
+  descriptionTemplate?: string;
+  /** 重畳ランクごとのプレースホルダー値 [S1, S2, S3, S4, S5] */
+  descriptionValues?: SuperimpositionDescriptionValues;
   path: Path;
   baseStats: LightConeBaseStats;
-  effects: ILightConeEffect[]; // LightConeEffectをILightConeEffectに
+
+  // 新形式（推奨）
+  passiveEffects?: PassiveLightConeEffect[];
+  eventHandlers?: LightConeEventHandler[];
+
+  // 旧形式（後方互換性のため維持）
+  effects?: ILightConeEffect[];
 }

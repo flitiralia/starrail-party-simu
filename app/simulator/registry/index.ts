@@ -2,8 +2,13 @@ import { IEventHandlerFactory } from '../engine/types';
 import { march7thHandlerFactory } from '../../data/characters/march-7th';
 import { tribbieHandlerFactory } from '../../data/characters/tribbie';
 import { kafkaHandlerFactory } from '../../data/characters/kafka';
-import { luochaHandlerFactory } from '../../data/characters/luocha-handler';
+import { luochaHandlerFactory } from '../../data/characters/luocha';
 import { archarHandlerFactory } from '../../data/characters/archar';
+import { danHengToukouHandlerFactory } from '../../data/characters/dan-heng-permansor-terrae';
+import { hianshiHandlerFactory } from '../../data/characters/hianshi';
+import { bladeHandlerFactory } from '../../data/characters/blade';
+import { ruanMeiHandlerFactory } from '../../data/characters/ruan-mei';
+import { sundayHandlerFactory } from '../../data/characters/sunday';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -48,3 +53,9 @@ registry.registerCharacter('tribbie', tribbieHandlerFactory);
 registry.registerCharacter('kafka', kafkaHandlerFactory);
 registry.registerCharacter('luocha', luochaHandlerFactory);
 registry.registerCharacter('archar', archarHandlerFactory);
+registry.registerCharacter('dan-heng-permansor-terrae', danHengToukouHandlerFactory);
+registry.registerCharacter('hianshi', hianshiHandlerFactory);
+registry.registerCharacter('blade', bladeHandlerFactory);
+registry.registerCharacter('ruan-mei', ruanMeiHandlerFactory);
+registry.registerCharacter('sunday', sundayHandlerFactory);
+

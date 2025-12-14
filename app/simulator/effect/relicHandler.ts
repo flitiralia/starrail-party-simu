@@ -12,9 +12,25 @@ function getAllRelicEffects(unit: Unit): { effect: RelicEffect, sourceRelicId: s
     const processSet = (set: IRelicData['set'] | IOrnamentData['set'], count: number, idPrefix: string) => {
         for (const bonus of set.setBonuses) {
             if (count >= bonus.pieces) {
-                bonus.effects.forEach((effect, index) => {
-                    effects.push({ effect, sourceRelicId: `${idPrefix}-${set.id}-${bonus.pieces}pc-${index}` });
-                });
+
+
+                // 2. Passive Effects (New)
+                if (bonus.passiveEffects) {
+                    bonus.passiveEffects.forEach((effect, index) => {
+                        // Compatibility: Inject type 'PASSIVE_STAT' if missing
+                        const compatibleEffect = { ...effect, type: 'PASSIVE_STAT' } as RelicEffect;
+                        effects.push({ effect: compatibleEffect, sourceRelicId: `${idPrefix}-${set.id}-${bonus.pieces}pc-passive-${index}` });
+                    });
+                }
+
+                // 3. Event Handlers (New)
+                if (bonus.eventHandlers) {
+                    bonus.eventHandlers.forEach((effect, index) => {
+                        // Compatibility: Inject type 'EVENT_TRIGGER' if missing
+                        const compatibleEffect = { ...effect, type: 'EVENT_TRIGGER' } as RelicEffect;
+                        effects.push({ effect: compatibleEffect, sourceRelicId: `${idPrefix}-${set.id}-${bonus.pieces}pc-event-${index}` });
+                    });
+                }
             }
         }
     };
@@ -57,8 +73,9 @@ function getAllRelicEffects(unit: Unit): { effect: RelicEffect, sourceRelicId: s
 /**
  * パッシブ効果（ステータスバフ）を更新する
  * 条件(condition)を評価し、満たしていればModifierを追加、満たしていなければ削除する。
+ * @param timing 'battle_start'の場合は全ての条件を評価、'turn_start'の場合はdynamic評価のみ
  */
-export function updatePassiveBuffs(state: GameState): GameState {
+export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 'turn_start' = 'battle_start'): GameState {
     let newState = { ...state };
 
     // DEBUG: Log effects for each unit at start
@@ -91,6 +108,7 @@ export function updatePassiveBuffs(state: GameState): GameState {
             let targetIds: string[] = [];
             if (passiveEffect.target === 'self') targetIds = [sourceUnit.id];
             else if (passiveEffect.target === 'all_allies') targetIds = workingUnits.filter(u => !u.isEnemy).map(u => u.id);
+            else if (passiveEffect.target === 'other_allies') targetIds = workingUnits.filter(u => !u.isEnemy && u.id !== sourceUnit.id).map(u => u.id); // 自分以外の味方
             else if (passiveEffect.target === 'all_enemies') targetIds = workingUnits.filter(u => u.isEnemy).map(u => u.id);
 
             targetIds.forEach(tid => {
@@ -141,6 +159,12 @@ export function updatePassiveBuffs(state: GameState): GameState {
             const passiveEffect = effect as PassiveRelicEffect;
             if (!passiveEffect.condition) continue; // Skip unconditional (already done)
 
+            // evaluationTimingに基づいてスキップ
+            const evalTiming = passiveEffect.evaluationTiming || 'dynamic';
+            if (timing === 'turn_start' && evalTiming === 'battle_start') {
+                continue; // 戦闘開始時のみの効果はターン開始時にはスキップ
+            }
+
             const stats = unitStatsMap.get(sourceUnit.id);
             if (passiveEffect.stat === 'crit_dmg') {
                 console.log(`[RelicHandler] Checking condition for ${sourceRelicId} on ${sourceUnit.id}`);
@@ -156,6 +180,7 @@ export function updatePassiveBuffs(state: GameState): GameState {
                 let targetIds: string[] = [];
                 if (passiveEffect.target === 'self') targetIds = [sourceUnit.id];
                 else if (passiveEffect.target === 'all_allies') targetIds = workingUnits.filter(u => !u.isEnemy).map(u => u.id);
+                else if (passiveEffect.target === 'other_allies') targetIds = workingUnits.filter(u => !u.isEnemy && u.id !== sourceUnit.id).map(u => u.id); // 自分以外の味方
                 else if (passiveEffect.target === 'all_enemies') targetIds = workingUnits.filter(u => u.isEnemy).map(u => u.id);
 
                 targetIds.forEach(tid => {

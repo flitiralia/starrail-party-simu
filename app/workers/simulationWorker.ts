@@ -12,7 +12,6 @@ self.onmessage = (event: MessageEvent<SimulationWorkerMessage>) => {
       characters: data.characters,
       enemies: data.enemies,
       weaknesses: weaknessesSet,
-      characterConfig: data.characterConfig,
       partyConfig: data.partyConfig, // パーティ設定を追加
       enemyConfig: data.enemyConfig,
       rounds: data.rounds,

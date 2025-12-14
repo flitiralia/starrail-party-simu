@@ -11,6 +11,7 @@ import {
     CharacterRotationConfig,
 } from '@/app/types';
 import { RelicEditor } from './RelicEditor';
+import { getLightConeDescription } from '@/app/utils/lightConeUtils';
 
 interface CharacterConfigPanelProps {
     character: Character;
@@ -117,20 +118,6 @@ export default function CharacterConfigPanel({
         onCharacterUpdate(updatedChar);
     };
 
-    const handleUltStrategyChange = (strategy: 'immediate' | 'cooldown') => {
-        onConfigUpdate({
-            ...config,
-            ultStrategy: strategy,
-        });
-    };
-
-    const handleUltCooldownChange = (cooldown: number) => {
-        onConfigUpdate({
-            ...config,
-            ultCooldown: cooldown,
-        });
-    };
-
     return (
         <div style={panelStyle}>
             <h3 style={{ margin: 0, borderBottom: '1px solid #555', paddingBottom: '8px' }}>
@@ -186,14 +173,47 @@ export default function CharacterConfigPanel({
                             ))}
                         </select>
 
-                        {selectedLightCone.effects.map((e) => (
-                            <div key={e.name} style={descriptionStyle}>
-                                <strong>{e.name}:</strong> {(e as any).description}
-                            </div>
-                        ))}
+                        {/* 光円錐の効果説明（重畳ランク対応） */}
+                        <div style={descriptionStyle}>
+                            {getLightConeDescription(selectedLightCone, superimposition as 1 | 2 | 3 | 4 | 5)}
+                        </div>
                     </>
+
                 )}
             </div>
+
+            {/* Rotation Settings (Archer Specific for now) */}
+            {
+                character.id === 'archar' && (
+                    <div style={sectionStyle}>
+                        <label style={labelStyle}>行動ロジック設定</label>
+                        <select
+                            style={selectorStyle}
+                            value={config.rotationMode || 'sequence'}
+                            onChange={(e) => onConfigUpdate({ ...config, rotationMode: e.target.value as 'sequence' | 'spam_skill' })}
+                        >
+                            <option value="sequence">通常ローテーション</option>
+                            <option value="spam_skill">スキル連続使用 (SP条件)</option>
+                        </select>
+
+                        {config.rotationMode === 'spam_skill' && (
+                            <div style={{ marginTop: '8px' }}>
+                                <label style={{ ...labelStyle, fontSize: '0.9em' }}>発動開始SP閾値</label>
+                                <input
+                                    type="number"
+                                    style={selectorStyle}
+                                    value={config.spamSkillTriggerSp ?? 4}
+                                    onChange={(e) => onConfigUpdate({ ...config, spamSkillTriggerSp: Number(e.target.value) })}
+                                    min={0}
+                                />
+                                <div style={descriptionStyle}>
+                                    SPがこの値以上、かつスキルコスト(2)が払える場合、ローテーションを無視してスキルを使用し続けます。
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )
+            }
 
             {/* 遺物編集 */}
             <div style={sectionStyle}>
@@ -206,44 +226,6 @@ export default function CharacterConfigPanel({
                     onUpdate={handleRelicUpdate}
                 />
             </div>
-
-            {/* 必殺技戦略 */}
-            <div style={sectionStyle}>
-                <label style={labelStyle}>必殺技発動方針</label>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                            type="radio"
-                            value="immediate"
-                            checked={config.ultStrategy === 'immediate'}
-                            onChange={() => handleUltStrategyChange('immediate')}
-                        />
-                        即時発動
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                            type="radio"
-                            value="cooldown"
-                            checked={config.ultStrategy === 'cooldown'}
-                            onChange={() => handleUltStrategyChange('cooldown')}
-                        />
-                        クールダウン制
-                    </label>
-                </div>
-
-                {config.ultStrategy === 'cooldown' && (
-                    <>
-                        <label style={labelStyle}>必殺技クールダウン (ターン数)</label>
-                        <input
-                            type="number"
-                            style={selectorStyle}
-                            value={config.ultCooldown}
-                            onChange={(e) => handleUltCooldownChange(Number(e.target.value))}
-                            min={0}
-                        />
-                    </>
-                )}
-            </div>
-        </div>
+        </div >
     );
 }

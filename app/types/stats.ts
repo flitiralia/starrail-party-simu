@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const StatKeySchema = z.enum([
   'hp', 'atk', 'def',                           // Flat stats that also serve as base stats
   'hp_pct', 'atk_pct', 'def_pct', 'spd_pct',      // Percentage-based stats
-  'spd',                                         // Flat stat
+  'spd', 'aggro',                                // Flat stat
   'crit_rate', 'crit_dmg',                       // Crit-related stats
   'effect_hit_rate', 'effect_res',               // Effect-related stats
   'crowd_control_res',                           // Crowd Control Resistance (Debuff RES)
@@ -14,7 +14,8 @@ export const StatKeySchema = z.enum([
   'physical_vuln', 'fire_vuln', 'ice_vuln', 'lightning_vuln', 'wind_vuln', 'quantum_vuln', 'imaginary_vuln', // Element-specific vulnerabilities
   'break_effect',                                // Break effect
   'energy_regen_rate', 'max_ep',                 // Energy-related stats
-  'outgoing_healing_boost',                      // Healing boost
+  'outgoing_healing_boost',                      // Healing boost (from healer)
+  'incoming_heal_boost',                         // Incoming healing boost (on target)
   'physical_dmg_boost', 'fire_dmg_boost', 'ice_dmg_boost', 'lightning_dmg_boost', 'wind_dmg_boost', 'quantum_dmg_boost', 'imaginary_dmg_boost', // Elemental damage boosts
   'basic_atk_dmg_boost',
   'skill_dmg_boost',
@@ -27,6 +28,7 @@ export const StatKeySchema = z.enum([
   'dot_dmg_boost', // DoT damage boost
   'all_type_dmg_boost', // All type damage boost
   'all_dmg_dealt_reduction', // All damage dealt reduction (Debuff applied to enemies, reduces their outgoing damage)
+  'dmg_taken_reduction', // Damage taken reduction (Buff applied to allies, reduces incoming damage)
   'shield_strength_boost' // Shield strength boost
 ]);
 
@@ -43,6 +45,11 @@ export interface Modifier { // NOTE: This interface might be deprecated in favor
   source: string; // e.g., 'Longevous Disciple 2-pc'
   type: 'add' | 'pct'; // 'add' for flat additions, 'pct' for percentage increases
   value: number;
+  // NEW: 動的計算用（他ユニットのステータス参照）
+  // dynamicValueが定義されている場合、valueは無視され、この関数の戻り値が使用される
+  dynamicValue?: (target: import('../simulator/engine/types').Unit, allUnits: import('../simulator/engine/types').Unit[]) => number;
+  // 参照元ユニットID（動的計算で使用）
+  sourceUnitId?: string;
 }
 
 /**

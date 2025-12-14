@@ -1,5 +1,6 @@
 import { GameState, IEvent, IEventHandler, IEventHandlerLogic, IEventHandlerFactory, Unit } from '../types';
 import { getUnit, updateUnit } from '../gameState';
+import { addEnergyToUnit } from '../energy';
 
 // 重畳ランク1-5に対応するEP回復量
 const EP_RECOVERY_VALUES = [4, 5, 6, 7, 8];
@@ -34,13 +35,9 @@ export const handleMemoriesOfThePastLogic: IEventHandlerLogic = (event, state, h
         return state;
     }
 
-    // EP回復量を決定
-    const recoveryAmount = EP_RECOVERY_VALUES[superimposition - 1] * (sourceUnit.stats.energy_regen_rate || 1.0);
-
-    // ユニットのEPを更新
-    let newEp = Math.min(sourceUnit.ep + recoveryAmount, sourceUnit.stats.max_ep);
-
-    let newState = updateUnit(state, sourceUnitId, { ep: newEp });
+    // EP回復量を決定（ERR適用）
+    const baseEp = EP_RECOVERY_VALUES[superimposition - 1];
+    let newState = addEnergyToUnit(state, sourceUnitId, baseEp);
 
     // クールダウンを設定
     const newCooldowns = {

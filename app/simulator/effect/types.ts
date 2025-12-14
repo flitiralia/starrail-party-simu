@@ -9,7 +9,7 @@ export type DurationType =
   | 'PERMANENT'           // 永続（経過しない）
   | 'TURN_START_BASED'    // ターン開始時に経過（DoT、凍結など）
   | 'TURN_END_BASED'      // ターン終了時に経過（多くのバフ）
-  | 'DURATION_BASED';     // 後方互換性（TURN_END_BASEDと同じ扱い）
+  | 'LINKED';             // 他のエフェクトに連動（親エフェクト削除時に自動削除）
 
 // すべての効果が実装すべき基本インターフェース
 export interface IEffect {
@@ -27,8 +27,23 @@ export interface IEffect {
   stackCount?: number;
   maxStacks?: number;
 
+  // バフ獲得ターン減少スキップ用フラグ（TURN_END_BASED専用）
+  // trueの場合、獲得ターンのターン終了時はdurationが減少しない
+  skipFirstTurnDecrement?: boolean;
+  // 付与時のターン所有者ID（skipFirstTurnDecrement=trueの場合に自動設定）
+  appliedDuringTurnOf?: string;
+
+  // Linked Effect用（他のエフェクトに連動）
+  linkedEffectId?: string; // 連動する親エフェクトのID（親が削除されると自動削除）
+
   // 固定確率フラグ（効果命中と効果抵抗を無視）
   ignoreResistance?: boolean;
+
+  // 解除可能フラグ（明示的にtrueの場合のみ解除可能）
+  // isDispellable: バフ解除（dispel）可能か（BUFFカテゴリ用）
+  // isCleansable: デバフ解除（cleanse）可能か（DEBUFFカテゴリ用）
+  isDispellable?: boolean;
+  isCleansable?: boolean;
 
   // ライフサイクルフック
   onApply?: (target: Unit, state: GameState) => GameState;

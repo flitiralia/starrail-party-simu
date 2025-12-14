@@ -1,3 +1,4 @@
+
 import { GameState, Unit, ActionQueueEntry } from './types';
 
 /**
@@ -87,46 +88,7 @@ export function advanceTimeline(state: GameState, amount: number): GameState {
     };
 }
 
-/**
- * Advances a specific unit's action forward by a percentage.
- * Formula: New AV = Current AV - (Base AV * Advance %)
- */
-export function actionAdvance(state: GameState, unitId: string, percent: number): GameState {
-    const unit = state.units.find(u => u.id === unitId);
-    if (!unit) return state;
-
-    const baseAV = calculateActionValue(unit.stats.spd);
-    const reduction = baseAV * percent;
-
-    const newQueue = state.actionQueue.map(entry => {
-        if (entry.unitId === unitId) {
-            return {
-                ...entry,
-                actionValue: Math.max(0, entry.actionValue - reduction)
-            };
-        }
-        return entry;
-    });
-
-    // Re-sort queue immediately? Usually AV changes trigger re-sort.
-    // But in our tick-based system, we might just update values and let the next tick handle sorting/execution.
-    // For now, let's just update values.
-
-    // Sync unit state
-    const newUnits = state.units.map(u => {
-        if (u.id === unitId) {
-            const entry = newQueue.find(e => e.unitId === unitId);
-            return entry ? { ...u, actionValue: entry.actionValue } : u;
-        }
-        return u;
-    });
-
-    return {
-        ...state,
-        units: newUnits,
-        actionQueue: newQueue
-    };
-}
+// NOTE: actionAdvance は utils.ts の advanceAction に統一されました
 
 /**
  * Adds a specific amount to a unit's Action Value.

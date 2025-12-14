@@ -15,3 +15,16 @@ export * from './warlord-of-blazing-sun-and-thunderous-roar';
 export * from './watchmaker-master-of-dream-machinations';
 export * from './passerby-of-wandering-cloud';
 export * from './musketeer-of-wild-wheat';
+// 新規追加遺物
+export * from './knight-of-purity-palace';
+export * from './hunter-of-glacial-forest';
+export * from './champion-of-streetwise-boxing';
+export * from './guard-of-wuthering-snow';
+export * from './firesmith-of-lava-forging';
+export * from './band-of-sizzling-thunder';
+export * from './wastelander-of-banditry-desert';
+export * from './iron-cavalry-against-scourge';
+export * from './valorous-of-crashing-winds';
+export * from './hero-who-raises-the-battle-song';
+export * from './captain-who-crosses-the-rough-seas';
+export * from './savior-who-recreates-heaven-and-earth';

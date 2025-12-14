@@ -1,0 +1,296 @@
+[createInitialGameState] Character march-7th Eidolon Level: 0
+C:\soft\starrail_party_calc\app\simulator\engine\gameState.ts:263 [applyCharacterMechanics] Called for march-7th, Eidolon: 0
+C:\soft\starrail_party_calc\app\simulator\engine\gameState.ts:57 [createInitialGameState] Character archar Eidolon Level: 0
+C:\soft\starrail_party_calc\app\simulator\engine\gameState.ts:263 [applyCharacterMechanics] Called for archar, Eidolon: 0
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:82 [updatePassiveBuffs] Units at start:
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:84   - 三月なのか: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:84   - アーチャー: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:84   - テスト用ダミー: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:169 [RelicHandler] Checking condition for ornament-broken_keel-2pc-passive-1 on march-7th
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:170 [RelicHandler] Stats Effect Res: 0.2
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:174 [RelicHandler] Condition Met: false
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:220 [updatePassiveBuffs] Units before return:
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:222   - 三月なのか: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:222   - アーチャー: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\effect\relicHandler.ts:222   - テスト用ダミー: 0 effects []
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:352 [Archer] Max SP increased to 7 (Trace A2)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:298 [Archer] Charge updated: 0 -> 1
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:359 [Archer] Trace A4 triggered: +1 Charge
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:298 [Archer] Charge updated: 1 -> 2
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:418 [Archer] Technique triggered: AOE Damage +1 Charge
+C:\soft\starrail_party_calc\app\simulator\engine\dispatcher.ts:163 [publishEvent] Units after ON_BATTLE_START:
+C:\soft\starrail_party_calc\app\simulator\engine\dispatcher.ts:165   - 三月なのか: 2 effects (2) ['我ら地炎（被ダメージ軽減）', 'カウンター (2回)']
+C:\soft\starrail_party_calc\app\simulator\engine\dispatcher.ts:165   - アーチャー: 2 effects (2) ['我ら地炎（被ダメージ軽減）', 'Archer Charge']
+C:\soft\starrail_party_calc\app\simulator\engine\dispatcher.ts:165   - テスト用ダミー: 1 effects ['凍結 (秘技)']
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [三月なのか:60.0/120, アーチャー:110.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 3 -> 4 (+1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [三月なのか:60.0/120, アーチャー:130.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [三月なのか:60.0/120, アーチャー:130.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [三月なのか:60.0/120, アーチャー:130.0/220]
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 4 -> 3 (-1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: wind_dmg_boost += 0.1 (pct) from relic-passive-eagle_of_twilight_line-2pc-passive-0-march-7th-wind_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: effect_res += 0.1 (pct) from ornament-passive-broken_keel-2pc-passive-0-march-7th-effect_res
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:298 [Archer] Charge updated: 2 -> 1
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 3 -> 4 (+1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:564 [Archer] Talent triggered: Charge consumed, FuA queued, SP +1
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:298 [Archer] Charge updated: 1 -> 0
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 4 -> 5 (+1)
+C:\soft\starrail_party_calc\app\simulator\engine\effectManager.ts:30 [EffectManager] Updating effect 守護者: stack 1 -> 1, duration refreshed to 1
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:564 [Archer] Talent triggered: Charge consumed, FuA queued, SP +1
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_FOLLOW_UP_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_FOLLOW_UP_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:150.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for 三月なのか. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), カウンター (2回)(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit 三月なのか, Action SKILL, OldAV 0, NewAV 79.36507936507937
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:150.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:150.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 5 -> 6 (+1)
+C:\soft\starrail_party_calc\app\simulator\engine\effectManager.ts:30 [EffectManager] Updating effect 守護者: stack 1 -> 1, duration refreshed to 1
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:170.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), 守護者(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:170.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:170.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 6 -> 4 (-2)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_SKILL_USED
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:433 [Archer] Circuit Skill Count: 1
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: skill_dmg_boost += 1 (add) from Circuit Connection (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:200.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Circuit Connection(tags:PREVENT_TURN_END), Circuit Damage Boost(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:633 [Simulation] Skipping Turn End for アーチャー due to skipTurnEnd flag/tag.
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:200.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:200.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 4 -> 2 (-2)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_SKILL_USED
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:433 [Archer] Circuit Skill Count: 2
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: skill_dmg_boost += 4 (add) from Circuit Connection (stack: 2)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:220.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ULTIMATE_USED
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: skill_dmg_boost += 4 (add) from Circuit Connection (stack: 2)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:298 [Archer] Charge updated: 0 -> 2
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Circuit Connection(tags:PREVENT_TURN_END), Circuit Damage Boost(tags:undefined), Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:633 [Simulation] Skipping Turn End for アーチャー due to skipTurnEnd flag/tag.
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:5.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:5.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 2 -> 0 (-2)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_SKILL_USED
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:433 [Archer] Circuit Skill Count: 3
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: skill_dmg_boost += 4 (add) from Circuit Connection (stack: 2)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: all_type_vuln += -0.08 (add) from 我ら地炎 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:469 [Archer] Circuit Connection ended (Limit reached or Low SP)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:35.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:623 [Simulation] PREVENT_TURN_END was removed during action for アーチャー. Allowing Turn End.
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action SKILL, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:35.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:35.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 0 -> 1 (+1)
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:55.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:55.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:55.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 1 -> 2 (+1)
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:75.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: 我ら地炎（被ダメージ軽減）(tags:undefined), Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:75.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:75.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 2 -> 3 (+1)
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:95.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:95.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:95.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 3 -> 4 (+1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:115.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:115.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:115.0/220]
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_TURN_START
+C:\soft\starrail_party_calc\app\simulator\effect\relicEffectHelpers.ts:190 [SP] 4 -> 5 (+1)
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: quantum_dmg_boost += 0.1 (pct) from relic-passive-genius_of_brilliant_stars-2pc-passive-0-archar-quantum_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: crit_rate += 0.08 (pct) from ornament-passive-rutilant_arena-2pc-passive-0-archar-crit_rate
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: basic_atk_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-1-archar-basic_atk_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:400 [StatBuilder] Applying modifier: skill_dmg_boost += 0.2 (pct) from ornament-passive-rutilant_arena-2pc-passive-2-archar-skill_dmg_boost
+C:\soft\starrail_party_calc\app\simulator\statBuilder.ts:418 [StatBuilder] Applying effect modifier: crit_dmg += 1.2 (add) from Archer A6 (stack: 1)
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:651 [Archer] A6 triggered: crit_dmg +120%
+3C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BEFORE_DAMAGE_CALCULATION
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_BASIC_ATTACK
+C:\soft\starrail_party_calc\app\data\characters\archar.ts:341 [ArcherHandler] Event: ON_ACTION_COMPLETE
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:135.0/220]
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:612 [Simulation] Checking Turn End for アーチャー. Effects: Archer Charge(tags:undefined)
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:322 [Debug] updateTurnEndState: Unit アーチャー, Action BASIC_ATTACK, OldAV 0, NewAV 70.4225352112676
+C:\soft\starrail_party_calc\app\simulator\engine\simulation.ts:154 ultimate check [アーチャー:135.0/220]

@@ -7,19 +7,18 @@ export const SILENT_OSSUARY: OrnamentSet = {
     {
       pieces: 2,
       description: '装備キャラの最大HP+12%。装備キャラの最大HPが5,000以上の時、装備キャラおよびその記憶の精霊の会心ダメージ+28%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'hp_pct',
           value: 0.12,
           target: 'self'
         },
         {
-          type: 'PASSIVE_STAT',
           stat: 'crit_dmg',
           value: 0.28,
           target: 'self',
-          condition: (stats) => stats.hp >= 5000
+          condition: (stats) => stats.hp >= 5000,
+          evaluationTiming: 'dynamic'
         }
       ],
     },

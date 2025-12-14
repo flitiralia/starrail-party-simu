@@ -54,7 +54,7 @@ export const handlePlanetaryRendezvousLogic: IEventHandlerLogic = (event, state,
     if (!unit.isEnemy && unit.element === targetElement) {
       const buffEffect = createStatEffect({
         id: `planetary-rendezvous-buff-${unit.id}-${sourceUnit.id}-${superimposition}`,
-        name: 'Planetary Rendezvous DMG Boost',
+        name: '惑星との出会いダメージアップ',
         sourceUnitId: sourceUnit.id,
         stat: dmgBoostStatKey,
         value: dmgBoost,
@@ -77,16 +77,16 @@ export const handlePlanetaryRendezvousLogic: IEventHandlerLogic = (event, state,
  * @returns handlerMetadata と handlerLogic を含むオブジェクト
  */
 export const createPlanetaryRendezvousFactory: IEventHandlerFactory = (sourceUnitId, level, superimposition) => {
-    if (!superimposition) {
-        throw new Error("Superimposition required for Light Cone factory.");
-    }
-    const handlerMetadata: IEventHandler = {
-        id: `planetary-rendezvous-s${superimposition}-${sourceUnitId}`,
-        subscribesTo: ['ON_BATTLE_START'],
-    };
+  if (!superimposition) {
+    throw new Error("Superimposition required for Light Cone factory.");
+  }
+  const handlerMetadata: IEventHandler = {
+    id: `planetary-rendezvous-s${superimposition}-${sourceUnitId}`,
+    subscribesTo: ['ON_BATTLE_START'],
+  };
 
-    return {
-        handlerMetadata,
-        handlerLogic: handlePlanetaryRendezvousLogic,
-    };
+  return {
+    handlerMetadata,
+    handlerLogic: handlePlanetaryRendezvousLogic,
+  };
 };

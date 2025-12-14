@@ -10,18 +10,26 @@ export type TieredValue = number[];
 /**
  * 遺物効果のターゲット
  */
-export type RelicEffectTarget = 'self' | 'all_allies' | 'all_enemies';
+export type RelicEffectTarget = 'self' | 'all_allies' | 'other_allies' | 'all_enemies';
+
+/**
+ * 条件評価のタイミング
+ * - 'battle_start': 戦闘開始時のみ評価（例：亡国の悲哀を詠う詩人）
+ * - 'dynamic': 毎ターン再評価（デフォルト、例：折れた竜骨）
+ */
+export type EvaluationTiming = 'battle_start' | 'dynamic';
 
 /**
  * パッシブステータスバフの定義
  * 条件(condition)が満たされている間、自動的に適用される。
  */
 export interface PassiveRelicEffect {
-  type: 'PASSIVE_STAT';
+  type?: 'PASSIVE_STAT';
   stat: StatKey;
   value: number; // 固定値または割合（StatKeyに依存）
   target: RelicEffectTarget;
   condition?: (stats: FinalStats, state: GameState, unitId: string) => boolean;
+  evaluationTiming?: EvaluationTiming; // デフォルト: 'dynamic'
 }
 
 /**
@@ -29,7 +37,7 @@ export interface PassiveRelicEffect {
  * 特定のイベントが発生した際に実行されるロジック。
  */
 export interface EventRelicEffect {
-  type: 'EVENT_TRIGGER';
+  type?: 'EVENT_TRIGGER';
   events: EventType[];
   handler: (event: any, state: GameState, unitId: string) => GameState;
 }
@@ -45,7 +53,8 @@ export type RelicEffect = PassiveRelicEffect | EventRelicEffect;
 export interface SetBonus {
   pieces: 2 | 4;
   description: string;
-  effects: RelicEffect[];
+  passiveEffects?: PassiveRelicEffect[];
+  eventHandlers?: EventRelicEffect[];
 }
 
 /**

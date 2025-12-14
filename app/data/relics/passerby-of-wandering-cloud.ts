@@ -1,4 +1,5 @@
 import { RelicSet } from '../../types';
+import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
 
 export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
   id: 'passerby_of_wandering_cloud',
@@ -7,9 +8,8 @@ export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
     {
       pieces: 2,
       description: '治癒量+10%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'outgoing_healing_boost',
           value: 0.1,
           target: 'self'
@@ -19,9 +19,8 @@ export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
     {
       pieces: 4,
       description: '戦闘開始時、SPを1回復する。',
-      effects: [
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
             // Ensure only one unit triggers this per team
@@ -34,10 +33,7 @@ export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
             unitsWithSet.sort((a, b) => a.id.localeCompare(b.id));
 
             if (unitsWithSet.length > 0 && unitsWithSet[0].id === sourceUnitId) {
-              return {
-                ...state,
-                skillPoints: Math.min(state.skillPoints + 1, state.maxSkillPoints)
-              };
+              return addSkillPoints(state, 1);
             }
 
             return state;

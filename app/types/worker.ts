@@ -9,7 +9,6 @@ export interface SimulationWorkerMessage {
   enemies: Enemy[];
   weaknesses: Element[]; // Arrayに変更
   enemyConfig: EnemyConfig;
-  characterConfig?: CharacterConfig; // 後方互換性のため残す
   partyConfig?: PartyConfig; // 新しいパーティ設定
   rounds: number;
 }

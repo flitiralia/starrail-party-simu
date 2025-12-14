@@ -1,4 +1,6 @@
 import { RelicSet } from '../../types';
+import { advanceAction } from '../../simulator/engine/utils';
+import { appendEquipmentEffect } from '../../simulator/engine/dispatcher';
 
 export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
   id: 'eagle_of_twilight_line',
@@ -7,9 +9,8 @@ export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
     {
       pieces: 2,
       description: '風属性ダメージ+10%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'wind_dmg_boost',
           value: 0.1,
           target: 'self'
@@ -19,35 +20,31 @@ export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
     {
       pieces: 4,
       description: '装備キャラが必殺技を発動した後、行動順が25%早まる。',
-      effects: [
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
           events: ['ON_ULTIMATE_USED'],
           handler: (event, state, sourceUnitId) => {
             if (event.sourceId !== sourceUnitId) return state;
 
+            const unit = state.units.find(u => u.id === sourceUnitId);
+            if (!unit) return state;
+
             // Action Advance 25%
-            const unitIndex = state.units.findIndex(u => u.id === sourceUnitId);
-            if (unitIndex === -1) return state;
+            let newState = advanceAction(state, sourceUnitId, 0.25);
 
-            const unit = state.units[unitIndex];
-            const advanceAmount = 0.25;
-            const newActionPoint = Math.min(10000, unit.actionPoint + (10000 * advanceAmount));
-            const newActionValue = Math.max(0, (10000 - newActionPoint) / unit.stats.spd);
+            // 装備効果をログに追加
+            newState = appendEquipmentEffect(newState, {
+              source: '昼夜の狭間を翔ける鷹',
+              name: '行動順短縮 25%',
+              target: unit.name,
+              type: 'relic'
+            });
 
-            const updatedUnit = {
-              ...unit,
-              actionPoint: newActionPoint,
-              actionValue: newActionValue
-            };
-
-            return {
-              ...state,
-              units: state.units.map((u, i) => i === unitIndex ? updatedUnit : u)
-            };
+            return newState;
           }
         }
       ],
     },
   ],
 };
+

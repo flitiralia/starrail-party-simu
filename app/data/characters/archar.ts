@@ -1,9 +1,52 @@
 import { Character, Element, Path, StatKey } from '../../types';
-import { IEventHandlerFactory, GameState, IEvent, Unit, IHit, ActionContext } from '../../simulator/engine/types';
+import { IEventHandlerFactory, GameState, IEvent, Unit, IHit, ActionContext, Action } from '../../simulator/engine/types';
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
-import { calculateNormalAdditionalDamage } from '../../simulator/damage';
+import { calculateNormalAdditionalDamage, calculateDamage } from '../../simulator/damage';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
+
+// --- 定数定義 ---
+const CHARACTER_ID = 'archar';
+
+// 通常攻撃
+const BASIC_MULT = 1.0;
+
+// スキル
+const SKILL_MULT = 3.6;
+const SKILL_SP_COST = 2;
+const SKILL_DMG_BOOST_PER_STACK = 1.0;
+
+// 必殺技
+const ULT_MULT = 10.0;
+const ULT_CHARGE_GAIN = 2;
+
+// 天賦
+const TALENT_MULT = 2.0;
+
+// 秘技
+const TECHNIQUE_DMG_MULT = 2.0;
+const TECHNIQUE_CHARGE_GAIN = 1;
+
+// チャージ
+const MAX_CHARGES = 4;
+
+// 回路接続
+const MAX_CIRCUIT_SKILLS = 5;
+const BASE_CIRCUIT_STACKS = 2;
+const E6_CIRCUIT_STACKS = 3;
+
+// 星魂
+const E1_SKILL_COUNT_FOR_SP = 3;
+const E1_SP_RECOVER = 2;
+const E2_RES_DOWN = 0.20;
+const E4_ULT_DMG_BOOST = 1.50;
+const E6_DEF_IGNORE = 0.20;
+
+// 軌跡
+const A2_MAX_SP_BONUS = 2;
+const A4_INITIAL_CHARGE = 1;
+const A6_CRIT_DMG_BOOST = 1.20;
 
 export const archar: Character = {
     id: 'archar',
@@ -31,10 +74,12 @@ export const archar: Character = {
             damage: {
                 type: 'simple',
                 scaling: 'atk',
-                multiplier: 1.0, // Lv.6
+                hits: [
+                    { multiplier: 0.30, toughnessReduction: 3 },
+                    { multiplier: 0.35, toughnessReduction: 3.5 },
+                    { multiplier: 0.35, toughnessReduction: 3.5 }
+                ],
             },
-            hits: 1,
-            toughnessReduction: 10,
             energyGain: 20,
         },
         skill: {
@@ -44,15 +89,11 @@ export const archar: Character = {
             description: '「回路接続」状態に入る。指定した敵単体にアーチャーの攻撃力360%分の量子属性ダメージを与える。',
             targetType: 'single_enemy',
             damage: {
-                // Note: Description says single target but template said blast logic? Assuming single target based on description.
-                // Given "指定した敵単体に...", I will use simple damage.
                 type: 'simple',
                 scaling: 'atk',
-                multiplier: 3.6,
+                hits: [{ multiplier: 3.6, toughnessReduction: 20 }],
             },
-            toughnessReduction: 20,
             energyGain: 30,
-            hits: 1,
             spCost: 2, // Archer's skill costs 2 SP
             effects: [], // Handled by Handler
         },
@@ -65,11 +106,25 @@ export const archar: Character = {
             damage: {
                 type: 'simple',
                 scaling: 'atk',
-                multiplier: 10.00, // Lv.10
+                hits: [
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 0.40, toughnessReduction: 1.2 },
+                    { multiplier: 4.40, toughnessReduction: 13.2 }
+                ],
             },
-            toughnessReduction: 30, // Assuming 30 for single target ult
             energyGain: 5,
-            hits: 15,
             effects: [], // Handled by Handler
         },
         talent: {
@@ -81,11 +136,9 @@ export const archar: Character = {
             damage: {
                 type: 'simple',
                 scaling: 'atk',
-                multiplier: 2.0, // Lv.10
+                hits: [{ multiplier: 2.0, toughnessReduction: 10 }],
             },
-            toughnessReduction: 10,
             energyGain: 5,
-            hits: 1,
         },
         technique: {
             id: 'archar-tech',
@@ -94,11 +147,10 @@ export const archar: Character = {
             description: '敵を攻撃。戦闘に入った後、敵全体にアーチャーの攻撃力200%分の量子属性ダメージを与える、チャージを1獲得する。',
             targetType: 'all_enemies',
             damage: {
-                type: 'simple',
+                type: 'aoe',
                 scaling: 'atk',
-                multiplier: 2.0,
+                hits: [{ multiplier: 2.0, toughnessReduction: 20 }],
             },
-            toughnessReduction: 20,
         }
     },
     traces: [
@@ -133,13 +185,7 @@ export const archar: Character = {
             name: '攻撃力',
             type: 'Stat Bonus',
             description: '攻撃力+18.0%',
-            stat: 'atk', // Note: 'atk' usually means flat atk in baseStats, but 'atk_pct' for bonuses?
-            // Checking types/stats.ts would be good, but usually 'atk' in StatKey is percentage for bonuses in this system?
-            // Let's check tribbie.ts... tribbie has 'hp_pct'. So likely 'atk_pct'.
-            // But types/stats.ts usually defines keys.
-            // I will use 'atk' for now and verify if 'atk_pct' is needed.
-            // Wait, tribbie.ts uses 'hp_pct'.
-            // Let's assume 'atk_pct' is correct for percentage boost.
+            stat: 'atk_pct',
             value: 0.18
         },
         {
@@ -167,8 +213,8 @@ export const archar: Character = {
             name: '凡庸に甘んじない気概',
             description: 'スキルLv+2, 通常攻撃Lv+1',
             abilityModifiers: [
-                { abilityName: 'skill', param: 'damage.multiplier', value: 3.96 }, // 3.6 * 1.1
-                { abilityName: 'basic', param: 'damage.multiplier', value: 1.1 }, // 1.0 * 1.1
+                { abilityName: 'skill', param: 'damage.hits.0.multiplier', value: 3.96 }, // 3.6 * 1.1
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 1.1 }, // 1.0 * 1.1
             ]
         },
         e4: {
@@ -182,8 +228,8 @@ export const archar: Character = {
             name: '無銘なる孤影の守護',
             description: '必殺技Lv+2, 天賦Lv+2',
             abilityModifiers: [
-                { abilityName: 'ultimate', param: 'damage.multiplier', value: 10.8 }, // 10.0 * 1.08
-                { abilityName: 'talent', param: 'damage.multiplier', value: 2.2 }, // 2.0 * 1.1
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 10.8 }, // 10.0 * 1.08
+                { abilityName: 'talent', param: 'damage.hits.0.multiplier', value: 2.2 }, // 2.0 * 1.1
             ]
         },
         e6: {
@@ -191,7 +237,31 @@ export const archar: Character = {
             name: '果てなきを彷徨う巡礼',
             description: 'ターンが回ってきた時、SPを1回復する。自身の戦闘スキルで累積できるダメージアップ効果+1層。戦闘スキルダメージは防御力を20%無視する。',
         }
-    }
+    },
+
+    // デフォルト設定
+    defaultConfig: {
+        eidolonLevel: 0,
+        lightConeId: 'cruising-in-the-stellar-sea',
+        superimposition: 1,
+        relicSetId: 'genius_of_brilliant_stars',
+        ornamentSetId: 'rutilant_arena',
+        mainStats: {
+            body: 'crit_rate',
+            feet: 'spd',
+            sphere: 'quantum_dmg_boost',
+            rope: 'atk_pct',
+        },
+        subStats: [
+            { stat: 'atk_pct', value: 0.432 },
+            { stat: 'crit_rate', value: 0.324 },
+            { stat: 'crit_dmg', value: 0.648 },
+            { stat: 'spd', value: 12 },
+        ],
+        rotationMode: 'spam_skill',
+        spamSkillTriggerSp: 6,
+        ultStrategy: 'immediate',
+    },
 };
 
 // Helper to manage Charge (Stackable Buff)
@@ -265,7 +335,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
     return {
         handlerMetadata: {
             id: `archar-handler-${sourceUnitId}`,
-            subscribesTo: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_BASIC_ATTACK', 'ON_FOLLOW_UP_ATTACK', 'ON_ACTION_COMPLETE'],
+            subscribesTo: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ATTACK', 'ON_ACTION_COMPLETE', 'ON_BEFORE_DAMAGE_CALCULATION', 'ON_SP_CHANGE'],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
             if (event.sourceId === sourceUnitId) console.log(`[ArcherHandler] Event: ${event.type}`);
@@ -285,7 +355,72 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 // Trace A4: Start with 1 Charge
                 const a4Trace = archarUnit.traces?.find(t => t.id === 'archar-trace-a4');
                 if (a4Trace) {
-                    // Add Charge Logic here
+                    newState = addCharge(newState, sourceUnitId, 1);
+                    console.log('[Archer] Trace A4 triggered: +1 Charge');
+                }
+
+                // E4: 必殺技ダメージ+150% (永続バフ)
+                if (eidolonLevel >= 4) {
+                    const e4BuffId = `archar-e4-buff-${sourceUnitId}`;
+                    const e4Buff: IEffect = {
+                        id: e4BuffId,
+                        name: '英雄とは程遠い生涯',
+                        category: 'BUFF',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        modifiers: [{
+                            target: 'ult_dmg_boost' as StatKey,
+                            source: 'Archer E4',
+                            value: E4_ULT_DMG_BOOST,
+                            type: 'add'
+                        }],
+                        onApply: (t, s) => s,
+                        onRemove: (t, s) => s,
+                        apply: (t, s) => s,
+                        remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, sourceUnitId, e4Buff);
+                    console.log('[Archer] E4 triggered: ult_dmg_boost +150%');
+                }
+
+                // 秘技使用フラグを確認 (デフォルト true)
+                const useTechnique = archarUnit.config?.useTechnique !== false;
+
+                if (useTechnique) {
+                    // Technique: 200% ATK to all enemies + 1 Charge
+                    if (archarUnit.abilities.technique) {
+                        const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+                        const techAbility = archarUnit.abilities.technique;
+                        // 最新のUnitを取得（E4バフ適用後）
+                        const freshArcharUnit = newState.units.find(u => u.id === sourceUnitId);
+                        if (freshArcharUnit) {
+                            enemies.forEach(enemy => {
+                                // calculateDamageを使用してダメージ計算
+                                const techAction: Action = { type: 'BASIC_ATTACK', sourceId: sourceUnitId, targetId: enemy.id };
+                                const damage = techAbility?.damage
+                                    ? calculateDamage(freshArcharUnit, enemy, techAbility, techAction)
+                                    : freshArcharUnit.stats.atk * TECHNIQUE_DMG_MULT;
+                                const result = applyUnifiedDamage(
+                                    newState,
+                                    freshArcharUnit,
+                                    enemy,
+                                    damage,
+                                    {
+                                        damageType: '秘技',
+                                        details: '秘技: 全体攻撃 (200%)',
+                                        skipLog: false,
+                                        skipStats: false
+                                    }
+                                );
+                                newState = result.state;
+                            });
+                        }
+
+                        // Gain 1 Charge
+                        newState = addCharge(newState, sourceUnitId, 1);
+                        console.log('[Archer] Technique triggered: AOE Damage +1 Charge');
+                    }
                 }
             }
 
@@ -319,7 +454,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         modifiers: [{
                             target: 'skill_dmg_boost',
                             source: 'Circuit Connection',
-                            value: 0.20 * stacks, // 20% per stack
+                            value: 1.0 * stacks, // 20% per stack
                             type: 'add'
                         }],
                         onApply: (t, s) => s,
@@ -345,28 +480,57 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId === sourceUnitId) {
                 newState = addCharge(newState, sourceUnitId, 2);
 
-                // E2: Apply Weakness & Res Down
-                if (eidolonLevel >= 2) {
-                    // Handled by adding debuff to target. 
-                    // Since ON_ULTIMATE_USED doesn't have targetId in event payload for Single Target (it might, but let's be safe),
-                    // we can rely on the fact that Ultimate action sets target.
-                    // But here we are in event handler.
-                    // Ideally, we should add effects to the ability definition or handle it here if we can find the target.
-                    // For now, let's assume we can't easily find the target here without context, 
-                    // BUT we can add a "next hit applies debuff" logic or similar.
-                    // Actually, `ON_ULTIMATE_USED` is fired AFTER action.
-                    // Let's use `ON_BEFORE_DAMAGE_CALCULATION` or modify ability definition in `createInitialGameState` (better).
-                    // Wait, `createInitialGameState` is static.
-                    // We can use `applyCharacterMechanics` in `gameState.ts` to add effects to Ultimate if E2.
-                    // Or we can just find the target from `state.actionQueue` or `pendingActions`? No.
-                    // Let's leave E2 for now and focus on Charge.
+                // E2: Apply Quantum Res Down & Quantum Weakness
+                if (eidolonLevel >= 2 && event.targetId) {
+                    const targetUnit = newState.units.find(u => u.id === event.targetId);
+                    if (targetUnit && targetUnit.isEnemy) {
+                        const e2DebuffId = `archar-e2-debuff-${targetUnit.id}`;
+
+                        const e2Debuff: IEffect = {
+                            id: e2DebuffId,
+                            name: '叶えられなかった幸福',
+                            category: 'DEBUFF',
+                            sourceUnitId: sourceUnitId,
+                            durationType: 'TURN_START_BASED',
+                            duration: 2,
+                            isCleansable: true,
+                            ignoreResistance: true,  // 固定確率
+                            modifiers: [{
+                                target: 'quantum_res' as StatKey,
+                                source: 'Archer E2',
+                                value: -E2_RES_DOWN,
+                                type: 'add'
+                            }],
+                            onApply: (t, s) => {
+                                // 量子弱点を付与
+                                const updatedUnit = {
+                                    ...t,
+                                    weaknesses: new Set([...t.weaknesses, 'Quantum' as Element])
+                                };
+                                return {
+                                    ...s,
+                                    units: s.units.map(u => u.id === t.id ? updatedUnit : u)
+                                };
+                            },
+                            onRemove: (t, s) => s,  // 弱点は消えない（原作仕様）
+                            apply: (t, s) => s,
+                            remove: (t, s) => s
+                        };
+
+                        newState = addEffect(newState, targetUnit.id, e2Debuff);
+                        console.log(`[Archer] E2 triggered: quantum_res -20% & Quantum weakness on ${targetUnit.name}`);
+                    }
                 }
             }
 
-            // Talent Logic: Follow-up on Ally Attack
-            if ((event.type === 'ON_BASIC_ATTACK' || event.type === 'ON_SKILL_USED' || event.type === 'ON_ULTIMATE_USED') && event.sourceId !== sourceUnitId) {
-                const sourceAlly = newState.units.find(u => u.id === event.sourceId);
-                if (sourceAlly && !sourceAlly.isEnemy) {
+            // Talent Logic: Follow-up on Ally Attack (ON_ATTACK イベントで発動)
+            // 条件: アーチャー以外の味方が敵を攻撃した時
+            if (event.type === 'ON_ATTACK' && event.sourceId !== sourceUnitId) {
+                const sourceUnit = newState.units.find(u => u.id === event.sourceId);
+                const targetUnit = event.targetId ? newState.units.find(u => u.id === event.targetId) : undefined;
+
+                // 発動条件: ソースが味方で、ターゲットが敵
+                if (sourceUnit && !sourceUnit.isEnemy && targetUnit?.isEnemy) {
                     // Check Charge
                     const chargeBuff = archarUnit.effects.find(e => e.id === `archar-charge-${sourceUnitId}`);
                     const chargeCount = (chargeBuff as any)?.stackCount || 0;
@@ -375,29 +539,26 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         // Consume 1 Charge
                         newState = addCharge(newState, sourceUnitId, -1);
 
-                        // Trigger Follow-up Attack
-                        // Target: Main target of the ally's attack?
-                        // Event doesn't carry targetId reliably for all types.
-                        // But usually `event.targetId` is populated in dispatcher.
-                        let targetId = event.targetId;
+                        // Target: メインターゲット（敵）または生存敵からランダム選択
+                        let followUpTargetId = event.targetId;
+                        let followUpTarget = newState.units.find(u => u.id === followUpTargetId);
 
-                        // If target is dead or invalid, pick random enemy
-                        let target = newState.units.find(u => u.id === targetId);
-                        if (!target || target.hp <= 0) {
+                        // ターゲットが倒されていた場合、ランダムな敵を選択
+                        if (!followUpTarget || followUpTarget.hp <= 0) {
                             const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
                             if (enemies.length > 0) {
-                                target = enemies[Math.floor(Math.random() * enemies.length)];
-                                targetId = target.id;
+                                followUpTarget = enemies[Math.floor(Math.random() * enemies.length)];
+                                followUpTargetId = followUpTarget.id;
                             } else {
-                                targetId = undefined;
+                                followUpTargetId = undefined;
                             }
                         }
 
-                        if (targetId) {
+                        if (followUpTargetId) {
                             const followUpAction: any = {
                                 type: 'FOLLOW_UP_ATTACK',
                                 sourceId: sourceUnitId,
-                                targetId: targetId,
+                                targetId: followUpTargetId,
                             };
                             newState = {
                                 ...newState,
@@ -405,7 +566,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             };
 
                             // SP Recovery (Talent)
-                            newState = { ...newState, skillPoints: Math.min(newState.maxSkillPoints, newState.skillPoints + 1) };
+                            newState = addSkillPoints(newState, 1);
                             console.log('[Archer] Talent triggered: Charge consumed, FuA queued, SP +1');
                         }
                     }
@@ -422,7 +583,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 count++;
 
                 if (count === 3) {
-                    newState = { ...newState, skillPoints: Math.min(newState.maxSkillPoints, newState.skillPoints + 2) };
+                    newState = addSkillPoints(newState, 2);
                     console.log('[Archer] E1 triggered: SP +2');
                 }
 
@@ -432,6 +593,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     category: 'BUFF',
                     sourceUnitId: sourceUnitId,
                     durationType: 'TURN_END_BASED',
+                    skipFirstTurnDecrement: true,
                     duration: 1,
                     onApply: (t, s) => s,
                     onRemove: (t, s) => s,
@@ -446,8 +608,54 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
 
             // E6: SP Recovery on Turn Start
             if (event.type === 'ON_TURN_START' && event.sourceId === sourceUnitId && eidolonLevel >= 6) {
-                newState = { ...newState, skillPoints: Math.min(newState.maxSkillPoints, newState.skillPoints + 1) };
+                newState = addSkillPoints(newState, 1);
                 console.log('[Archer] E6 triggered: SP +1');
+            }
+
+            // E6: Skill damage ignores 20% DEF
+            if (event.type === 'ON_BEFORE_DAMAGE_CALCULATION'
+                && event.sourceId === sourceUnitId
+                && event.subType === 'SKILL'
+                && eidolonLevel >= 6
+            ) {
+                newState = {
+                    ...newState,
+                    damageModifiers: {
+                        ...newState.damageModifiers,
+                        defIgnore: (newState.damageModifiers.defIgnore || 0) + E6_DEF_IGNORE
+                    }
+                };
+                console.log('[Archer] E6 triggered: Skill damage ignores 20% DEF');
+            }
+
+            // A6: Crit DMG +120% when SP >= 4 after SP gain
+            if (event.type === 'ON_SP_CHANGE') {
+                const a6Trace = archarUnit.traces?.find(t => t.id === 'archar-trace-a6');
+                if (a6Trace && newState.skillPoints >= 4) {
+                    const a6BuffId = `archar-a6-buff-${sourceUnitId}`;
+
+                    const a6Buff: IEffect = {
+                        id: a6BuffId,
+                        name: '守護者',
+                        category: 'BUFF',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'TURN_END_BASED',
+                        skipFirstTurnDecrement: true,
+                        duration: 1,
+                        modifiers: [{
+                            target: 'crit_dmg' as StatKey,
+                            source: 'Archer A6',
+                            value: A6_CRIT_DMG_BOOST,
+                            type: 'add'
+                        }],
+                        onApply: (t, s) => s,
+                        onRemove: (t, s) => s,
+                        apply: (t, s) => s,
+                        remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, sourceUnitId, a6Buff);
+                    console.log('[Archer] A6 triggered: crit_dmg +120%');
+                }
             }
 
             return newState;

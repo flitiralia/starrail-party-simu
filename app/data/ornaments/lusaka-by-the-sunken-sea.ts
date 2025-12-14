@@ -1,4 +1,6 @@
 import { OrnamentSet } from '../../types';
+import { addEffect } from '../../simulator/engine/effectManager';
+import { IEffect } from '../../simulator/effect/types';
 
 export const LUSAKA_BY_THE_SUNKEN_SEA: OrnamentSet = {
   id: 'lusaka_by_the_sunken_sea',
@@ -7,50 +9,46 @@ export const LUSAKA_BY_THE_SUNKEN_SEA: OrnamentSet = {
     {
       pieces: 2,
       description: '装備キャラのEP回復効率+5%。装備キャラがパーティの1枠目のキャラでない場合、1枠目のキャラの攻撃力+12%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'energy_regen_rate',
           value: 0.05,
           target: 'self'
-        },
+        }
+      ],
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
-            // Check position
+            // 装備キャラが1枠目でなければ、1枠目に攻撃力+12%を付与
             const unitIndex = state.units.findIndex(u => u.id === sourceUnitId);
-            if (unitIndex === -1 || unitIndex === 0) return state; // If not found or is first char
+            if (unitIndex === -1 || unitIndex === 0) return state;
 
-            // Apply buff to unit 0
             const target = state.units[0];
-            const buffId = 'lusaka-atk-buff';
-            const buff = {
-              id: buffId,
-              name: 'Lusaka ATK Buff',
+            const buff: IEffect = {
+              id: 'lusaka-atk-buff',
+              name: '海に沈んだルサカ',
               category: 'BUFF',
               sourceUnitId: sourceUnitId,
               durationType: 'PERMANENT',
-              duration: -1,
-              stat: 'atk_pct',
-              value: 0.12,
-              isPercentage: true,
-              apply: (u: any, s: any) => s,
-              remove: (u: any, s: any) => s
+              duration: 0,
+              modifiers: [
+                {
+                  target: 'atk_pct',
+                  source: '海に沈んだルサカ',
+                  type: 'add',
+                  value: 0.12
+                }
+              ],
+              apply: (t, s) => s,
+              remove: (t, s) => s
             };
 
-            const newEffects = [
-              ...target.effects.filter(e => e.id !== buffId),
-              buff
-            ];
-
-            return {
-              ...state,
-              units: state.units.map((u, i) => i === 0 ? { ...u, effects: newEffects as any[] } : u)
-            };
+            return addEffect(state, target.id, buff);
           }
         }
       ],
     },
   ],
 };
+

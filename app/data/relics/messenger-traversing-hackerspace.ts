@@ -1,4 +1,4 @@
-import { RelicSet, Modifier } from '../../types';
+import { RelicSet } from '../../types';
 import { IEffect } from '../../simulator/effect/types';
 import { addEffect } from '../../simulator/engine/effectManager';
 
@@ -9,9 +9,8 @@ export const MESSENGER_TRAVERSING_HACKERSPACE: RelicSet = {
     {
       pieces: 2,
       description: '速度+6%。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'spd_pct',
           value: 0.06,
           target: 'self'
@@ -21,9 +20,8 @@ export const MESSENGER_TRAVERSING_HACKERSPACE: RelicSet = {
     {
       pieces: 4,
       description: '装備キャラが味方に対して必殺技を発動した時、味方全体の速度+12%、1ターン継続。この効果は累積できない。',
-      effects: [
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
           events: ['ON_ULTIMATE_USED'],
           handler: (event, state, sourceUnitId) => {
             if (event.sourceId !== sourceUnitId) return state;
@@ -31,53 +29,39 @@ export const MESSENGER_TRAVERSING_HACKERSPACE: RelicSet = {
             const sourceUnit = state.units.find(u => u.id === sourceUnitId);
             if (!sourceUnit) return state;
 
-            // Check if ultimate targets ally (or self, or all allies)
-            const ultimate = sourceUnit.abilities.ultimate;
-            const targetType = ultimate.targetType;
-            const isAllyTarget = targetType === 'ally' || targetType === 'all_allies' || targetType === 'self' || targetType === 'blast'; // Blast can target ally if main target is ally? Usually blast is for enemies.
-            // For buffs, usually 'all_allies' or 'ally'.
-            // Some ultimates might be 'single_enemy' but have a secondary effect on allies?
-            // The description says "uses their Ultimate on an ally".
-            // If it targets an enemy, it doesn't count.
-            // So strictly checking targetType is probably safer.
-            // But what if targetType is undefined? (e.g. older data)
-            // We'll assume strict check for now.
+            // 必殺技が味方をターゲットにしているか確認
+            const targetType = sourceUnit.abilities.ultimate.targetType;
+            if (!targetType) return state;
+
+            const allyTargetTypes: Array<'ally' | 'all_allies' | 'self'> = ['ally', 'all_allies', 'self'];
+            const isAllyTarget = allyTargetTypes.includes(targetType as any);
 
             if (!isAllyTarget) return state;
 
-            const buffId = 'messenger-4pc-spd';
-
-            // Apply to all allies
+            // 味方全体にバフを付与
             let currentState = state;
             state.units.forEach(u => {
               if (!u.isEnemy) {
                 const effect: IEffect = {
-                  id: buffId,
-                  name: 'Messenger 4pc SPD Buff',
+                  id: 'messenger-4pc-spd',
+                  name: '仮想空間を漫遊するメッセンジャー',
                   category: 'BUFF',
                   sourceUnitId: sourceUnitId,
-                  durationType: 'DURATION_BASED',
+                  durationType: 'TURN_END_BASED',
+                  skipFirstTurnDecrement: true,
                   duration: 1,
                   stackCount: 1,
                   maxStacks: 1,
-                  apply: (unit, gs) => {
-                    const mod: Modifier = {
+                  modifiers: [
+                    {
                       target: 'spd_pct',
-                      source: buffId,
+                      source: '仮想空間を漫遊するメッセンジャー',
                       type: 'pct',
                       value: 0.12
-                    };
-                    return {
-                      ...gs,
-                      units: gs.units.map(u => u.id === unit.id ? { ...u, modifiers: [...u.modifiers, mod] } : u)
-                    };
-                  },
-                  remove: (unit, gs) => {
-                    return {
-                      ...gs,
-                      units: gs.units.map(u => u.id === unit.id ? { ...u, modifiers: u.modifiers.filter(m => m.source !== buffId) } : u)
-                    };
-                  }
+                    }
+                  ],
+                  apply: (t, s) => s,
+                  remove: (t, s) => s
                 };
                 currentState = addEffect(currentState, u.id, effect);
               }

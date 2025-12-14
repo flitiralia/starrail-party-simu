@@ -1,183 +1,80 @@
 import { ILightConeData } from '@/app/types';
+import { addEffect } from '@/app/simulator/engine/effectManager';
 
 export const onTheFallOfAnAeon: ILightConeData = {
   id: 'on-the-fall-of-an-aeon',
   name: 'とある星神の殞落を記す',
+  description: '装備キャラが攻撃した時、今回の戦闘中、装備キャラの攻撃力+8%、最大で4回累積できる。装備キャラが弱点撃破した後、与ダメージ+12%、2ターン継続。',
+  descriptionTemplate: '装備キャラが攻撃した時、今回の戦闘中、装備キャラの攻撃力+{0}%、最大で4回累積できる。装備キャラが弱点撃破した後、与ダメージ+{1}%、2ターン継続。',
+  descriptionValues: [['8', '12'], ['10', '15'], ['12', '18'], ['14', '21'], ['16', '24']],
   path: 'Destruction',
   baseStats: {
     hp: 1058,
     atk: 529,
     def: 396,
   },
-  effects: [
+
+  eventHandlers: [
     {
       id: 'atk_percent_on_attack_stacking',
-      name: '火に飛び込む (攻撃力)',
-      category: 'BUFF',
-      sourceUnitId: '',
-      durationType: 'PERMANENT',
-      duration: -1,
-      effectValue: [0.08, 0.1, 0.12, 0.14, 0.16],
-      customHandler: true,
-      apply: (unit, gameState, event) => {
-        if (!event) return gameState;
-        if (event.sourceId !== unit.id) return gameState;
+      name: '火に飛び込む（攻撃力スタック）',
+      events: ['ON_BASIC_ATTACK', 'ON_SKILL_USED', 'ON_ULTIMATE_USED'],
+      handler: (event, state, unit, superimposition) => {
+        if (event.sourceId !== unit.id) return state;
 
-        // Check if action is an attack (has damage)
-        let isAttack = false;
-        if (event.type === 'ON_BASIC_ATTACK') isAttack = !!unit.abilities.basic.damage;
-        else if (event.type === 'ON_SKILL_USED') isAttack = !!unit.abilities.skill.damage;
-        else if (event.type === 'ON_ULTIMATE_USED') isAttack = !!unit.abilities.ultimate.damage;
-
-        if (!isAttack) return gameState;
-
-        const superimposition = unit.equippedLightCone?.superimposition || 1;
         const atkValuePerStack = [0.08, 0.1, 0.12, 0.14, 0.16][superimposition - 1];
-        const effectId = 'lc-aeon-atk-stacks';
-        const modifierId = 'lc-aeon-atk';
 
-        const unitIndex = gameState.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return gameState;
-
-        const newUnits = [...gameState.units];
-        const updatedUnit = { ...newUnits[unitIndex] };
-
-        // Manage Effect for Stacks
-        const existingEffectIndex = updatedUnit.effects.findIndex(e => e.id === effectId);
-        let stackCount = 0;
-
-        if (existingEffectIndex !== -1) {
-          stackCount = updatedUnit.effects[existingEffectIndex].stackCount || 0;
-          if (stackCount < 4) {
-            stackCount++;
-            updatedUnit.effects[existingEffectIndex] = {
-              ...updatedUnit.effects[existingEffectIndex],
-              stackCount: stackCount
-            };
-          }
-        } else {
-          stackCount = 1;
-          updatedUnit.effects.push({
-            id: effectId,
-            name: '火に飛び込む (攻撃力)',
-            category: 'BUFF',
-            sourceUnitId: unit.id,
-            durationType: 'PERMANENT',
-            duration: -1,
-            stackCount: 1,
-            maxStacks: 4,
-            apply: (t, s) => s,
-            remove: (t, s) => s
-          });
-        }
-
-        // Manage Modifier for Stats
-        const existingModifierIndex = updatedUnit.modifiers.findIndex(m => m.source === modifierId);
-        if (existingModifierIndex !== -1) {
-          updatedUnit.modifiers[existingModifierIndex] = {
-            ...updatedUnit.modifiers[existingModifierIndex],
-            value: atkValuePerStack * stackCount
-          };
-        } else {
-          updatedUnit.modifiers.push({
-            source: modifierId,
-            target: 'atk_pct',
-            value: atkValuePerStack,
-            type: 'pct'
-          });
-        }
-
-        newUnits[unitIndex] = updatedUnit;
-
-        if (stackCount <= 4) {
-          gameState.log.push({
-            actionType: 'Buff',
-            sourceId: unit.id,
-            targetId: unit.id,
-            details: `とある星神の殞落を記す発動: 攻撃力 +${(atkValuePerStack * stackCount * 100).toFixed(1)}% (${stackCount} 層)`
-          });
-        }
-
-        return { ...gameState, units: newUnits };
-      },
-      remove: (unit, gameState) => { return gameState; },
+        return addEffect(state, unit.id, {
+          id: `lc_aeon_atk_${unit.id}`,
+          name: '火に飛び込む（攻撃力）',
+          category: 'BUFF',
+          sourceUnitId: unit.id,
+          durationType: 'PERMANENT',
+          duration: 0,
+          stackCount: 1,
+          maxStacks: 4,
+          modifiers: [
+            {
+              target: 'atk_pct',
+              source: 'とある星神の殞落を記す',
+              type: 'add',
+              value: atkValuePerStack
+            }
+          ],
+          apply: (u, s) => s,
+          remove: (u, s) => s
+        });
+      }
     },
     {
       id: 'dmg_percent_on_weakness_break',
-      name: '火に飛び込む (与ダメージ)',
-      category: 'BUFF',
-      sourceUnitId: '',
-      durationType: 'DURATION_BASED',
-      duration: 2,
-      effectValue: [0.12, 0.15, 0.18, 0.21, 0.24],
-      customHandler: true,
-      apply: (unit, gameState, event) => {
-        if (!event || event.type !== 'ON_WEAKNESS_BREAK' || event.sourceId !== unit.id) return gameState;
+      name: '火に飛び込む（与ダメバフ）',
+      events: ['ON_WEAKNESS_BREAK'],
+      handler: (event, state, unit, superimposition) => {
+        if (event.sourceId !== unit.id) return state;
 
-        const superimposition = unit.equippedLightCone?.superimposition || 1;
-        const dmgValue = [0.12, 0.15, 0.18, 0.21, 0.24][superimposition - 1];
-        const effectId = 'lc-aeon-dmg-buff';
-        const modifierId = 'lc-aeon-dmg';
+        const dmgBoostValue = [0.12, 0.15, 0.18, 0.21, 0.24][superimposition - 1];
 
-        const unitIndex = gameState.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return gameState;
-
-        const newUnits = [...gameState.units];
-        const updatedUnit = { ...newUnits[unitIndex] };
-
-        // Manage Effect for Duration
-        const existingEffectIndex = updatedUnit.effects.findIndex(e => e.id === effectId);
-        if (existingEffectIndex !== -1) {
-          updatedUnit.effects[existingEffectIndex] = {
-            ...updatedUnit.effects[existingEffectIndex],
-            duration: 2
-          };
-        } else {
-          updatedUnit.effects.push({
-            id: effectId,
-            name: '火に飛び込む (与ダメ)',
-            category: 'BUFF',
-            sourceUnitId: unit.id,
-            durationType: 'DURATION_BASED',
-            duration: 2,
-            apply: (t, s) => s,
-            remove: (t, s) => {
-              // Remove Modifier when effect expires
-              const uIndex = s.units.findIndex(u => u.id === t.id);
-              if (uIndex === -1) return s;
-              const u = { ...s.units[uIndex] };
-              u.modifiers = u.modifiers.filter(m => m.source !== modifierId);
-              const ns = { ...s };
-              ns.units = [...ns.units];
-              ns.units[uIndex] = u;
-              return ns;
+        return addEffect(state, unit.id, {
+          id: `lc_aeon_dmg_${unit.id}`,
+          name: '火に飛び込む（与ダメバフ）',
+          category: 'BUFF',
+          sourceUnitId: unit.id,
+          durationType: 'TURN_END_BASED',
+          skipFirstTurnDecrement: true,
+          duration: 2,
+          modifiers: [
+            {
+              target: 'all_type_dmg_boost',
+              source: 'とある星神の殞落を記す',
+              type: 'add',
+              value: dmgBoostValue
             }
-          });
-        }
-
-        // Manage Modifier
-        const existingModifierIndex = updatedUnit.modifiers.findIndex(m => m.source === modifierId);
-        if (existingModifierIndex === -1) {
-          updatedUnit.modifiers.push({
-            source: modifierId,
-            target: 'all_type_dmg_boost', // Correct stat key for DMG Boost
-            value: dmgValue,
-            type: 'pct'
-          });
-        }
-
-        newUnits[unitIndex] = updatedUnit;
-
-        gameState.log.push({
-          actionType: 'Buff',
-          sourceId: unit.id,
-          targetId: unit.id,
-          details: `とある星神の殞落を記す発動: 与ダメージ +${(dmgValue * 100).toFixed(1)}%`
+          ],
+          apply: (u, s) => s,
+          remove: (u, s) => s
         });
-
-        return { ...gameState, units: newUnits };
-      },
-      remove: (unit, gameState) => { return gameState; },
-    },
-  ],
+      }
+    }
+  ]
 };

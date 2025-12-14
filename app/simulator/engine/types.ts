@@ -1,13 +1,34 @@
-import { Character, Enemy, FinalStats, Modifier, SimulationLogEntry, Element, IUnitData, IAbility } from '../../types/index'; // IUnitDataとIAbilityを追加
+import { Character, Enemy, FinalStats, Modifier, SimulationLogEntry, Element, IUnitData, IAbility, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, HitDetail, EquipmentEffectEntry, StatKey } from '../../types/index';
 import { IEffect } from '../effect/types';
 import { DamageCalculationModifiers } from '../damage'; // 新しい型をインポート
 
+/**
+ * オーラインターフェース
+ * ソースユニットがフィールド上にいる間のみ有効な永続効果
+ * ソースユニット死亡時に自動削除される
+ */
+export interface IAura {
+    id: string;
+    name: string;
+    sourceUnitId: string;
+    target: 'all_allies' | 'all_enemies' | 'self' | 'other_allies';
+    modifiers: {
+        target: StatKey;
+        value: number;
+        type: 'add' | 'pct';
+        source: string;
+    }[];
+}
 export type UltimateStrategy = 'immediate' | 'cooldown';
 
 export interface CharacterConfig {
     rotation: string[];
+    rotationMode?: 'sequence' | 'spam_skill';
+    spamSkillTriggerSp?: number;
+    skillTargetId?: string;
     ultStrategy: UltimateStrategy;
     ultCooldown: number;
+    useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
 }
 
 /**
@@ -59,6 +80,9 @@ export interface Unit {
     // Summon related
     isSummon?: boolean;
     ownerId?: string; // ID of the unit that summoned this unit
+    linkedUnitId?: string; // ID of the unit this summon is linked to (e.g., 'Comrade')
+    untargetable?: boolean; // If true, cannot be targeted by single-target/blast abilities
+    debuffImmune?: boolean; // If true, immune to all debuffs (e.g., Ikarun)
 }
 
 /**
@@ -70,6 +94,7 @@ export interface GameState {
     skillPoints: number;
     maxSkillPoints: number; // Default 5, expandable
     time: number; // Current simulation time, can be used for buff durations etc.
+    currentTurnOwnerId?: string; // 現在ターン中のユニットID（バフ減少スキップ判定用）
     log: SimulationLogEntry[];
     eventHandlers: IEventHandler[];
     eventHandlerLogics: Record<string, IEventHandlerLogic>; // ハンドラIDからロジック関数を引くためのマップ
@@ -82,6 +107,9 @@ export interface GameState {
     // ハンドラがターンごとにクールダウンを追跡するためのマップ
     cooldowns: Record<string, number>;
 
+    // クールダウンのメタデータ（リセットタイミング制御用）
+    cooldownMetadata: Record<string, CooldownMetadata>;
+
     // List of pending actions (e.g. Follow-up attacks) to be executed immediately after current action
     // List of pending actions (e.g. Follow-up attacks) to be executed immediately after current action
     pendingActions: Action[];
@@ -91,6 +119,46 @@ export interface GameState {
 
     // Battle Result Summary
     result: BattleResult;
+
+    // 現在アクションのログ蓄積用
+    currentActionLog?: CurrentActionLog;
+
+    // オーラ（ソースユニットがフィールド上にいる間のみ有効な永続効果）
+    auras: IAura[];
+}
+
+/**
+ * 現在実行中アクションのログ蓄積用インターフェース
+ */
+export interface CurrentActionLog {
+    actionId: string;                           // ユニークID
+    primarySourceId: string;                    // メインアクション実行者
+    primarySourceName: string;                  // メインアクション実行者名
+    primaryActionType: string;                  // メインアクション種別
+    startTime: number;                          // アクション開始時間
+
+    // メインダメージ
+    primaryDamage: {
+        hitDetails: HitDetail[];
+        totalDamage: number;
+    };
+
+    // 蓄積データ
+    additionalDamage: AdditionalDamageEntry[];
+    damageTaken: DamageTakenEntry[];
+    healing: HealingEntry[];
+    shields: ShieldEntry[];
+    dotDetonations: DotDetonationEntry[];
+    equipmentEffects: EquipmentEffectEntry[];
+}
+
+/**
+ * クールダウンのメタデータ
+ */
+export interface CooldownMetadata {
+    handlerId: string;
+    resetType: 'wearer_turn' | 'any_turn';
+    ownerId: string; // クールダウンの所有者（装備キャラのID）
 }
 
 export interface BattleResult {
@@ -133,30 +201,49 @@ export interface ActionQueueEntry {
 export type EventType =
     | 'ON_DAMAGE_DEALT'
     | 'ON_TURN_START'
+    | 'ON_TURN_END'         // ターン終了時
     | 'ON_ULTIMATE_USED'
     | 'ON_SKILL_USED'
     | 'ON_UNIT_HEALED'
     | 'ON_BATTLE_START'
-    | 'ON_UNIT_HEALED'
-    | 'ON_BATTLE_START'
     | 'ON_BEFORE_DAMAGE_CALCULATION' // 防御無視などの動的効果介入用
     | 'ON_WEAKNESS_BREAK' // 弱点撃破時
+    | 'ON_WEAKNESS_BREAK_RECOVERY_ATTEMPT' // 弱点撃破回復試行時（残梅用）
     | 'ON_BASIC_ATTACK'
+    | 'ON_ENHANCED_BASIC_ATTACK' // 強化通常攻撃（刃の無間剣樹等）
     | 'ON_FOLLOW_UP_ATTACK'
-    | 'ON_DEBUFF_APPLIED'
+    | 'ON_ATTACK'           // 全ての攻撃（通常攻撃、スキル、必殺技、追加攻撃）に反応
     | 'ON_DEBUFF_APPLIED'
     | 'ON_DOT_DAMAGE' // 持続ダメージ発生時
-    | 'ON_ACTION_COMPLETE';  // Fired after all damage calculation is done
+    | 'ON_ACTION_COMPLETE'  // Fired after all damage calculation is done
+    | 'ON_EFFECT_APPLIED'   // エフェクト付与時
+    | 'ON_EFFECT_REMOVED'   // エフェクト解除時
+    | 'ON_ENEMY_DEFEATED'   // 敵撃破時
+    | 'ON_ENEMY_SPAWNED'    // 敵生成時
+    | 'ON_UNIT_DEATH'       // ユニット死亡/退場時
+    | 'ON_SP_CHANGE';       // SP増減時
 
 export interface IEvent {
     type: EventType;
     sourceId: string;
     targetId?: string;
     value?: number; // Damage amount, healing amount, etc.
+    healingDone?: number; // 回復量（ON_UNIT_HEALED用）
     subType?: string; // e.g. 'Basic', 'Skill', 'Ultimate', 'FollowUp', 'DoT'
     targetCount?: number; // Added for Tribbie's Ultimate logic
+    defeatedEnemy?: Unit; // 倒された敵の情報（ON_ENEMY_DEFEATED用）
+    element?: import('@/app/types').Element; // 攻撃の属性（ON_BEFORE_DAMAGE_CALCULATION用）
     // 将来的な拡張のために、より詳細な情報を持たせることも可能
     // e.g. damageType: 'basic' | 'skill' | 'dot'
+}
+
+/**
+ * エフェクト付与/解除イベント用のインターフェース
+ */
+export interface IEffectEvent extends IEvent {
+    type: 'ON_EFFECT_APPLIED' | 'ON_EFFECT_REMOVED';
+    targetId: string;        // エフェクトが付与/解除されたユニット
+    effect: IEffect;         // 付与/解除されたエフェクト
 }
 
 /**
@@ -258,17 +345,30 @@ export interface TurnSkipAction {
     reason: string;
 }
 
-export type Action = BasicAttackAction | SkillAction | UltimateAction | BattleStartAction | RegisterHandlersAction | ActionAdvanceAction | FollowUpAttackAction | TurnSkipAction;
+export interface EnhancedBasicAttackAction {
+    type: 'ENHANCED_BASIC_ATTACK';
+    sourceId: string;
+    targetId: string;
+    flags?: {
+        skipTurnEnd?: boolean;
+    };
+}
 
-export type CombatAction = BasicAttackAction | SkillAction | UltimateAction | FollowUpAttackAction;
+export type Action = BasicAttackAction | SkillAction | UltimateAction | BattleStartAction | RegisterHandlersAction | ActionAdvanceAction | FollowUpAttackAction | TurnSkipAction | EnhancedBasicAttackAction;
+
+export type CombatAction = BasicAttackAction | SkillAction | UltimateAction | FollowUpAttackAction | EnhancedBasicAttackAction;
+
 
 export interface IHit {
     targetId: string;
-    scaling: 'atk' | 'def' | 'hp';
+    scaling: 'atk' | 'def' | 'hp' | 'accumulated_healing';
     multiplier: number;
+    toughnessReduction: number;  // 削靭値
     hitIndex: number; // Useful for debugging or specific artifacts
     isMainTarget: boolean;
-    hitType: 'main' | 'adjacent' | 'bounce' | 'other';
+    hitType: 'main' | 'adjacent' | 'bounce' | 'aoe';
+    accumulatorOwnerId?: string; // 累計値の所有者ID（accumulated_healing用）
+    accumulatorValue?: number; // 累計値の実際の値（stepGenerateHitsで設定）
 }
 
 /**
@@ -288,6 +388,9 @@ export interface ActionContext {
     totalHealing: number;
     totalShield: number;
 
+    // 各ヒットの詳細情報（ログ用）
+    hitDetails: import('../../types/index').HitDetail[];
+
     // Flags
     isBroken: boolean;
 }
@@ -297,16 +400,16 @@ export interface EnemyConfig {
     level: number;
     maxHp: number;
     toughness: number;
-    spd: number; // Added
+    spd: number;
+    atk?: number; // Added
+    def?: number; // Added
 }
 
 export interface SimulationConfig {
     characters: Character[]; // 後方互換性のため残す（内部的にはPartyConfigから生成）
     enemies: Enemy[];
     weaknesses: Set<Element>;
-    characterConfig?: CharacterConfig; // 後方互換性のため残す（非推奨）
     partyConfig?: import('../../types/index').PartyConfig; // パーティ設定（推奨）
     enemyConfig: EnemyConfig; // Added
     rounds: number;
 }
-

@@ -1,9 +1,57 @@
 import { Character, Element, Path, StatKey } from '../../types';
 import { IEventHandlerFactory, GameState, IEvent, Unit, IHit, ActionContext } from '../../simulator/engine/types';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
 import { calculateNormalAdditionalDamage } from '../../simulator/damage';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+// 星魂対応ユーティリティ
+import { getLeveledValue } from '../../simulator/utils/abilityLevel';
+import { addEnergyToUnit } from '../../simulator/engine/energy';
+
+// --- 定数定義 ---
+const CHARACTER_ID = 'tribbie';
+
+// --- E3/E5パターン (非標準) ---
+// E3: 必殺技Lv+2, 通常Lv+1
+// E5: スキルLv+2, 天賦Lv+2 → スキル耐性貫通がLv12
+
+// --- アビリティ値 (レベル別) ---
+const ABILITY_VALUES = {
+    // スキル耐性貫通: E5でLv12に上昇
+    skillResPen: {
+        10: 0.24,
+        12: 0.264
+    } as Record<number, number>,
+};
+
+// 通常攻撃
+const BASIC_MAIN_MULT = 0.30;
+const BASIC_ADJ_MULT = 0.15;
+
+// 必殺技
+const ULT_MULT = 0.30;
+
+// 天賦
+const TALENT_MULT = 0.18;
+
+// スキル
+const SKILL_AURA_DURATION = 3;
+
+// 結界
+const FIELD_DURATION = 2;
+const FIELD_ADDITIONAL_DMG_MULT = 0.12;
+
+// 星魂
+const E1_TRUE_DMG_PCT = 0.24;
+const E2_DMG_MULT = 2.2;
+const E4_DEF_IGNORE = 0.18;
+const E6_DMG_BOOST = 7.29;
+
+// 軌跡
+const TRACE1_DMG_BOOST_PER_STACK = 0.72;
+const TRACE2_HP_BOOST_PCT = 0.09;
+const TRACE3_BATTLE_START_EP = 30;
+const TRACE3_EP_PER_HIT = 1.5;
 
 export const tribbie: Character = {
     id: 'tribbie',
@@ -31,11 +79,10 @@ export const tribbie: Character = {
             damage: {
                 type: 'blast',
                 scaling: 'hp',
-                mainMultiplier: 0.3, // Lv.6
-                adjacentMultiplier: 0.15, // Lv.6
+                mainHits: [{ multiplier: 0.3, toughnessReduction: 10 }],
+                adjacentHits: [{ multiplier: 0.15, toughnessReduction: 5 }],
             },
             energyGain: 20,
-            toughnessReduction: 10,
         },
         skill: {
             id: 'tribbie-skill',
@@ -44,7 +91,6 @@ export const tribbie: Character = {
             description: '味方全体に「神の啓示」を付与する。全属性耐性貫通+24%。3ターン継続。',
             targetType: 'self',
             energyGain: 30,
-            toughnessReduction: 0,
             effects: [] // Handled by Handler (Aura)
         },
         ultimate: {
@@ -54,11 +100,10 @@ export const tribbie: Character = {
             description: '結界を展開し、敵全体に量子属性ダメージを与える。結界展開中、敵の被ダメージをアップさせる。また、味方の攻撃後、最もHPの高い敵に付加ダメージを与える。',
             targetType: 'all_enemies',
             energyGain: 5,
-            toughnessReduction: 20,
             damage: {
-                type: 'simple',
+                type: 'aoe',
                 scaling: 'hp',
-                multiplier: 0.3 // Lv.10
+                hits: [{ multiplier: 0.3, toughnessReduction: 20 }],
             },
             effects: [] // Field handled by handler
         },
@@ -69,19 +114,17 @@ export const tribbie: Character = {
             description: '自身以外の味方が必殺技を発動した後、トリビーが追加攻撃を行い、敵全体に量子属性ダメージを与える。この効果は各味方につき1回まで発動可能で、トリビーが必殺技を発動すると回数がリセットされる。',
             targetType: 'all_enemies', // AoE Follow-up
             damage: {
-                type: 'simple',
+                type: 'aoe',
                 scaling: 'hp',
-                multiplier: 0.18 // Lv.10
+                hits: [{ multiplier: 0.18, toughnessReduction: 5 }],
             },
             energyGain: 5,
-            toughnessReduction: 5,
         },
         technique: {
             id: 'tribbie-technique',
             name: '楽しいなら手を叩こう',
             type: 'Technique',
             description: '戦闘開始時、味方全体に「神の啓示」を付与する。',
-            toughnessReduction: 0,
         }
     },
     traces: [
@@ -144,9 +187,10 @@ export const tribbie: Character = {
             name: '朝焼けの宝物',
             description: '必殺技Lv.+2、通常攻撃Lv.+1',
             abilityModifiers: [
-                { abilityName: 'basic', param: 'damage.mainMultiplier', value: 0.33 },
-                { abilityName: 'basic', param: 'damage.adjacentMultiplier', value: 0.16 },
-                { abilityName: 'ultimate', param: 'damage.multiplier', value: 0.34 },
+                // レベル12: 通常攻撃 33%/16.5%、必殺技 33%
+                { abilityName: 'basic', param: 'damage.mainHits.0.multiplier', value: 0.33 },
+                { abilityName: 'basic', param: 'damage.adjacentHits.0.multiplier', value: 0.165 },
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 0.33 },
             ]
         },
         e4: {
@@ -159,8 +203,9 @@ export const tribbie: Character = {
             name: '奇跡を起こす時計',
             description: '戦闘スキルLv.+2、天賦Lv.+2',
             abilityModifiers: [
-                { abilityName: 'skill', param: 'effects.0.modifiers.0.value', value: 0.276 },
-                { abilityName: 'talent', param: 'damage.multiplier', value: 0.198 }
+                // スキルの耐性貫通はgetSkillResPenValue関数で処理
+                // レベル12: 天賦 19.8%
+                { abilityName: 'talent', param: 'damage.hits.0.multiplier', value: 0.198 }
             ]
         },
         e6: {
@@ -168,14 +213,38 @@ export const tribbie: Character = {
             name: '星が煌めく明日',
             description: '必殺技発動後、敵全体に天賦の追加攻撃を行う。ダメージ+729%。'
         }
+    },
+
+    defaultConfig: {
+        lightConeId: 'dance-dance-dance',
+        superimposition: 5,
+        relicSetId: 'poet_who_sings_of_the_sorrow_of_the_fallen_kingdom',
+        ornamentSetId: 'silent_ossuary',
+        mainStats: {
+            body: 'crit_rate',
+            feet: 'hp_pct',
+            sphere: 'hp_pct',
+            rope: 'energy_regen_rate',
+        },
+        subStats: [
+            { stat: 'crit_rate', value: 0.324 },
+            { stat: 'crit_dmg', value: 0.648 },
+            { stat: 'hp_pct', value: 0.432 },
+        ],
+        rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
     }
 };
 
 // Helper to create the Aura Effect
 function createDivineRevelationAura(sourceId: string, duration: number, eidolonLevel: number): IEffect {
+    // E5でスキルLv+2 → Lv12の耐性貫通値を使用
+    const skillLevel = eidolonLevel >= 5 ? 12 : 10;
+    const resPenValue = getLeveledValue(ABILITY_VALUES.skillResPen, skillLevel);
+
     return {
         id: `divine-revelation-aura-${sourceId}`,
-        name: 'Divine Revelation Aura',
+        name: '神の啓示オーラ',
         category: 'BUFF',
         sourceUnitId: sourceId,
         durationType: 'TURN_START_BASED',
@@ -187,30 +256,31 @@ function createDivineRevelationAura(sourceId: string, duration: number, eidolonL
                 if (!u.isEnemy && u.hp > 0) {
                     const buff: IEffect = {
                         id: `divine-revelation-buff-${sourceId}-${u.id}`,
-                        name: 'Divine Revelation',
+                        name: '神の啓示',
                         category: 'BUFF',
                         sourceUnitId: sourceId,
-                        durationType: 'PERMANENT', // Managed by Aura
+                        durationType: 'LINKED', // Changed to LINKED
                         duration: 0,
+                        linkedEffectId: `divine-revelation-aura-${sourceId}`, // Linked to Parent Aura
                         onApply: (target, state) => {
                             const newModifiers = [...target.modifiers, {
-                                source: 'Divine Revelation',
+                                source: '神の啓示',
                                 target: 'all_type_res_pen' as StatKey,
                                 type: 'add' as const,
-                                value: 0.24,
+                                value: resPenValue,
                             }];
                             if (eidolonLevel >= 4) {
                                 newModifiers.push({
-                                    source: 'Divine Revelation (E4)',
+                                    source: '神の啓示 (E4)',
                                     target: 'def_ignore' as StatKey,
                                     type: 'add' as const,
-                                    value: 0.18
+                                    value: E4_DEF_IGNORE
                                 });
                             }
                             return { ...state, units: state.units.map(unit => unit.id === target.id ? { ...unit, modifiers: newModifiers } : unit) };
                         },
                         onRemove: (target, state) => {
-                            const newModifiers = target.modifiers.filter(m => m.source !== 'Divine Revelation' && m.source !== 'Divine Revelation (E4)');
+                            const newModifiers = target.modifiers.filter(m => m.source !== '神の啓示' && m.source !== '神の啓示 (E4)');
                             return { ...state, units: state.units.map(unit => unit.id === target.id ? { ...unit, modifiers: newModifiers } : unit) };
                         },
                         apply: (target, state) => state,
@@ -240,7 +310,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
     return {
         handlerMetadata: {
             id: `tribbie-handler-${sourceUnitId}`,
-            subscribesTo: ['ON_DAMAGE_DEALT', 'ON_TURN_START', 'ON_BATTLE_START', 'ON_ULTIMATE_USED', 'ON_SKILL_USED', 'ON_BASIC_ATTACK', 'ON_FOLLOW_UP_ATTACK'],
+            subscribesTo: ['ON_DAMAGE_DEALT', 'ON_TURN_START', 'ON_BATTLE_START', 'ON_ULTIMATE_USED', 'ON_ATTACK', 'ON_FOLLOW_UP_ATTACK', 'ON_ENEMY_SPAWNED'],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
             const tribbieUnit = state.units.find(u => u.id === sourceUnitId);
@@ -252,43 +322,61 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
             if (event.type === 'ON_BATTLE_START') {
                 console.log('[Tribbie Handler] ON_BATTLE_START event received');
 
-                // Apply Aura
-                const aura = createDivineRevelationAura(sourceUnitId, 3, eidolonLevel);
-                newState = addEffect(newState, sourceUnitId, aura);
+                // 秘技使用フラグを確認 (デフォルト true)
+                const useTechnique = tribbieUnit.config?.useTechnique !== false;
 
-                console.log('[Tribbie Handler] After addEffect, tribbie effects:',
-                    newState.units.find(u => u.id === sourceUnitId)?.effects.length);
+                if (useTechnique) {
+                    // Apply Aura
+                    const aura = createDivineRevelationAura(sourceUnitId, 3, eidolonLevel);
+                    newState = addEffect(newState, sourceUnitId, aura);
 
-                // Log Technique Activation
-                newState.log.push({
-                    characterName: tribbieUnit.name,
-                    actionTime: newState.time,
-                    actionType: 'Technique',
-                    skillPointsAfterAction: newState.skillPoints,
-                    damageDealt: 0,
-                    healingDone: 0,
-                    shieldApplied: 0,
-                    sourceHpState: `${tribbieUnit.hp.toFixed(0)}/${tribbieUnit.stats.hp.toFixed(0)}`,
-                    targetHpState: '',
-                    targetToughness: '',
-                    currentEp: tribbieUnit.ep,
-                    activeEffects: [],
-                    details: '秘技: 神の啓示を付与'
-                } as any);
+                    console.log('[Tribbie Handler] After addEffect, tribbie effects:',
+                        newState.units.find(u => u.id === sourceUnitId)?.effects.length);
 
-                // Trace 3: Energy Regen at Battle Start
+                    // Log Technique Activation (イミュータブル更新)
+                    newState = {
+                        ...newState,
+                        log: [...newState.log, {
+                            characterName: tribbieUnit.name,
+                            actionTime: newState.time,
+                            actionType: '秘技',
+                            skillPointsAfterAction: newState.skillPoints,
+                            damageDealt: 0,
+                            healingDone: 0,
+                            shieldApplied: 0,
+                            sourceHpState: `${tribbieUnit.hp.toFixed(0)}/${tribbieUnit.stats.hp.toFixed(0)}`,
+                            targetHpState: '',
+                            targetToughness: '',
+                            currentEp: tribbieUnit.ep,
+                            activeEffects: [],
+                            details: '秘技: 神の啓示を付与'
+                        } as any]
+                    };
+                }
+
+                // 天賦「どたばたトリビー」: 全味方（自身除く）に発動可能エフェクトを付与
+                // これは秘技ではなく天賦なので常に発動
+                const battleStartAllies = newState.units.filter(u => !u.isEnemy && u.id !== sourceUnitId && u.hp > 0);
+                battleStartAllies.forEach(ally => {
+                    const talentReadyEffect: IEffect = {
+                        id: `tribbie-talent-ready-${sourceUnitId}-${ally.id}`,
+                        name: 'どたばたトリビー',
+                        category: 'STATUS',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        onApply: (t, s) => s,
+                        onRemove: (t, s) => s,
+                        apply: (t, s) => s,
+                        remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, ally.id, talentReadyEffect);
+                });
+
+                // Trace 3: Energy Regen at Battle Start (これも秘技ではなく軌跡なので常に発動)
                 const pebbleTrace = tribbieUnit.traces?.find(t => t.id === 'tribbie-trace-3');
                 if (pebbleTrace) {
-                    // ★ FIX: Get the latest tribbie unit from newState (after addEffect)
-                    const currentTribbie = newState.units.find(u => u.id === sourceUnitId);
-                    if (currentTribbie) {
-                        const newEp = Math.min(currentTribbie.ep + 30, currentTribbie.stats.max_ep);
-                        const updatedTribbie = { ...currentTribbie, ep: newEp };  // Now uses current unit with effects
-                        newState = {
-                            ...newState,
-                            units: newState.units.map(u => u.id === sourceUnitId ? updatedTribbie : u)
-                        };
-                    }
+                    newState = addEnergyToUnit(newState, sourceUnitId, TRACE3_BATTLE_START_EP);
                 }
 
                 console.log('[Tribbie Handler] Returning state, tribbie effects:',
@@ -306,14 +394,17 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
 
             // Ultimate Field Logic
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId === sourceUnitId) {
+                // 結界のID（LINKEDデバフ用に固定）
+                const fieldEffectId = `tribbie-field-${sourceUnitId}`;
+
                 // Apply Field to Tribbie (Duration 2)
                 const fieldEffect: IEffect = {
-                    id: `tribbie-field-${Date.now()}`,
-                    name: 'Who Lives Here!',
+                    id: fieldEffectId,
+                    name: 'ここに住んでるのは誰でしょう！',
                     category: 'BUFF',
                     sourceUnitId: sourceUnitId,
                     durationType: 'TURN_START_BASED',
-                    duration: 2,
+                    duration: FIELD_DURATION,
                     onApply: (t, s) => {
                         // Trace 2: Max HP Boost
                         let totalMaxHp = 0;
@@ -324,13 +415,13 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         const trace2 = tribbieUnit.traces?.find(tr => tr.id === 'tribbie-trace-2');
                         let hpBoost = 0;
                         if (trace2) {
-                            hpBoost = totalMaxHp * 0.09;
+                            hpBoost = totalMaxHp * TRACE2_HP_BOOST_PCT;
                         }
 
                         const newModifiers = [...t.modifiers];
                         if (hpBoost > 0) {
                             newModifiers.push({
-                                source: 'Who Lives Here! (Trace 2)',
+                                source: 'ここに住んでるのは誰でしょう！ (形跡 2)',
                                 target: 'hp' as StatKey,
                                 type: 'add' as const,
                                 value: hpBoost
@@ -340,13 +431,49 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                     },
                     onRemove: (t, s) => {
-                        const newModifiers = t.modifiers.filter(m => m.source !== 'Who Lives Here! (Trace 2)');
+                        const newModifiers = t.modifiers.filter(m => m.source !== 'ここに住んでるのは誰でしょう！ (形跡 2)');
                         return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                     },
                     apply: (t, s) => s,
                     remove: (t, s) => s
                 };
                 newState = addEffect(newState, sourceUnitId, fieldEffect);
+
+                // 結界: 敵全体に被ダメージ増加デバフを付与（LINKEDで結界終了時に自動削除）
+                const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+                enemies.forEach(enemy => {
+                    const vulnDebuff: IEffect = {
+                        id: `tribbie-field-vuln-${sourceUnitId}-${enemy.id}`,
+                        name: '結界: 被ダメージ増加',
+                        category: 'DEBUFF',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'LINKED',
+                        duration: 0,
+                        linkedEffectId: fieldEffectId,
+                        modifiers: [{
+                            source: '結界: 被ダメージ増加',
+                            target: 'all_type_vuln' as StatKey,
+                            type: 'add' as const,
+                            value: 0.30
+                        }],
+                        onApply: (t, s) => {
+                            const newModifiers = [...t.modifiers, {
+                                source: '結界: 被ダメージ増加',
+                                target: 'all_type_vuln' as StatKey,
+                                type: 'add' as const,
+                                value: 0.30
+                            }];
+                            return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
+                        },
+                        onRemove: (t, s) => {
+                            const newModifiers = t.modifiers.filter(m => m.source !== '結界: 被ダメージ増加');
+                            return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
+                        },
+                        apply: (t, s) => s,
+                        remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, enemy.id, vulnDebuff);
+                });
 
                 // E6: Trigger Talent Follow-up
                 if (eidolonLevel >= 6) {
@@ -358,14 +485,15 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
 
                     const e6Buff: IEffect = {
                         id: `tribbie-e6-buff-${Date.now()}`,
-                        name: 'E6 Damage Boost',
+                        name: 'E6ダメージアップ',
                         category: 'BUFF',
                         sourceUnitId: sourceUnitId,
-                        durationType: 'DURATION_BASED',
+                        durationType: 'TURN_END_BASED',
+                        skipFirstTurnDecrement: true,
                         duration: 1,
                         onApply: (t, s) => {
                             const newModifiers = [...t.modifiers, {
-                                source: 'E6 Damage Boost',
+                                source: 'E6ダメージアップ',
                                 target: 'all_type_dmg_boost' as StatKey,
                                 type: 'add' as const,
                                 value: 7.29
@@ -373,7 +501,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                             return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                         },
                         onRemove: (t, s) => {
-                            const newModifiers = t.modifiers.filter(m => m.source !== 'E6 Damage Boost');
+                            const newModifiers = t.modifiers.filter(m => m.source !== 'E6ダメージアップ');
                             return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                         },
                         apply: (t, s) => s,
@@ -385,130 +513,169 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         pendingActions: [...newState.pendingActions, followUpAction]
                     };
                 }
+
+                // 天賦「どたばたトリビー」リセット: 全味方（自身除く）にエフェクトを再付与
+                const ultAllies = newState.units.filter(u => !u.isEnemy && u.id !== sourceUnitId && u.hp > 0);
+                ultAllies.forEach(ally => {
+                    // 既存を削除してから再付与（重複防止）
+                    const talentReadyEffectId = `tribbie-talent-ready-${sourceUnitId}-${ally.id}`;
+                    newState = removeEffect(newState, ally.id, talentReadyEffectId);
+
+                    const talentReadyEffect: IEffect = {
+                        id: talentReadyEffectId,
+                        name: 'どたばたトリビー',
+                        category: 'STATUS',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        onApply: (t, s) => s,
+                        onRemove: (t, s) => s,
+                        apply: (t, s) => s,
+                        remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, ally.id, talentReadyEffect);
+                });
             }
 
             // Additional Damage Logic (Field) & Trace 3 Energy Regen
-            if ((event.type === 'ON_SKILL_USED' || event.type === 'ON_BASIC_ATTACK' || event.type === 'ON_ULTIMATE_USED') && event.sourceId !== sourceUnitId) {
+            // ON_ATTACKは全ての攻撃（通常攻撃、スキル、必殺技、追加攻撃）で発火
+            // 仕様: 「敵が味方の攻撃を受けた後」なのでトリビー自身の攻撃も含む
+            if (event.type === 'ON_ATTACK') {
                 const sourceAlly = newState.units.find(u => u.id === event.sourceId);
                 if (sourceAlly && !sourceAlly.isEnemy) {
-                    // Check if action was an attack
-                    let isAttack = false;
-                    if (event.type === 'ON_BASIC_ATTACK') isAttack = true;
-                    else if (event.type === 'ON_ULTIMATE_USED' && sourceAlly.abilities.ultimate.damage) isAttack = true;
-                    else if (event.type === 'ON_SKILL_USED' && sourceAlly.abilities.skill.damage) isAttack = true;
+                    // 攻撃対象数を取得（イベントから）
+                    const targetsHit = event.targetCount ?? 1;
 
-                    if (isAttack) {
-                        // Trace 3: Energy Regen on Ally Attack
-                        const pebbleTrace = tribbieUnit.traces?.find(t => t.id === 'tribbie-trace-3');
-                        if (pebbleTrace) {
-                            const targetsHit = 1; // Simplified
-                            const energyGain = 1.5 * targetsHit;
-                            const currentTribbie = newState.units.find(u => u.id === sourceUnitId)!;
-                            const newEp = Math.min(currentTribbie.ep + energyGain, currentTribbie.stats.max_ep);
-                            newState = {
-                                ...newState,
-                                units: newState.units.map(u => u.id === sourceUnitId ? { ...u, ep: newEp } : u)
-                            };
-                        }
+                    // Trace 3: Energy Regen on Ally Attack
+                    const pebbleTrace = tribbieUnit.traces?.find(t => t.id === 'tribbie-trace-3');
+                    if (pebbleTrace) {
+                        const energyGain = 1.5 * targetsHit;
+                        newState = addEnergyToUnit(newState, sourceUnitId, energyGain);
+                    }
 
-                        // Field Logic
-                        const currentTribbie = newState.units.find(u => u.id === sourceUnitId)!;
-                        const hasField = currentTribbie.effects.find(e => e.name === 'Who Lives Here!');
-                        if (hasField) {
+                    // Field Logic: 攻撃を受けた敵1体につき1回発動
+                    const currentTribbie = newState.units.find(u => u.id === sourceUnitId)!;
+                    const hasField = currentTribbie.effects.find(e => e.id === `tribbie-field-${sourceUnitId}`);
+                    if (hasField) {
+                        // 攻撃対象数分だけ付加ダメージを発動
+                        for (let hitIndex = 0; hitIndex < targetsHit; hitIndex++) {
                             const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
-                            if (enemies.length > 0) {
-                                const target = enemies.reduce((prev, current) => (prev.hp > current.hp) ? prev : current);
+                            if (enemies.length === 0) break;
 
-                                let baseMult = 0.12;
-                                if (eidolonLevel >= 3) baseMult = 0.132;
+                            // 最もHPが高い敵を選択
+                            const target = enemies.reduce((prev, current) => (prev.hp > current.hp) ? prev : current);
 
-                                let multiplier = 1.0;
-                                if (eidolonLevel >= 2) multiplier = 2.2; // 120% UP = 2.2x
+                            let baseMult = 0.12;
+                            if (eidolonLevel >= 3) baseMult = 0.132;
 
-                                const baseDamage = currentTribbie.stats.hp * baseMult * multiplier;
-                                const damageAmount = calculateNormalAdditionalDamage(currentTribbie, target, baseDamage);
+                            let multiplier = 1.0;
+                            if (eidolonLevel >= 2) multiplier = 2.2; // 120% UP = 2.2x
 
-                                // Apply Unified Damage (1st Hit)
-                                const result1 = applyUnifiedDamage(
-                                    newState,
-                                    currentTribbie,
-                                    target,
-                                    damageAmount,
-                                    {
-                                        damageType: 'ADDITIONAL_DAMAGE',
-                                        details: 'Who Lives Here! Field Damage',
-                                        events: [{
-                                            type: 'ON_DAMAGE_DEALT',
-                                            payload: {
-                                                subType: 'ADDITIONAL_DAMAGE',
-                                                targetCount: 1
-                                            }
-                                        }]
-                                    }
-                                );
-                                newState = result1.state;
-                                let totalDamageDealt = result1.totalDamage;
+                            const latestTribbie = newState.units.find(u => u.id === sourceUnitId)!;
+                            const baseDamage = latestTribbie.stats.hp * baseMult * multiplier;
+                            const damageAmount = calculateNormalAdditionalDamage(latestTribbie, target, baseDamage);
 
-                                // E2: Extra Hit
-                                if (eidolonLevel >= 2) {
-                                    // Re-fetch target as it might have died or changed state (though applyUnifiedDamage handles death)
-                                    // But we need the unit object for the next call if we want to be safe, 
-                                    // although applyUnifiedDamage takes Unit object, it mostly uses ID.
-                                    // Let's use the updated unit from newState.
-                                    const updatedTarget = newState.units.find(u => u.id === target.id);
-                                    if (updatedTarget && updatedTarget.hp > 0) {
-                                        // E2 Extra Hit also needs calculation
-                                        // Note: baseDamage is same, but target stats (def/res) might differ if target changed?
-                                        // Ideally recalculate, but for now reuse baseDamage.
-                                        // Wait, calculateNormalAdditionalDamage uses target stats. So we must call it again.
-                                        const damageAmount2 = calculateNormalAdditionalDamage(currentTribbie, updatedTarget, baseDamage);
-
-                                        const result2 = applyUnifiedDamage(
-                                            newState,
-                                            currentTribbie,
-                                            updatedTarget,
-                                            damageAmount2,
-                                            {
-                                                damageType: 'ADDITIONAL_DAMAGE',
-                                                details: 'Who Lives Here! Field Damage (E2 Extra)',
-                                                events: [{
-                                                    type: 'ON_DAMAGE_DEALT',
-                                                    payload: {
-                                                        subType: 'ADDITIONAL_DAMAGE',
-                                                        targetCount: 1
-                                                    }
-                                                }]
-                                            }
-                                        );
-                                        newState = result2.state;
-                                        totalDamageDealt += result2.totalDamage;
-                                    }
+                            const result1 = applyUnifiedDamage(
+                                newState,
+                                latestTribbie,
+                                target,
+                                damageAmount,
+                                {
+                                    damageType: '付加ダメージ',
+                                    details: '「ここに住んでるのは誰でしょう！」 結界ダメージ',
+                                    skipLog: true, // 統合ログに追記するため個別ログをスキップ
+                                    events: [{
+                                        type: 'ON_DAMAGE_DEALT',
+                                        payload: {
+                                            subType: 'ADDITIONAL_DAMAGE',
+                                            targetCount: 1
+                                        }
+                                    }]
                                 }
+                            );
+                            newState = result1.state;
+                            let totalDamageDealt = result1.totalDamage;
 
-                                // E1: True Damage based on total damage
-                                if (eidolonLevel >= 1 && totalDamageDealt > 0) {
-                                    const trueDamage = totalDamageDealt * 0.24;
-                                    const updatedTarget = newState.units.find(u => u.id === target.id);
-                                    if (updatedTarget && updatedTarget.hp > 0) {
-                                        const resultE1 = applyUnifiedDamage(
-                                            newState,
-                                            currentTribbie,
-                                            updatedTarget,
-                                            trueDamage,
-                                            {
-                                                damageType: 'TRUE_DAMAGE',
-                                                details: 'Who Lives Here! E1 True Damage',
-                                                events: [{
-                                                    type: 'ON_DAMAGE_DEALT',
-                                                    payload: {
-                                                        subType: 'TRUE_DAMAGE',
-                                                        targetCount: 1
-                                                    }
-                                                }]
-                                            }
-                                        );
-                                        newState = resultE1.state;
-                                    }
+                            // 統合ログに付加ダメージを追記
+                            newState = appendAdditionalDamage(newState, {
+                                source: 'トリビー',
+                                name: '結界付加ダメージ',
+                                damage: result1.totalDamage,
+                                target: target.name
+                            });
+
+                            // E2: Extra Hit
+                            if (eidolonLevel >= 2) {
+                                // Re-fetch target as it might have died or changed state (though applyUnifiedDamage handles death)
+                                // But we need the unit object for the next call if we want to be safe, 
+                                // although applyUnifiedDamage takes Unit object, it mostly uses ID.
+                                // Let's use the updated unit from newState.
+                                const updatedTarget = newState.units.find(u => u.id === target.id);
+                                if (updatedTarget && updatedTarget.hp > 0) {
+                                    const damageAmount2 = calculateNormalAdditionalDamage(currentTribbie, updatedTarget, baseDamage);
+
+                                    const result2 = applyUnifiedDamage(
+                                        newState,
+                                        latestTribbie,
+                                        updatedTarget,
+                                        damageAmount2,
+                                        {
+                                            damageType: '付加ダメージ',
+                                            details: '「ここに住んでるのは誰でしょう！」 結界ダメージ (E2追加)',
+                                            skipLog: true,
+                                            events: [{
+                                                type: 'ON_DAMAGE_DEALT',
+                                                payload: {
+                                                    subType: 'ADDITIONAL_DAMAGE',
+                                                    targetCount: 1
+                                                }
+                                            }]
+                                        }
+                                    );
+                                    newState = result2.state;
+                                    totalDamageDealt += result2.totalDamage;
+
+                                    // 統合ログに付加ダメージを追記
+                                    newState = appendAdditionalDamage(newState, {
+                                        source: 'トリビー',
+                                        name: '結界付加ダメージ (E2)',
+                                        damage: result2.totalDamage,
+                                        target: updatedTarget.name
+                                    });
+                                }
+                            }
+
+                            if (eidolonLevel >= 1 && totalDamageDealt > 0) {
+                                const trueDamage = totalDamageDealt * 0.24;
+                                const updatedTarget = newState.units.find(u => u.id === target.id);
+                                if (updatedTarget && updatedTarget.hp > 0) {
+                                    const resultE1 = applyUnifiedDamage(
+                                        newState,
+                                        latestTribbie,
+                                        updatedTarget,
+                                        trueDamage,
+                                        {
+                                            damageType: '確定ダメージ',
+                                            details: '「ここに住んでるのは誰でしょう！」 E1確定ダメージ',
+                                            skipLog: true,
+                                            events: [{
+                                                type: 'ON_DAMAGE_DEALT',
+                                                payload: {
+                                                    subType: 'TRUE_DAMAGE',
+                                                    targetCount: 1
+                                                }
+                                            }]
+                                        }
+                                    );
+                                    newState = resultE1.state;
+
+                                    // 統合ログに確定ダメージを追記
+                                    newState = appendAdditionalDamage(newState, {
+                                        source: 'トリビー',
+                                        name: 'E1確定ダメージ',
+                                        damage: resultE1.totalDamage,
+                                        target: updatedTarget.name
+                                    });
                                 }
                             }
                         }
@@ -516,20 +683,29 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                 }
             }
 
-            // Talent: Follow-up on Ally Ultimate
+            // Talent: Follow-up on Ally Ultimate (発動制限あり)
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId !== sourceUnitId) {
                 const sourceAlly = newState.units.find(u => u.id === event.sourceId);
                 if (sourceAlly && !sourceAlly.isEnemy) {
-                    const followUpAction: any = {
-                        type: 'FOLLOW_UP_ATTACK',
-                        sourceId: sourceUnitId,
-                        targetId: newState.units.find(u => u.isEnemy && u.hp > 0)?.id,
-                    };
+                    // 発動可能チェック（「どたばたトリビー」エフェクトがあれば発動可能）
+                    const talentReadyEffectId = `tribbie-talent-ready-${sourceUnitId}-${sourceAlly.id}`;
+                    const talentReady = sourceAlly.effects.find(e => e.id === talentReadyEffectId);
 
-                    newState = {
-                        ...newState,
-                        pendingActions: [...newState.pendingActions, followUpAction]
-                    };
+                    if (talentReady) {
+                        const followUpAction: any = {
+                            type: 'FOLLOW_UP_ATTACK',
+                            sourceId: sourceUnitId,
+                            targetId: newState.units.find(u => u.isEnemy && u.hp > 0)?.id,
+                        };
+
+                        newState = {
+                            ...newState,
+                            pendingActions: [...newState.pendingActions, followUpAction]
+                        };
+
+                        // エフェクトを削除（使用済み）
+                        newState = removeEffect(newState, sourceAlly.id, talentReadyEffectId);
+                    }
                 }
             }
 
@@ -544,16 +720,17 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
 
                     const buff: IEffect = {
                         id: buffId,
-                        name: 'Trace 1 DMG Boost',
+                        name: '形跡 1 ダメージアップ',
                         category: 'BUFF',
                         sourceUnitId: sourceUnitId,
-                        durationType: 'DURATION_BASED',
+                        durationType: 'TURN_END_BASED',
+                        skipFirstTurnDecrement: true,
                         duration: 3,
                         onApply: (t, s) => {
                             // Remove old modifier if exists to update value
-                            const cleanModifiers = t.modifiers.filter(m => m.source !== 'Trace 1 DMG Boost');
+                            const cleanModifiers = t.modifiers.filter(m => m.source !== '形跡 1 ダメージアップ');
                             const newModifiers = [...cleanModifiers, {
-                                source: 'Trace 1 DMG Boost',
+                                source: '形跡 1 ダメージアップ',
                                 target: 'all_type_dmg_boost' as StatKey,
                                 type: 'add' as const,
                                 value: 0.72 * stackCount
@@ -561,7 +738,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                             return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                         },
                         onRemove: (t, s) => {
-                            const newModifiers = t.modifiers.filter(m => m.source !== 'Trace 1 DMG Boost');
+                            const newModifiers = t.modifiers.filter(m => m.source !== '形跡 1 ダメージアップ');
                             return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
                         },
                         apply: (t, s) => s,
@@ -570,6 +747,52 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                     (buff as any).stackCount = stackCount; // Hack to store stack count
 
                     newState = addEffect(newState, sourceUnitId, buff);
+                }
+            }
+
+            // 敵生成時: 結界が存在する場合、新規敵に被ダメージ増加デバフを付与
+            if (event.type === 'ON_ENEMY_SPAWNED' && event.targetId) {
+                const currentTribbie = newState.units.find(u => u.id === sourceUnitId);
+                if (currentTribbie) {
+                    const fieldEffectId = `tribbie-field-${sourceUnitId}`;
+                    const hasField = currentTribbie.effects.find(e => e.id === fieldEffectId);
+
+                    if (hasField) {
+                        const newEnemy = newState.units.find(u => u.id === event.targetId);
+                        if (newEnemy && newEnemy.isEnemy && newEnemy.hp > 0) {
+                            const vulnDebuff: IEffect = {
+                                id: `tribbie-field-vuln-${sourceUnitId}-${newEnemy.id}`,
+                                name: '結界: 被ダメージ増加',
+                                category: 'DEBUFF',
+                                sourceUnitId: sourceUnitId,
+                                durationType: 'LINKED',
+                                duration: 0,
+                                linkedEffectId: fieldEffectId,
+                                modifiers: [{
+                                    source: '結界: 被ダメージ増加',
+                                    target: 'all_type_vuln' as StatKey,
+                                    type: 'add' as const,
+                                    value: 0.30
+                                }],
+                                onApply: (t, s) => {
+                                    const newModifiers = [...t.modifiers, {
+                                        source: '結界: 被ダメージ増加',
+                                        target: 'all_type_vuln' as StatKey,
+                                        type: 'add' as const,
+                                        value: 0.30
+                                    }];
+                                    return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
+                                },
+                                onRemove: (t, s) => {
+                                    const newModifiers = t.modifiers.filter(m => m.source !== '結界: 被ダメージ増加');
+                                    return { ...s, units: s.units.map(u => u.id === t.id ? { ...u, modifiers: newModifiers } : u) };
+                                },
+                                apply: (t, s) => s,
+                                remove: (t, s) => s
+                            };
+                            newState = addEffect(newState, newEnemy.id, vulnDebuff);
+                        }
+                    }
                 }
             }
 

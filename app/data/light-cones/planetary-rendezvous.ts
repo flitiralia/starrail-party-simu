@@ -3,103 +3,49 @@ import { ILightConeData } from '@/app/types';
 export const planetaryRendezvous: ILightConeData = {
   id: 'planetary-rendezvous',
   name: '惑星との出会い',
+  description: '戦闘に入った後、味方が装備キャラと同じ属性のダメージを与えた時、与ダメージ+12%。',
+  descriptionTemplate: '戦闘に入った後、味方が装備キャラと同じ属性のダメージを与えた時、与ダメージ+{0}%。',
+  descriptionValues: [['12'], ['15'], ['18'], ['21'], ['24']],
   path: 'Harmony',
   baseStats: {
     hp: 1058,
     atk: 423,
     def: 330,
   },
-  effects: [
+
+  passiveEffects: [],
+
+  eventHandlers: [
     {
-      id: 'same_element_dmg_boost',
-      name: '旅立ち',
-      category: 'BUFF',
-      sourceUnitId: '',
-      durationType: 'PERMANENT',
-      duration: -1,
-      effectValue: [0.12, 0.15, 0.18, 0.21, 0.24],
-      customHandler: true,
-      apply: (wearer, gameState) => {
-        const modifierId = `lc-planetary-rendezvous-${wearer.id}-dmg-boost`;
-        const effectId = `effect-planetary-rendezvous-${wearer.id}-dmg-boost`;
-        const superimposition = wearer.equippedLightCone?.superimposition || 1;
-        const value = [0.12, 0.15, 0.18, 0.21, 0.24][superimposition - 1];
-        const element = wearer.element;
+      id: 'dmg_boost_same_element',
+      name: '惑星との出会い（与ダメージ増加）',
+      events: ['ON_BEFORE_DAMAGE_CALCULATION'],
+      handler: (event, state, unit, superimposition) => {
+        // 攻撃者を取得
+        const attacker = state.units.find(u => u.id === event.sourceId);
+        if (!attacker) return state;
 
-        const newUnits = gameState.units.map(u => {
-          if (u.isEnemy) return u;
+        // 味方キャラかチェック
+        if (attacker.isEnemy) return state;
 
-          // Only apply to allies with the same element
-          if (u.element !== element) return u;
+        // 攻撃の属性を取得
+        const attackElement = event.element;
+        if (!attackElement) return state;
 
-          const existingMod = u.modifiers.find(m => m.source === modifierId);
-          if (!existingMod) {
-            const newUnit = { ...u, stats: { ...u.stats }, modifiers: [...u.modifiers], effects: [...u.effects] };
+        // 属性一致判定（攻撃の属性 === 光円錐装備者の属性）
+        if (attackElement !== unit.element) return state;
 
-            const targetStat = `${element.toLowerCase()}_dmg_boost` as keyof typeof newUnit.stats; // e.g., fire_dmg_boost
+        // 与ダメージ増加値をdamageModifiersで一時的に適用（ダメージ計算時のみ）
+        const dmgBoost = [0.12, 0.15, 0.18, 0.21, 0.24][superimposition - 1];
 
-            const newModifier = {
-              target: targetStat,
-              source: modifierId,
-              type: 'pct' as const,
-              value: value,
-            };
-
-            if (newUnit.stats[targetStat] === undefined) (newUnit.stats[targetStat] as number) = 0;
-            (newUnit.stats[targetStat] as number) += value;
-
-            newUnit.modifiers.push(newModifier);
-
-            newUnit.effects.push({
-              id: effectId,
-              name: '惑星との出会い (与ダメ)',
-              category: 'BUFF',
-              sourceUnitId: wearer.id,
-              durationType: 'PERMANENT',
-              duration: -1,
-              apply: (t, s) => s,
-              remove: (t, s) => s
-            });
-            return newUnit;
+        return {
+          ...state,
+          damageModifiers: {
+            ...state.damageModifiers,
+            allTypeDmg: (state.damageModifiers.allTypeDmg || 0) + dmgBoost
           }
-          return u;
-        });
-
-        return { ...gameState, units: newUnits };
-      },
-      remove: (wearer, gameState) => {
-        const modifierId = `lc-planetary-rendezvous-${wearer.id}-dmg-boost`;
-        const effectId = `effect-planetary-rendezvous-${wearer.id}-dmg-boost`;
-        const superimposition = wearer.equippedLightCone?.superimposition || 1;
-        const value = [0.12, 0.15, 0.18, 0.21, 0.24][superimposition - 1];
-        const element = wearer.element;
-
-        const newUnits = gameState.units.map(u => {
-          if (u.isEnemy) return u;
-          if (u.element !== element) return u;
-
-          const modIndex = u.modifiers.findIndex(m => m.source === modifierId);
-          if (modIndex !== -1) {
-            const newUnit = { ...u, stats: { ...u.stats }, modifiers: [...u.modifiers], effects: [...u.effects] };
-
-            newUnit.modifiers.splice(modIndex, 1);
-
-            const targetStat = `${element.toLowerCase()}_dmg_boost` as keyof typeof newUnit.stats;
-            if (newUnit.stats[targetStat] !== undefined) {
-              (newUnit.stats[targetStat] as number) -= value;
-            }
-
-            const effectIndex = newUnit.effects.findIndex(e => e.id === effectId);
-            if (effectIndex !== -1) {
-              newUnit.effects.splice(effectIndex, 1);
-            }
-            return newUnit;
-          }
-          return u;
-        });
-
-        return { ...gameState, units: newUnits };
-      },
-    },
-  ],
+        };
+      }
+    }
+  ]
 };

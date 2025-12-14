@@ -6,14 +6,16 @@ import { Unit, GameState } from '../simulator/engine/types';
 import { IEffect } from '../simulator/effect/types';
 
 // prettier-ignore
-export const PATHS = ['The Hunt', 'Erudition', 'Destruction', 'Harmony', 'Nihility', 'Preservation', 'Abundance', 'Memory'] as const;
+export const PATHS = ['The Hunt', 'Erudition', 'Destruction', 'Harmony', 'Nihility', 'Preservation', 'Abundance', 'Remembrance'] as const;
 export type Path = (typeof PATHS)[number];
 
 // prettier-ignore
 export const ELEMENTS = ['Physical', 'Fire', 'Ice', 'Lightning', 'Wind', 'Quantum', 'Imaginary'] as const;
 export type Element = (typeof ELEMENTS)[number];
 
-export type EventType = 'ON_DAMAGE_DEALT' | 'ON_TURN_START' | 'ON_SKILL_USED' | 'ON_ULTIMATE_USED' | 'ON_UNIT_HEALED' | 'ON_BASIC_ATTACK' | 'ON_WEAKNESS_BREAK' | 'ON_BEFORE_DAMAGE_CALCULATION' | 'ON_DEBUFF_APPLIED' | 'ON_BATTLE_START';
+
+export type EventType = 'ON_DAMAGE_DEALT' | 'ON_TURN_START' | 'ON_SKILL_USED' | 'ON_ULTIMATE_USED' | 'ON_UNIT_HEALED' | 'ON_BASIC_ATTACK' | 'ON_WEAKNESS_BREAK' | 'ON_BEFORE_DAMAGE_CALCULATION' | 'ON_DEBUFF_APPLIED' | 'ON_BATTLE_START' | 'ON_ENEMY_DEFEATED';
+
 
 /**
  * キャラクターのレベル80時点での基礎ステータス（光円錐を含まない）
@@ -36,30 +38,52 @@ export type AbilityType = 'Basic ATK' | 'Skill' | 'Ultimate' | 'Talent' | 'Techn
 /**
  * スキル、必殺技、天賦などのデータ構造
  */
+
+/**
+ * ヒットごとのダメージと削靭値情報
+ */
+export interface IHitDefinition {
+  multiplier: number;          // ダメージ倍率
+  toughnessReduction: number;  // 削靭値
+}
+
 // Discriminated Union for Damage Logic
 export type DamageLogic =
   | ISimpleDamage
   | IBlastDamage
-  | IBounceDamage;
+  | IBounceDamage
+  | IAoEDamage;
 
 export interface ISimpleDamage {
   type: 'simple';
-  scaling: 'atk' | 'def' | 'hp';
-  multiplier: number; // Applies to all targets equally
+  scaling: 'atk' | 'def' | 'hp' | 'accumulated_healing';
+  accumulatorOwnerId?: string; // 累計値の所有者ID（accumulated_healing用）
+  hits: IHitDefinition[];     // 各ヒットの情報
 }
 
 export interface IBlastDamage {
   type: 'blast';
-  scaling: 'atk' | 'def' | 'hp';
-  mainMultiplier: number;     // For the primary target
-  adjacentMultiplier: number; // For adjacent targets
+  scaling: 'atk' | 'def' | 'hp' | 'accumulated_healing';
+  accumulatorOwnerId?: string;
+  mainHits: IHitDefinition[];      // メインターゲットへのヒット
+  adjacentHits: IHitDefinition[];  // 隣接ターゲットへのヒット
 }
 
 export interface IBounceDamage {
   type: 'bounce';
-  scaling: 'atk' | 'def' | 'hp';
-  multipliers: number[]; // Array of multipliers for each hit in sequence
-  // e.g. [0.5, 0.25, 0.25] means 1st hit 50%, 2nd 25%, 3rd 25%
+  scaling: 'atk' | 'def' | 'hp' | 'accumulated_healing';
+  accumulatorOwnerId?: string;
+  hits: IHitDefinition[];     // 各バウンドのヒット情報
+}
+
+/**
+ * 全体攻撃（AoE）のダメージ定義
+ */
+export interface IAoEDamage {
+  type: 'aoe';
+  scaling: 'atk' | 'def' | 'hp' | 'accumulated_healing';
+  accumulatorOwnerId?: string;
+  hits: IHitDefinition[];      // 各ターゲットへのヒット（全員に同じヒット配列）
 }
 
 /**
@@ -74,12 +98,11 @@ export interface IAbility {
   // Structured data for simulation
   // Structured data for simulation
   targetType?: 'single_enemy' | 'all_enemies' | 'ally' | 'all_allies' | 'self' | 'blast' | 'bounce';
+  manualTargeting?: boolean; // If true, allows manual target selection in UI for 'ally' type skills
   damage?: DamageLogic;
   additionalDamage?: DamageLogic[]; // For additional damage sources (e.g. E4)
   shield?: { multiplier: number, flat: number, scaling: 'atk' | 'def' | 'hp', duration?: number };
   energyGain?: number;
-  toughnessReduction?: number | { main: number; adjacent: number }; // Base toughness reduction
-  hits?: number; // Number of hits for status application checks (default: 1)
   spCost?: number; // SP cost for this ability (default: 1 for skills)
 
   // Ability Effects (Debuffs, Buffs, etc.)
@@ -137,6 +160,7 @@ export interface IUnitData {
     ultimate: IAbility;
     talent: IAbility;
     technique: IAbility;
+    enhancedBasic?: IAbility; // 強化通常攻撃（刃の無間剣樹など）
   };
   // シミュレーション中に付与される動的な効果
   effects?: IEffect[];
@@ -173,6 +197,44 @@ export interface CharacterEidolons {
 // --- キャラクター ---
 
 /**
+ * キャラクターのデフォルト設定
+ * キャラクター選択時に自動的に適用される装備・行動設定
+ */
+export interface CharacterDefaultConfig {
+  /** デフォルト凸数 (0-6) */
+  eidolonLevel?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  /** デフォルト光円錐のID */
+  lightConeId?: string;
+  /** デフォルト光円錐の重畳ランク */
+  superimposition?: 1 | 2 | 3 | 4 | 5;
+  /** デフォルト遺物セットのID (4セット用) */
+  relicSetId?: string;
+  /** デフォルト遺物セットのID (2セット+2セット用) */
+  relicSetIds?: [string, string];
+  /** デフォルトオーナメントセットのID */
+  ornamentSetId?: string;
+  /** デフォルトメインステータス (body, feet, sphere, rope) */
+  mainStats?: {
+    body?: StatKey;
+    feet?: StatKey;
+    sphere?: StatKey;
+    rope?: StatKey;
+  };
+  /** デフォルトサブステータス */
+  subStats?: { stat: StatKey; value: number }[];
+  /** デフォルトローテーション */
+  rotation?: string[];
+  /** ローテーションモード ('sequence' | 'spam_skill') */
+  rotationMode?: 'sequence' | 'spam_skill';
+  /** スパムスキル発動SP閾値 */
+  spamSkillTriggerSp?: number;
+  /** デフォルト必殺技発動方針 */
+  ultStrategy?: 'immediate' | 'cooldown';
+  /** 必殺技クールダウン（ultStrategy === 'cooldown'の場合） */
+  ultCooldown?: number;
+}
+
+/**
  * ゲーム内キャラクターの完全なデータ構造
  * IUnitData を継承し、キャラクター固有の情報を追加
  */
@@ -195,6 +257,9 @@ export interface Character extends IUnitData {
 
   // 装備中のオーナメント
   ornaments?: IOrnamentData[];
+
+  // キャラクターごとのデフォルト設定
+  defaultConfig?: CharacterDefaultConfig;
 }
 
 /**
@@ -214,12 +279,15 @@ export interface IAction {
  */
 export interface CharacterRotationConfig {
   rotation: string[]; // 行動パターン（例: ['s', 'b', 'b']）
+  rotationMode?: 'sequence' | 'spam_skill'; // 'sequence' (default) or 'spam_skill'
+  spamSkillTriggerSp?: number; // SP Threshold to start spamming skill (for 'spam_skill' mode)
+  skillTargetId?: string; // Target Character ID (or name-based ID)
   ultStrategy: 'immediate' | 'cooldown'; // 必殺技発動戦略
   ultCooldown: number; // 必殺技のクールダウン（ターン数）
+  useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
 }
 
 /**
- * パーティメンバーの完全なデータ構造
  * キャラクター本体 + 装備 + 個別設定を統合
  */
 export interface PartyMember {
@@ -250,13 +318,145 @@ export * from '../simulator/engine/simulation'; // EnemyConfigなどをここか
 export * from './worker'; // SimulationWorkerMessageなどをここからエクスポート
 
 /**
+ * 各ヒットの詳細情報
+ */
+export interface HitDetail {
+  hitIndex: number;       // ヒット番号 (0-based)
+  multiplier: number;     // 倍率
+  damage: number;         // このヒットのダメージ
+  isCrit: boolean;        // 会心したか
+  targetName?: string;    // ターゲット名（複数ターゲット時）
+  // ダメージ計算係数
+  breakdownMultipliers?: {
+    baseDmg: number;       // 基礎ダメージ
+    critMult: number;      // 会心系数 (1.0 or 1.0 + critDmg)
+    dmgBoostMult: number;  // 与ダメージ係数
+    defMult: number;       // 防御係数
+    resMult: number;       // 属性耐性係数
+    vulnMult: number;      // 被ダメージ係数
+    brokenMult: number;    // 撃破係数
+  };
+}
+
+/**
+ * 付加ダメージエントリ（トリビー結界など）
+ */
+export interface AdditionalDamageEntry {
+  source: string;        // "トリビー"
+  name: string;          // "結界付加ダメージ"
+  damage: number;
+  isCrit?: boolean;
+  target: string;        // ターゲット名
+}
+
+/**
+ * 被ダメージエントリ（DoT、自傷など）
+ */
+export interface DamageTakenEntry {
+  source: string;        // "敵A" or "自傷" or "裂創"
+  type: 'enemy' | 'self' | 'dot';
+  damage: number;
+  dotType?: string;      // DoTの場合の種類
+}
+
+/**
+ * 回復エントリ
+ */
+export interface HealingEntry {
+  source: string;        // "羅刹"
+  name: string;          // "結界回復"
+  amount: number;
+  target: string;        // 回復対象
+}
+
+/**
+ * シールドエントリ
+ */
+export interface ShieldEntry {
+  source: string;
+  name: string;
+  amount: number;
+  target: string;
+}
+
+/**
+ * DoT起爆エントリ（カフカなど）
+ */
+export interface DotDetonationEntry {
+  triggeredBy: string;   // "カフカ"
+  dotType: string;       // "感電"
+  target: string;
+  damage: number;
+}
+
+/**
+ * 装備効果エントリ（光円錐、遺物、オーナメント）
+ */
+export interface EquipmentEffectEntry {
+  source: string;        // ソース（光円錐名、遺物セット名など）
+  name: string;          // 効果名（例: "行動順短縮 25%"）
+  target?: string;       // 対象（省略可）
+  type: 'lightcone' | 'relic' | 'ornament';
+}
+
+/**
+ * アクションログの詳細情報（トグル内に表示）
+ */
+export interface ActionLogDetails {
+  // メインアクションのダメージ
+  primaryDamage?: {
+    hitDetails: HitDetail[];
+    totalDamage: number;
+  };
+
+  // 付加ダメージ（他キャラからも含む）
+  additionalDamage?: AdditionalDamageEntry[];
+
+  // 被ダメージ
+  damageTaken?: DamageTakenEntry[];
+
+  // 回復
+  healing?: HealingEntry[];
+
+  // シールド
+  shields?: ShieldEntry[];
+
+  // DoT起爆（カフカなど）
+  dotDetonations?: DotDetonationEntry[];
+
+  // 装備効果（光円錐、遺物、オーナメント）
+  equipmentEffects?: EquipmentEffectEntry[];
+}
+
+/**
  * シミュレーションログの単一エントリのデータ構造
  */
+export interface EffectSummary {
+  name: string;
+  duration: number | '∞';
+  stackCount?: number;
+  modifiers?: { stat: string; value: number }[];
+  owner?: string;
+  sourceType?: string; // 'self' | 'target'
+}
+
 export interface SimulationLogEntry {
-  characterName?: string; // Optional now
+  characterName?: string;
   actionTime?: number;
   actionType: string;
   skillPointsAfterAction?: number;
+
+  // === 集計値（簡易表示） ===
+  totalDamageDealt?: number;     // 与ダメ合計（付加含む）
+  totalDamageTaken?: number;     // 被ダメ合計（DoT、自傷含む）
+  totalHealing?: number;         // 回復合計
+  totalShieldGiven?: number;     // 付与したシールド
+  totalShieldReceived?: number;  // 受けたシールド
+
+  // === 詳細情報（トグル内） ===
+  logDetails?: ActionLogDetails;
+
+  // === 後方互換性のための既存フィールド ===
   damageDealt?: number;
   healingDone?: number;
   shieldApplied?: number;
@@ -274,5 +474,21 @@ export interface SimulationLogEntry {
 
   // 新しいログ情報: バフ/デバフ名と残ターン数
   currentEp?: number;
-  activeEffects?: { name: string; duration: number | '∞'; stackCount?: number; owner?: string }[];
+
+
+  // 新しいログ情報
+  activeEffects?: EffectSummary[]; // 後方互換のため
+  sourceEffects?: EffectSummary[];
+  targetEffects?: EffectSummary[];
+
+  // 統計情報
+  statTotals?: {
+    source?: { [key: string]: number };
+    target?: { [key: string]: number };
+  };
+  sourceFinalStats?: { [key: string]: number }; // 最終ステータス (ソース)
+  targetFinalStats?: { [key: string]: number }; // 最終ステータス (ターゲット)
+
+  // 各ヒットの詳細情報（後方互換性）
+  hitDetails?: HitDetail[];
 }

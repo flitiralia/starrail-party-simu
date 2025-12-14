@@ -1,4 +1,5 @@
 import { OrnamentSet } from '../../types';
+import { advanceAction } from '../../simulator/engine/utils';
 
 export const SPRIGHTLY_VONWACQ: OrnamentSet = {
   id: 'sprightly_vonwacq',
@@ -7,45 +8,28 @@ export const SPRIGHTLY_VONWACQ: OrnamentSet = {
     {
       pieces: 2,
       description: '装備キャラのEP回復効率+5%。装備キャラの速度が120以上の場合、戦闘に入る時、行動順が40%早まる。',
-      effects: [
+      passiveEffects: [
         {
-          type: 'PASSIVE_STAT',
           stat: 'energy_regen_rate',
           value: 0.05,
           target: 'self'
-        },
+        }
+      ],
+      eventHandlers: [
         {
-          type: 'EVENT_TRIGGER',
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
-            if (event.sourceId !== sourceUnitId) return state; // Should be 'system' usually, but let's check unit stats
+            const unit = state.units.find(u => u.id === sourceUnitId);
+            if (!unit) return state;
 
-            const unitIndex = state.units.findIndex(u => u.id === sourceUnitId);
-            if (unitIndex === -1) return state;
-
-            const unit = state.units[unitIndex];
-
-            // Check condition: SPD >= 120
+            // 速度120以上の場合、行動順40%加速
             if (unit.stats.spd < 120) return state;
 
-            // Action Advance 40%
-            const advanceAmount = 0.40;
-            const newActionPoint = Math.min(10000, unit.actionPoint + (10000 * advanceAmount));
-            const newActionValue = Math.max(0, (10000 - newActionPoint) / unit.stats.spd);
-
-            const updatedUnit = {
-              ...unit,
-              actionPoint: newActionPoint,
-              actionValue: newActionValue
-            };
-
-            return {
-              ...state,
-              units: state.units.map((u, i) => i === unitIndex ? updatedUnit : u)
-            };
+            return advanceAction(state, sourceUnitId, 0.40);
           }
         }
       ],
     },
   ],
 };
+

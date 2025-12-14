@@ -35,6 +35,7 @@ import * as lightCones from '@/app/data/light-cones';
 import * as relicSets from '@/app/data/relics';
 import * as ornamentSets from '@/app/data/ornaments';
 import * as enemies from '@/app/data/enemies';
+import { getCharacterDefaultConfig } from '@/app/data/defaultConfig';
 
 // Data Lists
 const characterList: Character[] = ALL_CHARACTERS;
@@ -125,6 +126,8 @@ export default function Home() {
   const [enemyLevel, setEnemyLevel] = useState(80);
   const [enemyMaxHp, setEnemyMaxHp] = useState(10000);
   const [enemyToughness, setEnemyToughness] = useState(180);
+  const [enemyAtk, setEnemyAtk] = useState<number | undefined>(undefined); // Optional, undefined = default
+  const [enemyDef, setEnemyDef] = useState<number | undefined>(undefined); // Optional, undefined = default
   const [enemySpd, setEnemySpd] = useState(132); // Default Speed
 
   // --- SIMULATION STATE ---
@@ -200,16 +203,124 @@ export default function Home() {
     if (!selectedChar) return;
 
     const newMembers = [...partyMembers];
+    let updatedCharacter: Character = {
+      ...selectedChar,
+      relics: newMembers[index].character.relics,
+      ornaments: newMembers[index].character.ornaments,
+      equippedLightCone: newMembers[index].character.equippedLightCone,
+    };
+    let updatedConfig = { ...newMembers[index].config };
+
+    // デフォルト設定を適用（グローバルフォールバック付き）
+    const defaultConfig = getCharacterDefaultConfig(selectedChar.defaultConfig);
+
+    // 凸数を適用
+    let updatedEidolonLevel = defaultConfig.eidolonLevel ?? 0;
+
+    // 光円錐
+    if (defaultConfig.lightConeId) {
+      const lc = lightConeList.find(l => l.id === defaultConfig.lightConeId);
+      if (lc) {
+        updatedCharacter.equippedLightCone = {
+          lightCone: lc,
+          level: 80,
+          superimposition: defaultConfig.superimposition || 1,
+        };
+      }
+    }
+
+    // 遺物セット
+    if (defaultConfig.relicSetIds) {
+      // 2セット+2セット構成
+      const [setId1, setId2] = defaultConfig.relicSetIds;
+      const relicSet1 = relicSetList.find(s => s.id === setId1);
+      const relicSet2 = relicSetList.find(s => s.id === setId2);
+      if (relicSet1 && relicSet2) {
+        const mainStats = defaultConfig.mainStats || {};
+        updatedCharacter.relics = [
+          // 最初の2つはセット1
+          { type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [], set: relicSet1 },
+          { type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [], set: relicSet1 },
+          // 残り2つはセット2
+          { type: 'Body', level: 15, mainStat: { stat: mainStats.body || 'hp_pct', value: getMainStatValue(mainStats.body || 'hp_pct') }, subStats: [], set: relicSet2 },
+          { type: 'Feet', level: 15, mainStat: { stat: mainStats.feet || 'hp_pct', value: getMainStatValue(mainStats.feet || 'hp_pct') }, subStats: [], set: relicSet2 },
+        ];
+      }
+    } else if (defaultConfig.relicSetId) {
+      // 4セット構成
+      const relicSet = relicSetList.find(s => s.id === defaultConfig.relicSetId);
+      if (relicSet) {
+        const mainStats = defaultConfig.mainStats || {};
+        updatedCharacter.relics = [
+          { type: 'Head', level: 15, mainStat: { stat: 'hp', value: 705 }, subStats: [], set: relicSet },
+          { type: 'Hands', level: 15, mainStat: { stat: 'atk', value: 352 }, subStats: [], set: relicSet },
+          { type: 'Body', level: 15, mainStat: { stat: mainStats.body || 'hp_pct', value: getMainStatValue(mainStats.body || 'hp_pct') }, subStats: [], set: relicSet },
+          { type: 'Feet', level: 15, mainStat: { stat: mainStats.feet || 'hp_pct', value: getMainStatValue(mainStats.feet || 'hp_pct') }, subStats: [], set: relicSet },
+        ];
+      }
+    }
+
+    // オーナメントセット
+    if (defaultConfig.ornamentSetId) {
+      const ornamentSet = ornamentSetList.find(s => s.id === defaultConfig.ornamentSetId);
+      if (ornamentSet) {
+        const mainStats = defaultConfig.mainStats || {};
+        updatedCharacter.ornaments = [
+          { type: 'Planar Sphere', level: 15, mainStat: { stat: mainStats.sphere || 'hp_pct', value: getMainStatValue(mainStats.sphere || 'hp_pct') }, subStats: [], set: ornamentSet },
+          { type: 'Link Rope', level: 15, mainStat: { stat: mainStats.rope || 'hp_pct', value: getMainStatValue(mainStats.rope || 'hp_pct') }, subStats: [], set: ornamentSet },
+        ];
+      }
+    }
+
+    // サブステータス（headの遺物に格納）
+    if (defaultConfig.subStats && updatedCharacter.relics && updatedCharacter.relics.length > 0) {
+      updatedCharacter.relics[0] = {
+        ...updatedCharacter.relics[0],
+        subStats: defaultConfig.subStats.map(s => ({ stat: s.stat, value: s.value })),
+      };
+    }
+
+    // ローテーション（グローバルデフォルト込み）
+    if (defaultConfig.rotation) {
+      updatedConfig.rotation = defaultConfig.rotation;
+    }
+
+    // ローテーションモード
+    if (defaultConfig.rotationMode) {
+      updatedConfig.rotationMode = defaultConfig.rotationMode;
+    }
+
+    // スパムスキル発動SP閾値
+    if (defaultConfig.spamSkillTriggerSp !== undefined) {
+      updatedConfig.spamSkillTriggerSp = defaultConfig.spamSkillTriggerSp;
+    }
+
+    // 必殺技発動方針
+    if (defaultConfig.ultStrategy) {
+      updatedConfig.ultStrategy = defaultConfig.ultStrategy;
+      updatedConfig.ultCooldown = defaultConfig.ultCooldown || 0;
+    }
+
     newMembers[index] = {
       ...newMembers[index],
-      character: {
-        ...selectedChar,
-        relics: newMembers[index].character.relics,
-        ornaments: newMembers[index].character.ornaments,
-        equippedLightCone: newMembers[index].character.equippedLightCone,
-      },
+      character: updatedCharacter,
+      config: updatedConfig,
+      eidolonLevel: updatedEidolonLevel,
     };
     setPartyMembers(newMembers);
+  };
+
+  // メインステータスの値を取得するヘルパー関数
+  const getMainStatValue = (stat: string): number => {
+    const values: Record<string, number> = {
+      hp: 705, atk: 352, spd: 25,
+      hp_pct: 0.432, atk_pct: 0.432, def_pct: 0.540,
+      crit_rate: 0.324, crit_dmg: 0.648, break_effect: 0.648,
+      heal_rate: 0.345, energy_regen_rate: 0.194, effect_hit_rate: 0.432,
+      physical_dmg_boost: 0.388, fire_dmg_boost: 0.388, ice_dmg_boost: 0.388,
+      lightning_dmg_boost: 0.388, wind_dmg_boost: 0.388, quantum_dmg_boost: 0.388, imaginary_dmg_boost: 0.388,
+    };
+    return values[stat] || 0;
   };
 
   const handleCharacterUpdate = (index: number, updatedCharacter: Character) => {
@@ -246,7 +357,10 @@ export default function Home() {
       level: enemyLevel,
       maxHp: enemyMaxHp,
       toughness: enemyToughness,
+
       spd: enemySpd,
+      atk: enemyAtk,
+      def: enemyDef,
     };
 
     const partyConfig: PartyConfig = {
@@ -259,7 +373,6 @@ export default function Home() {
       enemies: enemyList,
       weaknesses: weaknesses,
       enemyConfig: enemyConfig,
-      characterConfig: undefined,
       partyConfig: partyConfig,
       rounds: rounds,
     };
@@ -272,23 +385,6 @@ export default function Home() {
       console.error("Simulation failed:", e);
       alert("シミュレーション中にエラーが発生しました。コンソールを確認してください。");
     }
-
-    // const sanitizeForWorker = <T,>(data: T): T => {
-    //   return JSON.parse(JSON.stringify(data));
-    // };
-
-    // const workerMessage: SimulationWorkerMessage = {
-    //   type: 'START_SIMULATION',
-    //   characters: sanitizeForWorker(partyMembers.map((m) => m.character)),
-    //   enemies: sanitizeForWorker(enemyList),
-    //   weaknesses: Array.from(weaknesses),
-    //   enemyConfig: enemyConfig,
-    //   characterConfig: undefined, // 後方互換用（使用しない）
-    //   partyConfig: sanitizeForWorker(partyConfig),
-    //   rounds: rounds,
-    // };
-
-    // simulationWorker.current.postMessage(workerMessage);
   };
 
   // Calculate stats for active character
@@ -367,12 +463,33 @@ export default function Home() {
                     style={{ ...selectorStyle, marginLeft: '8px' }}
                   />
                 </label>
+
                 <label>
-                  速度:
+                  スピード:
                   <input
                     type="number"
                     value={enemySpd}
                     onChange={(e) => setEnemySpd(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+                <label>
+                  攻撃力:
+                  <input
+                    type="number"
+                    placeholder="デフォルト"
+                    value={enemyAtk ?? ''}
+                    onChange={(e) => setEnemyAtk(e.target.value === '' ? undefined : Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px' }}
+                  />
+                </label>
+                <label>
+                  防御力:
+                  <input
+                    type="number"
+                    placeholder="デフォルト"
+                    value={enemyDef ?? ''}
+                    onChange={(e) => setEnemyDef(e.target.value === '' ? undefined : Number(e.target.value))}
                     style={{ ...selectorStyle, marginLeft: '8px' }}
                   />
                 </label>
@@ -417,6 +534,8 @@ export default function Home() {
                       onConfigUpdate={(updatedConfig) => handleConfigUpdate(index, updatedConfig)} // Pass config update handler
                       isActive={activeCharacterIndex === index}
                       eidolonLevel={member?.eidolonLevel || 0}
+                      // Pass simplified member list to each card for target selection
+                      partyMembers={partyMembers.map((m, idx) => ({ id: m.character.id, name: m.character.name, slotIndex: idx }))}
                     // onEidolonChange removed from here, moved to ConfigPanel
                     />
                   );
@@ -524,6 +643,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </main>
+    </main >
   );
 }

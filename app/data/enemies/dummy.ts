@@ -5,7 +5,6 @@ export const DUMMY_ENEMY: Enemy = {
   name: 'テスト用ダミー',
   element: 'Physical',
   toughness: 180,
-  maxToughness: 180, // Added maxToughness
   baseRes: {
     Physical: 0.2,
     Fire: 0.2,
@@ -30,7 +29,7 @@ export const DUMMY_ENEMY: Enemy = {
       name: '敵の通常攻撃',
       type: 'Basic ATK',
       description: '敵の基本的な攻撃。',
-      damage: { type: 'simple', multiplier: 0.5, scaling: 'atk' }, // 仮のダメージ設定
+      damage: { type: 'simple', hits: [{ multiplier: 0.5, toughnessReduction: 10 }], scaling: 'atk' },
       targetType: 'single_enemy',
     },
     skill: {
@@ -38,7 +37,7 @@ export const DUMMY_ENEMY: Enemy = {
       name: '敵のスキル',
       type: 'Skill',
       description: '敵のスキル攻撃。',
-      damage: { type: 'simple', multiplier: 1.0, scaling: 'atk' }, // 仮のダメージ設定
+      damage: { type: 'simple', hits: [{ multiplier: 1.0, toughnessReduction: 20 }], scaling: 'atk' },
       targetType: 'single_enemy',
     },
     ultimate: {
@@ -46,7 +45,7 @@ export const DUMMY_ENEMY: Enemy = {
       name: '敵の必殺技',
       type: 'Ultimate',
       description: '敵の必殺技。',
-      damage: { type: 'simple', multiplier: 1.5, scaling: 'atk' }, // 仮のダメージ設定
+      damage: { type: 'aoe', hits: [{ multiplier: 1.5, toughnessReduction: 20 }], scaling: 'atk' },
       targetType: 'all_enemies',
     },
     talent: {

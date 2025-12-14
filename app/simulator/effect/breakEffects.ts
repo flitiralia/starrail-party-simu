@@ -42,6 +42,7 @@ export function createBleedEffect(source: Unit, target: Unit): DoTEffect {
         baseDamage: Math.min(baseDmg, cap),
         stackCount: 1,
         maxStacks: 1,
+        isCleansable: true,  // 解除可能なDoT
         apply: (t, s) => s,
         remove: (t, s) => s,
     };
@@ -62,6 +63,7 @@ export function createBurnEffect(source: Unit, target: Unit): DoTEffect {
         baseDamage: 1 * LEVEL_CONSTANT_80,
         stackCount: 1,
         maxStacks: 1,
+        isCleansable: true,  // 解除可能なDoT
         apply: (t, s) => s,
         remove: (t, s) => s,
     };
@@ -82,6 +84,7 @@ export function createShockEffect(source: Unit, target: Unit): DoTEffect {
         baseDamage: 2 * LEVEL_CONSTANT_80,
         stackCount: 1,
         maxStacks: 1,
+        isCleansable: true,  // 解除可能なDoT
         apply: (t, s) => s,
         remove: (t, s) => s,
     };
@@ -122,6 +125,7 @@ export function createCharacterDoTEffect(
         multiplier: multiplier,
         stackCount: 1,
         maxStacks: 1,
+        isCleansable: true,  // 解除可能なDoT
         apply: (t, s) => s,
         remove: (t, s) => s,
     };
@@ -161,6 +165,7 @@ export function createWindShearEffect(source: Unit, target: Unit): DoTEffect {
         baseDamage: 1 * LEVEL_CONSTANT_80, // Per stack
         stackCount: initialStacks,
         maxStacks: 5,
+        isCleansable: true,  // 解除可能なDoT
         apply: (t, s) => s,
         remove: (t, s) => s,
     };

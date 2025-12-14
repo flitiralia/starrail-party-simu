@@ -1,56 +1,48 @@
 import { ILightConeData } from '@/app/types';
+import { advanceAction } from '@/app/simulator/engine/utils';
+import { appendEquipmentEffect } from '@/app/simulator/engine/dispatcher';
 
 export const danceDanceDance: ILightConeData = {
   id: 'dance-dance-dance',
   name: 'ダンス！ダンス！ダンス！',
+  description: '装備キャラが必殺技を発動した後、味方全体の行動順が16%早まる。',
+  descriptionTemplate: '装備キャラが必殺技を発動した後、味方全体の行動順が{0}%早まる。',
+  descriptionValues: [['16'], ['18'], ['20'], ['22'], ['24']],
   path: 'Harmony',
   baseStats: {
     hp: 952,
     atk: 423,
     def: 396,
   },
-  effects: [
+
+  eventHandlers: [
     {
       id: 'action_forward_on_ultimate',
       name: '止まらないよぉ！',
-      category: 'BUFF',
-      sourceUnitId: '',
-      durationType: 'PERMANENT',
-      duration: -1,
-      effectValue: [0.16, 0.18, 0.2, 0.22, 0.24],
-      customHandler: true,
-      apply: (unit, gameState, event) => {
-        if (!event || event.type !== 'ON_ULTIMATE_USED' || event.sourceId !== unit.id) {
-          return gameState;
-        }
+      events: ['ON_ULTIMATE_USED'],
+      handler: (event, state, unit, superimposition) => {
+        // イベントソースチェック
+        if (event.sourceId !== unit.id) return state;
 
-        const superimposition = unit.equippedLightCone?.superimposition || 1;
+        // 重畳ランクに応じた行動順加速値
         const advanceValue = [0.16, 0.18, 0.2, 0.22, 0.24][superimposition - 1];
 
-        const allies = gameState.units.filter(u => !u.isEnemy && u.hp > 0);
-        const newPendingActions = [...(gameState.pendingActions || [])];
-
+        // 味方全体に行動順加速
+        let newState = state;
+        const allies = state.units.filter(u => !u.isEnemy && u.hp > 0);
         allies.forEach(ally => {
-          newPendingActions.push({
-            type: 'ACTION_ADVANCE',
-            targetId: ally.id,
-            percent: advanceValue
-          } as any); // Cast to any to avoid import issues if types are not perfectly aligned in this file context
+          newState = advanceAction(newState, ally.id, advanceValue);
         });
 
-        gameState.log.push({
-          actionType: 'Buff',
-          sourceId: unit.id,
-          targetId: 'all_allies',
-          details: `ダンス！ダンス！ダンス！発動: 行動順短縮 ${advanceValue * 100}%`
+        // 装備効果をログに追加
+        newState = appendEquipmentEffect(newState, {
+          source: 'ダンス！ダンス！ダンス！',
+          name: `行動順短縮 ${advanceValue * 100}%（味方全体）`,
+          type: 'lightcone'
         });
 
-        return {
-          ...gameState,
-          pendingActions: newPendingActions
-        };
-      },
-      remove: (unit, gameState) => { return gameState; },
-    },
-  ],
+        return newState;
+      }
+    }
+  ]
 };
