@@ -1,33 +1,22 @@
 import { GameState, Unit, IEventHandlerLogic, IEventHandler, ActionContext, Action, BasicAttackAction, SkillAction, UltimateAction, BattleStartAction, RegisterHandlersAction, ActionAdvanceAction, FollowUpAttackAction, IEvent } from './types';
-import { SimulationLogEntry, IAbility, Character, Enemy, CharacterConfig, EnemyConfig, PartyConfig, Element, ELEMENTS, StatKey, FinalStats, SimulationConfig } from '../../types/index';
+import { SimulationLogEntry, IAbility, Character, Enemy, CharacterConfig, EnemyConfig, PartyConfig, Element, ELEMENTS, StatKey, FinalStats, SimulationConfig, AbilityModifier } from '../../types/index';
 import { calculateFinalStats, createEmptyStatRecord } from '../statBuilder';
 import { initializeEnergy } from './energy';
 import { registry } from '../registry/index';
 import { IEffect } from '../effect/types';
 import { addEffect } from './effectManager';
 import { registerLightConeEventHandlers } from './lightConeHandlers';
+import { UnitId, createUnitId } from './unitId';
+import { UnitRegistry } from './unitRegistry';
 
-/**
- * GameStateから特定のユニットを検索します。
- */
-export function getUnit(state: GameState, id: string): Unit | undefined {
-  return state.units.find(u => u.id === id);
-}
+
 
 /**
  * GameState内の特定のユニットのプロパティを更新し、新しいGameStateを返します。
  * これは不変性（Immutability）を保つためのヘルパーです。
+ * @deprecated Use state.registry.update(id, updateFn) instead
  */
-export function updateUnit(state: GameState, id: string, updates: Partial<Unit>): GameState {
-  const newUnits = state.units.map(unit => {
-    if (unit.id === id) {
-      return { ...unit, ...updates };
-    }
-    return unit;
-  });
 
-  return { ...state, units: newUnits };
-}
 // createPlanetaryRendezvousEventHandler は自動登録に移行するため削除
 
 /**
@@ -64,7 +53,7 @@ export function createInitialGameState(
     if (char.eidolons) {
       Object.values(char.eidolons).forEach(eidolon => {
         if (eidolon && eidolon.level <= eidolonLevel && eidolon.abilityModifiers) {
-          eidolon.abilityModifiers.forEach((mod: any) => { // TODO: Import AbilityModifier type properly
+          eidolon.abilityModifiers.forEach((mod: AbilityModifier) => {
             const { abilityName, param, value } = mod;
             if (abilities[abilityName]) {
               // param (例: "damage.multiplier") を解析して値を設定
@@ -91,10 +80,11 @@ export function createInitialGameState(
     }
 
     const unit: Unit = {
-      id: char.id,
+      id: createUnitId(char.id),
       name: char.name,
       isEnemy: false,
       element: char.element,
+      path: char.path,
       level: 80,
       abilities: abilities, // 調整後のabilitiesを使用
       stats: stats,
@@ -163,7 +153,6 @@ export function createInitialGameState(
       modifiers: [],
       effects: char.effects || [], // CharacterDataのeffectsを初期値として設定
       actionValue: Math.floor(10000 / stats.spd),
-      actionPoint: 0, // Start at 0 AP
       config: charConfig,
       rotationIndex: 0,
       ultCooldown: 0,
@@ -200,7 +189,7 @@ export function createInitialGameState(
     });
 
     const unit: Unit = {
-      id: enemy.id,
+      id: createUnitId(enemy.id),
       name: enemy.name,
       isEnemy: true,
       element: enemy.element,
@@ -217,7 +206,6 @@ export function createInitialGameState(
       modifiers: [],
       effects: [],
       actionValue: Math.floor(10000 / stats.spd),
-      actionPoint: 0, // Start at 0 AP
       rotationIndex: 0,
       ultCooldown: 0,
     };
@@ -230,8 +218,10 @@ export function createInitialGameState(
   // Note: Event handlers are registered via dispatch in runSimulation.
   // We only initialize the GameState structure here.
 
+  const allUnits = [...characterUnits, ...enemyUnits];
+
   let initialState: GameState = { // 明示的に GameState 型を指定
-    units: [...characterUnits, ...enemyUnits],
+    registry: new UnitRegistry(allUnits),
     skillPoints: 3,
     maxSkillPoints: 5, // Default max SP
     time: 0,
@@ -253,7 +243,7 @@ export function createInitialGameState(
   // 光円錐イベントハンドラー登録
   for (let i = 0; i < characters.length; i++) {
     const char = characters[i];
-    const unitId = char.id;
+    const unitId = createUnitId(char.id);
     initialState = registerLightConeEventHandlers(initialState, char, unitId);
   }
 

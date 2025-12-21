@@ -1,20 +1,22 @@
 import { GameState, Unit, IEventHandlerLogic, IEventHandler, ActionContext, Action, BasicAttackAction, SkillAction, UltimateAction, BattleStartAction, RegisterHandlersAction, ActionAdvanceAction, FollowUpAttackAction, IEvent, IHit, DamageOptions, DamageResult, CombatAction, EnhancedBasicAttackAction, CurrentActionLog } from './types';
-import { SimulationLogEntry, IAbility, HitDetail, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, EquipmentEffectEntry, EffectSummary } from '../../types/index';
-import { calculateDamage, calculateDamageWithCritInfo, DamageCalculationModifiers, calculateBreakDamage, calculateSuperBreakDamage } from '../damage';
+import { UnitId, createUnitId } from './unitId';
+import { SimulationLogEntry, IAbility, HitDetail, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, EquipmentEffectEntry, EffectSummary, Modifier } from '../../types/index';
+import { calculateDamage, calculateDamageWithCritInfo, DamageCalculationModifiers, calculateBreakDamage, calculateSuperBreakDamage, calculateBreakDamageWithBreakdown } from '../damage';
 import { createBreakEffect } from '../effect/breakEffects';
 import { BreakStatusEffect, IEffect, ShieldEffect } from '../effect/types';
 import { isBreakStatusEffect, isShieldEffect } from '../effect/utils';
 import { addEffect, removeEffect } from './effectManager';
-import { updateUnit } from './gameState';
+
 import { updatePassiveBuffs, registerRelicEventHandlers } from '../effect/relicHandler';
 import { addEnergy } from './energy';
 import { addSkillPoints } from '../effect/relicEffectHelpers';
-import { recalculateActionValueFromActionPoint, updateActionQueue } from './actionValue';
+import { updateActionQueue, calculateBaseAV, advanceUnitAction, delayUnitAction } from './actionValue';
 import { ENEMY_DEFEAT_ENERGY_REWARD } from './constants';
 import { cleanse, applyShield } from './utils';
 import { getAccumulatedValue } from './accumulator';
 import { recalculateUnitStats } from '../statBuilder';
 import { removeAurasBySource, getAurasForLog } from './auraManager';
+import { getEquipmentNameById } from '../../data/equipment-names';
 
 // === ログ蓄積ヘルパー関数 ===
 
@@ -47,6 +49,54 @@ export function initializeCurrentActionLog(
 
   return { ...state, currentActionLog };
 }
+
+/**
+ * 敵のターン用のログ最終化
+ * DoT被ダメージがある場合のみログを生成
+ */
+export function finalizeEnemyTurnLog(state: GameState): GameState {
+  const currentActionLog = state.currentActionLog;
+
+  if (!currentActionLog) {
+    return state;
+  }
+
+  // 被ダメージがない場合はログを生成しない
+  const totalDamageTaken = currentActionLog.damageTaken.reduce((sum, e) => sum + e.damage, 0);
+  if (totalDamageTaken === 0 && currentActionLog.additionalDamage.length === 0) {
+    return { ...state, currentActionLog: undefined };
+  }
+
+  const logEntry: SimulationLogEntry = {
+    characterName: currentActionLog.primarySourceName,
+    actionTime: currentActionLog.startTime,
+    actionType: currentActionLog.primaryActionType,
+    skillPointsAfterAction: state.skillPoints,
+
+    // 集計値
+    totalDamageDealt: 0,
+    totalDamageTaken,
+    totalHealing: 0,
+    totalShieldGiven: 0,
+
+    // 詳細情報（トグル内）
+    logDetails: {
+      damageTaken: currentActionLog.damageTaken.length > 0 ? currentActionLog.damageTaken : undefined,
+    },
+
+    // 後方互換性
+    damageDealt: 0,
+    healingDone: 0,
+    shieldApplied: 0,
+  };
+
+  return {
+    ...state,
+    log: [...state.log, logEntry],
+    currentActionLog: undefined
+  };
+}
+
 
 /**
  * 付加ダメージをログに追加
@@ -167,7 +217,7 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
     if (effect.modifiers) {
       const multiplier = stackCount || 1;
       if (Array.isArray(effect.modifiers)) {
-        modifiers = effect.modifiers.map((m: any) => {
+        modifiers = effect.modifiers.map((m: Modifier) => {
           // dynamicValueの評価
           let baseValue = typeof m.value === 'number' ? m.value : (m.value as any)?.value || 0;
           if (m.dynamicValue && allUnits) {
@@ -178,7 +228,7 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
             }
           }
           return {
-            stat: m.target || m.stat || 'unknown',
+            stat: m.target || 'unknown',
             value: baseValue * multiplier
           };
         });
@@ -201,35 +251,48 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
 
   // 2. unit.modifiersからの抽出（遺物・オーナメントのパッシブ効果）
   // ソースIDでグループ化して表示
-  const modifiersBySource = new Map<string, { stat: string; value: number }[]>();
+  const modifiersBySource = new Map<string, { stat: string; value: number; isOrnament: boolean }[]>();
 
   for (const m of unit.modifiers) {
     // 遺物・オーナメントのパッシブ効果のみ抽出
     if (m.source.startsWith('relic-passive-') || m.source.startsWith('ornament-passive-')) {
+      const isOrnament = m.source.startsWith('ornament-passive-');
       // ソース名から表示名を生成（例: relic-passive-poet_who_...-4pc-passive-0-unit1-crit_rate → 亡国の悲哀を詠う詩人）
       const sourceParts = m.source.split('-');
       // セットIDを抽出（例: poet_who_sings_of...）
       const setIdIndex = sourceParts.findIndex(p => p === 'passive') + 1;
-      const setId = sourceParts.slice(setIdIndex, sourceParts.findIndex(p => p.endsWith('pc'))).join('-');
-      const displaySource = setId || m.source;
+      const setId = sourceParts.slice(setIdIndex, sourceParts.findIndex(p => p.endsWith('pc'))).join('_');
+      // セットIDとオーナメントフラグを組み合わせたキー
+      const displayKey = `${isOrnament ? 'ornament:' : 'relic:'}${setId || m.source}`;
 
-      if (!modifiersBySource.has(displaySource)) {
-        modifiersBySource.set(displaySource, []);
+      if (!modifiersBySource.has(displayKey)) {
+        modifiersBySource.set(displayKey, []);
       }
-      modifiersBySource.get(displaySource)!.push({
+      modifiersBySource.get(displayKey)!.push({
         stat: m.target as string,
-        value: m.value
+        value: m.value,
+        isOrnament
       });
     }
   }
 
-  // modifiersをEffectSummary形式に変換
+  // modifiersをEffectSummary形式に変換（同じstatは合算）
   const modifierSummaries: EffectSummary[] = [];
-  modifiersBySource.forEach((mods, source) => {
+  modifiersBySource.forEach((mods, key) => {
+    const isOrnament = key.startsWith('ornament:');
+    const setId = key.replace(/^(ornament|relic):/, '');
+    const label = isOrnament ? '[オーナメント]' : '[遺物]';
+
+    // 同じstatの値を合算
+    const aggregatedMods = new Map<string, number>();
+    for (const m of mods) {
+      aggregatedMods.set(m.stat, (aggregatedMods.get(m.stat) || 0) + m.value);
+    }
+
     modifierSummaries.push({
-      name: `[遺物] ${source}`,
+      name: `${label} ${getEquipmentNameById(setId)}`,
       duration: '∞' as const,
-      modifiers: mods,
+      modifiers: Array.from(aggregatedMods.entries()).map(([stat, value]) => ({ stat, value })),
       owner: ownerName,
     });
   });
@@ -259,6 +322,68 @@ export function extractBuffsForLogWithAuras(
   }));
 
   return [...baseSummaries, ...auraSummaries];
+}
+
+/**
+ * ログ表示用に遺物・オーナメントのステータス情報を抽出する
+ */
+function extractRelicStatsForLog(unit: Unit): EffectSummary[] {
+  const result: EffectSummary[] = [];
+
+  // 部位名の日本語マッピング
+  const relicSlotNames: Record<string, string> = {
+    'Head': '頭部メイン',
+    'Hands': '手部メイン',
+    'Body': '胴体メイン',
+    'Feet': '脚部メイン',
+    'Planar Sphere': '次元球メイン',
+    'Link Rope': '連結縄メイン',
+  };
+
+  const allRelics = [...(unit.relics || []), ...(unit.ornaments || [])];
+
+  // 1. メインステータス（部位ごと）
+  for (const relic of allRelics) {
+    if (!relic.mainStat) continue;
+
+    result.push({
+      name: relicSlotNames[relic.type] || relic.type, // フォールバックで英語名
+      duration: '∞' as const,
+      modifiers: [{
+        stat: relic.mainStat.stat,
+        value: relic.mainStat.value,
+      }],
+      owner: unit.name,
+      sourceType: 'self'
+    });
+  }
+
+  // 2. サブステータス（合計）
+  const subStatTotals: Record<string, number> = {};
+  let hasSubStats = false;
+
+  for (const relic of allRelics) {
+    if (!relic.subStats) continue;
+    for (const sub of relic.subStats) {
+      subStatTotals[sub.stat] = (subStatTotals[sub.stat] || 0) + sub.value;
+      hasSubStats = true;
+    }
+  }
+
+  if (hasSubStats) {
+    result.push({
+      name: 'サブステ合計',
+      duration: '∞' as const,
+      modifiers: Object.entries(subStatTotals).map(([stat, value]) => ({
+        stat,
+        value,
+      })),
+      owner: unit.name,
+      sourceType: 'self'
+    });
+  }
+
+  return result;
 }
 
 export function publishEvent(state: GameState, event: IEvent): GameState {
@@ -327,12 +452,24 @@ export function applyUnifiedDamage(
   damage: number,
   options: DamageOptions
 ): DamageResult {
+  // ★ 最新のターゲット状態を取得（actionValue等の更新を保持するため）
+  // ただし、targetに含まれるtoughness等の更新は尊重する
+  const stateTarget = state.registry.get(target.id as UnitId);
+  const freshTarget = stateTarget ? {
+    ...stateTarget,
+    // targetから渡されたtoughnessとeffectsを優先（外部で更新されている場合があるため）
+    toughness: target.toughness,
+    hp: target.hp,
+    shield: target.shield,
+    effects: target.effects
+  } : target;
+
   // 1. Apply Damage
-  const targetAfterDamage = applyDamage(target, damage);
+  const targetAfterDamage = applyDamage(freshTarget, damage);
   let killed = false;
   let newState = {
     ...state,
-    units: state.units.map(u => u.id === target.id ? targetAfterDamage : u)
+    registry: state.registry.update(target.id as UnitId, u => targetAfterDamage)
   };
 
   // 2. Kill Logic (EP Recovery)
@@ -380,10 +517,26 @@ export function applyUnifiedDamage(
     newState = removeAurasBySource(newState, target.id);
 
     if (options.isKillRecoverEp) {
-      const killer = newState.units.find(u => u.id === source.id);
+      const killer = newState.registry.get(source.id as UnitId);
       if (killer) {
+        const oldEp = killer.ep;
         const updatedKiller = addEnergy(killer, ENEMY_DEFEAT_ENERGY_REWARD);
-        newState = { ...newState, units: newState.units.map(u => u.id === killer.id ? updatedKiller : u) };
+        const actualGain = updatedKiller.ep - oldEp;
+        newState = {
+          ...newState,
+          registry: newState.registry.update(killer.id as UnitId, u => updatedKiller)
+        };
+
+        // Publish ON_EP_GAINED event for kill EP recovery
+        if (actualGain > 0) {
+          newState = publishEvent(newState, {
+            type: 'ON_EP_GAINED',
+            sourceId: killer.id,
+            targetId: killer.id,
+            value: actualGain,
+            epGained: actualGain
+          });
+        }
       }
     }
   }
@@ -433,14 +586,28 @@ export function applyUnifiedDamage(
   // 5. Publish Events
   if (options.events) {
     for (const event of options.events) {
+      const payloadObj = typeof event.payload === 'object' && event.payload !== null ? event.payload as Record<string, unknown> : {};
       newState = publishEvent(newState, {
-        ...event.payload,
+        ...payloadObj,
         type: event.type,
         sourceId: source.id,
         targetId: target.id,
         value: damage
-      });
+      } as any);
     }
+  }
+
+  // 6. 付加ダメージエントリの自動追加
+  if (options.additionalDamageEntry) {
+    newState = appendAdditionalDamage(newState, {
+      source: options.additionalDamageEntry.source,
+      name: options.additionalDamageEntry.name,
+      damage: damage,
+      target: target.name,
+      damageType: options.additionalDamageEntry.damageType,
+      isCrit: options.additionalDamageEntry.isCrit,
+      breakdownMultipliers: options.additionalDamageEntry.breakdownMultipliers
+    });
   }
 
   return { state: newState, totalDamage: damage, killed };
@@ -467,17 +634,33 @@ function applyBreakEffectWithDelay(
     effects: [...target.effects, effect]
   };
 
-  // 2. Apply delay if effect has delayAmount
+  // 2. Recalculate stats to apply effect modifiers (e.g., speed reduction from Imprisonment)
+  const newStats = recalculateUnitStats(targetWithEffect, state.registry.toArray());
+  targetWithEffect = {
+    ...targetWithEffect,
+    stats: newStats
+  };
+
+  // 3. Apply delay if effect has delayAmount
+  // 敵のターン開始時にAVリセットが行われるため、遅延ではなく
+  // (1 - delayAmount) 分の短縮を適用して正しい遅延効果を再現
   if (effect.delayAmount) {
-    const delayAdvance = -10000 * effect.delayAmount;
-    targetWithEffect.actionPoint += delayAdvance;
-    targetWithEffect = recalculateActionValueFromActionPoint(targetWithEffect);
+    const baseAV = calculateBaseAV(targetWithEffect.stats.spd);
+    // AVリセット後: AV = baseAV
+    // 期待する結果: AV = baseAV × delayAmount
+    // 短縮量: (1 - delayAmount) × baseAV
+    const advanceAmount = (1 - effect.delayAmount) * baseAV;
+    targetWithEffect = {
+      ...targetWithEffect,
+      actionValue: Math.max(0, targetWithEffect.actionValue - advanceAmount)
+    };
   }
 
-  // 3. Update state
+  // 4. Update state
+  // return updateUnit(state, target.id as UnitId, targetWithEffect);
   return {
     ...state,
-    units: state.units.map(u => u.id === target.id ? targetWithEffect : u)
+    registry: state.registry.update(target.id as UnitId, u => targetWithEffect)
   };
 }
 
@@ -504,7 +687,7 @@ function handleQuantumBreak(
 
     return {
       ...state,
-      units: state.units.map(u => u.id === target.id ? target : u)
+      registry: state.registry.update(target.id as UnitId, u => target)
     };
   }
 
@@ -525,7 +708,7 @@ function handleQuantumBreak(
 function stepPayCost(context: ActionContext): ActionContext {
   const { action, source, state } = context;
   let newState = state;
-  let updatedSource = state.units.find(u => u.id === source.id) || source;
+  let updatedSource = state.registry.get(source.id) || source;
 
   // 召喚ユニットはコストを支払わない
   if (source.isSummon) return context;
@@ -533,7 +716,7 @@ function stepPayCost(context: ActionContext): ActionContext {
   if (action.type === 'BASIC_ATTACK') {
     // 通常攻撃: 味方のみSP+1
     const spGain = source.isEnemy ? 0 : 1;
-    newState = addSkillPoints(newState, spGain);
+    newState = addSkillPoints(newState, spGain, source.id);
   } else if (action.type === 'ENHANCED_BASIC_ATTACK') {
     // 強化通常攻撃: SP回復なし（キャラクターによってはハンドラで個別管理）
     // デフォルトではSP回復なし
@@ -541,17 +724,20 @@ function stepPayCost(context: ActionContext): ActionContext {
     // スキル: SP消費
     const skillAbility = source.abilities.skill;
     const cost = skillAbility?.spCost ?? 1;
-    newState = addSkillPoints(newState, -cost);
+    newState = addSkillPoints(newState, -cost, source.id);
   } else if (action.type === 'ULTIMATE') {
     // 必殺技: EP消費
     updatedSource = { ...updatedSource, ep: 0 };
   }
 
-  const updatedUnits = newState.units.map(u => u.id === source.id ? updatedSource : u);
+  newState = {
+    ...newState,
+    registry: newState.registry.update(source.id, u => updatedSource)
+  };
 
   return {
     ...context,
-    state: { ...newState, units: updatedUnits }
+    state: newState
   };
 }
 
@@ -562,7 +748,7 @@ function stepGenerateHits(context: ActionContext): ActionContext {
 
   // Helper to get ability based on action type
   const sourceId = (action as CombatAction).sourceId;
-  const source = state.units.find(u => u.id === sourceId);
+  const source = state.registry.get(createUnitId(sourceId));
   if (!source) return context;
 
   let ability: IAbility | undefined;
@@ -575,7 +761,7 @@ function stepGenerateHits(context: ActionContext): ActionContext {
   if (!ability) return context;
 
   const targetId = (action as CombatAction).targetId;
-  const primaryTarget = state.units.find(u => u.id === targetId);
+  const primaryTarget = targetId ? state.registry.get(createUnitId(targetId)) : undefined;
 
   // Default to primary target if available
   if (primaryTarget) {
@@ -584,24 +770,32 @@ function stepGenerateHits(context: ActionContext): ActionContext {
 
   // Handle Target Types
   if (ability.targetType === 'all_enemies') {
-    targets = state.units.filter(u => u.isEnemy && u.hp > 0);
-  } else if (ability.targetType === 'blast' && primaryTarget) {
-    const enemies = state.units.filter(u => u.isEnemy && u.hp > 0);
-    const enemyIndex = enemies.findIndex(u => u.id === primaryTarget.id);
-    if (enemyIndex !== -1) {
-      const adjacentIndices = [enemyIndex - 1, enemyIndex + 1];
-      adjacentIndices.forEach(idx => {
-        if (enemies[idx]) targets.push(enemies[idx]);
-      });
+    targets = state.registry.getAliveEnemies();
+  } else if (ability.targetType === 'blast') {
+    const enemies = state.registry.getAliveEnemies();
+    // primaryTargetがない場合は最初の敵を選択
+    let blastPrimaryTarget = primaryTarget;
+    if (!blastPrimaryTarget && enemies.length > 0) {
+      blastPrimaryTarget = enemies[0];
+      targets.push(blastPrimaryTarget);
+    }
+    if (blastPrimaryTarget) {
+      const enemyIndex = enemies.findIndex(u => u.id === blastPrimaryTarget!.id);
+      if (enemyIndex !== -1) {
+        const adjacentIndices = [enemyIndex - 1, enemyIndex + 1];
+        adjacentIndices.forEach(idx => {
+          if (enemies[idx]) targets.push(enemies[idx]);
+        });
+      }
     }
     targets = Array.from(new Set(targets));
   } else if (ability.targetType === 'bounce') {
-    const enemies = state.units.filter(u => u.isEnemy && u.hp > 0);
+    const enemies = state.registry.getAliveEnemies();
     if (enemies.length > 0) {
       targets = []; // Reset targets for Bounce
     }
   } else if (ability.targetType === 'all_allies') {
-    targets = state.units.filter(u => !u.isEnemy && u.hp > 0);
+    targets = state.registry.getAliveAllies();
   } else if (ability.targetType === 'ally' && primaryTarget) {
     targets = [primaryTarget];
   } else if (ability.targetType === 'self') {
@@ -661,7 +855,7 @@ function stepGenerateHits(context: ActionContext): ActionContext {
         }
       }
     } else if (damageDef.type === 'bounce') {
-      const enemies = state.units.filter(u => u.isEnemy && u.hp > 0);
+      const enemies = state.registry.getAliveEnemies();
       if (enemies.length > 0) {
         // hits配列
         if (damageDef.hits && damageDef.hits.length > 0) {
@@ -727,10 +921,19 @@ function stepProcessHits(context: ActionContext): ActionContext {
 
   for (const hit of hits) {
     // Fetch fresh target from newState
-    const currentTarget = newState.units.find(u => u.id === hit.targetId);
+    const currentTarget = newState.registry.get(createUnitId(hit.targetId));
     if (!currentTarget) continue;
 
     let currentDamageModifiers: DamageCalculationModifiers = {};
+
+    // ★ ON_BEFORE_HIT: 各ヒットのダメージ計算前に発火
+    newState = publishEvent(newState, {
+      type: 'ON_BEFORE_HIT',
+      sourceId: source.id,
+      targetId: currentTarget.id,
+      hitIndex: hit.hitIndex,
+      actionType: action.type
+    } as IEvent);
 
     // 1. Pre-Damage Event
     const beforeDmgEvent: IEvent = {
@@ -745,7 +948,7 @@ function stepProcessHits(context: ActionContext): ActionContext {
     currentDamageModifiers = newState.damageModifiers;
 
     // 2. Calculate Damage (靭性減少前に計算 - 現在の靭性で撃破乗数を計算)
-    const currentSource = newState.units.find(u => u.id === source.id) || source;
+    const currentSource = newState.registry.get(createUnitId(source.id)) || source;
 
     const hitAbility: IAbility = {
       ...ability!,
@@ -794,6 +997,7 @@ function stepProcessHits(context: ActionContext): ActionContext {
     let breakDamage = 0;
     let superBreakDamage = 0;
     let updatedTarget = currentTarget;
+    let breakDamageResult: { damage: number; isCrit: boolean; breakdownMultipliers?: { baseDmg: number; critMult: number; dmgBoostMult: number; defMult: number; resMult: number; vulnMult: number; brokenMult: number } } | null = null;
 
     if (currentTarget.weaknesses.has(currentSource.element)) {
       if (currentTarget.toughness > 0) {
@@ -802,7 +1006,8 @@ function stepProcessHits(context: ActionContext): ActionContext {
           targetIsBroken = true;
           isBroken = true;
           // 撃破ダメージは撃破時点の状態で計算
-          breakDamage = calculateBreakDamage(currentSource, currentTarget, currentDamageModifiers);
+          breakDamageResult = calculateBreakDamageWithBreakdown(currentSource, currentTarget, currentDamageModifiers);
+          breakDamage = breakDamageResult.damage;
         }
       }
     }
@@ -830,7 +1035,7 @@ function stepProcessHits(context: ActionContext): ActionContext {
       }
     );
     newState = result.state;
-    updatedTarget = newState.units.find(u => u.id === updatedTarget.id)!;
+    updatedTarget = newState.registry.get(createUnitId(updatedTarget.id))!;
 
     if (targetIsBroken) {
       const breakEvent: IEvent = {
@@ -841,19 +1046,69 @@ function stepProcessHits(context: ActionContext): ActionContext {
       };
       newState = publishEvent(newState, breakEvent);
 
+      // ★弱点撃破ダメージを統合ログに追加
+      if (breakDamage > 0 && breakDamageResult) {
+        newState = appendAdditionalDamage(newState, {
+          source: currentSource.name,
+          name: '弱点撃破ダメージ',
+          damage: breakDamage,
+          target: currentTarget.name,
+          damageType: 'break',
+          isCrit: breakDamageResult.isCrit,
+          breakdownMultipliers: breakDamageResult.breakdownMultipliers
+        });
+      }
+
       // Apply Break Effect (simplified with helper functions)
-      const freshTarget = newState.units.find(u => u.id === currentTarget.id);
+      const freshTarget = newState.registry.get(createUnitId(currentTarget.id));
       if (freshTarget) {
+        // DEBUG: 弱点撃破前の状態
+        console.log(`[DEBUG][WeaknessBreak] 弱点撃破前 - ${freshTarget.name}`);
+        console.log(`  element: ${currentSource.element}`);
+        console.log(`  AV: ${freshTarget.actionValue ?? 'undefined'}, SPD: ${freshTarget.stats?.spd ?? 'undefined'}`);
+        console.log(`  Game Time: ${newState.time}`);
+
         if (currentSource.element === 'Quantum') {
           newState = handleQuantumBreak(newState, currentSource, freshTarget);
         } else {
           const effect = createBreakEffect(currentSource, freshTarget);
           if (effect) {
+            console.log(`  禁錮効果: delayAmount=${(effect as BreakStatusEffect).delayAmount ?? 'undefined'}`);
             newState = applyBreakEffectWithDelay(newState, freshTarget, effect as BreakStatusEffect);
+          }
+        }
+
+        // DEBUG: 弱点撃破後の状態
+        const afterTarget = newState.registry.get(createUnitId(currentTarget.id));
+        if (afterTarget) {
+          console.log(`[DEBUG][WeaknessBreak] 弱点撃破後 - ${afterTarget.name}`);
+          console.log(`  AV: ${afterTarget.actionValue ?? 'undefined'}, SPD: ${afterTarget.stats?.spd ?? 'undefined'}`);
+        }
+
+        // DEBUG: 全ユニットのAV出力
+        const unitList = newState.registry.toArray();
+        console.log(`[DEBUG][WeaknessBreak] 全ユニットAV (units.length=${unitList.length}):`);
+        for (let i = 0; i < unitList.length; i++) {
+          const u = unitList[i];
+          if (u.hp > 0) {
+            console.log(`  [${i}] ${u.name}: AV=${u.actionValue}, SPD=${u.stats?.spd}`);
           }
         }
       }
     }
+
+    // ★ ON_AFTER_HIT: 各ヒットのダメージ計算後に発火
+    const latestTarget = newState.registry.get(createUnitId(hit.targetId));
+    newState = publishEvent(newState, {
+      type: 'ON_AFTER_HIT',
+      sourceId: source.id,
+      targetId: hit.targetId,
+      hitIndex: hit.hitIndex,
+      damage: hitDetails[hitDetails.length - 1]?.damage || 0,
+      isCrit: hitDetails[hitDetails.length - 1]?.isCrit || false,
+      targetHp: latestTarget?.hp || 0,
+      actionType: action.type
+    } as IEvent);
 
     // Reset modifiers for next hit
     newState = { ...newState, damageModifiers: {} };
@@ -897,23 +1152,26 @@ function stepApplyShield(context: ActionContext): ActionContext {
 
   let targets: Unit[] = [];
   if (action.type === 'SKILL' && (action as SkillAction).targetId) {
-    const t = state.units.find(u => u.id === (action as SkillAction).targetId);
+    const t = state.registry.get(createUnitId((action as SkillAction).targetId));
     if (t) targets = [t];
   }
 
   for (const target of targets) {
     const scalingStat = ability.shield.scaling;
-    const shieldValue = source.stats[scalingStat] * ability.shield.multiplier + ability.shield.flat;
+    const scalingValue = source.stats[scalingStat] || 0;
+    const multiplier = ability.shield.multiplier;
+    const flat = ability.shield.flat;
+    const shieldValue = scalingValue * multiplier + flat;
     totalShield += shieldValue;
 
     // Update Shield Value
-    let targetInState = newState.units.find(u => u.id === target.id);
+    let targetInState = newState.registry.get(createUnitId(target.id));
     if (targetInState) {
       newState = applyShield(
         newState,
         source.id,
         target.id,
-        shieldValue,
+        { scaling: scalingStat as 'atk' | 'hp' | 'def', multiplier, flat },
         ability.shield.duration || 3,
         'TURN_END_BASED',
         'バリア',
@@ -952,22 +1210,37 @@ function stepEnergyGain(context: ActionContext): ActionContext {
   const energyGain = ability.energyGain || 0;
 
   // Retrieve fresh unit state
-  const unitInState = state.units.find(u => u.id === source.id);
+  const unitInState = state.registry.get(createUnitId(source.id));
   if (!unitInState) return context;
 
   // 召喚ユニットはEPを得ない
   if (unitInState.isSummon) return context;
 
-  let updatedUnit = unitInState;
+  // Calculate actual EP gain
+  const oldEp = unitInState.ep;
+  const updatedUnit = addEnergy(unitInState, energyGain);
+  const actualGain = updatedUnit.ep - oldEp;
 
-  // Apply Energy Gain with ERR
-  updatedUnit = addEnergy(updatedUnit, energyGain);
+  // Use registry.update for consistency
+  let newState = {
+    ...state,
+    registry: state.registry.update(createUnitId(source.id), u => ({ ...u, ep: updatedUnit.ep }))
+  };
 
-  const updatedUnits = state.units.map(u => u.id === source.id ? updatedUnit : u);
+  // Publish ON_EP_GAINED event if EP was actually gained
+  if (actualGain > 0) {
+    newState = publishEvent(newState, {
+      type: 'ON_EP_GAINED',
+      sourceId: source.id,
+      targetId: source.id,
+      value: actualGain,
+      epGained: actualGain
+    });
+  }
 
   return {
     ...context,
-    state: { ...state, units: updatedUnits }
+    state: newState
   };
 }
 
@@ -1008,8 +1281,8 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
   }
 
   const primaryTarget = targets[0] || source;
-  const updatedSource = state.units.find(u => u.id === source.id) || source;
-  const updatedTarget = state.units.find(u => u.id === primaryTarget.id) || primaryTarget; // Get updated target state
+  const updatedSource = state.registry.get(createUnitId(source.id)) || source;
+  const updatedTarget = state.registry.get(createUnitId(primaryTarget.id)) || primaryTarget; // Get updated target state
 
   const activeEffects = [
     ...extractBuffsForLogWithAuras(updatedSource, updatedSource.name, state),
@@ -1017,8 +1290,14 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
   ];
 
   // 新しい形式の効果収集
-  const sourceEffects = extractBuffsForLogWithAuras(updatedSource, updatedSource.name, state, state.units);
-  const targetEffects = primaryTarget.id !== updatedSource.id ? extractBuffsForLogWithAuras(updatedTarget, primaryTarget.name, state, state.units) : [];
+  const sourceEffects = [
+    ...extractBuffsForLogWithAuras(updatedSource, updatedSource.name, state, state.registry.toArray()),
+    ...extractRelicStatsForLog(updatedSource)
+  ];
+  const targetEffects = primaryTarget.id !== updatedSource.id ? [
+    ...extractBuffsForLogWithAuras(updatedTarget, primaryTarget.name, state, state.registry.toArray()),
+    ...extractRelicStatsForLog(updatedTarget)
+  ] : [];
 
   // 統計の集計
   const calculateStatTotals = (effects: EffectSummary[]) => {
@@ -1042,8 +1321,8 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
   };
 
   // Calculate Final Stats (New)
-  const sourceFinalStats = recalculateUnitStats(updatedSource, state.units);
-  const targetFinalStats = recalculateUnitStats(updatedTarget, state.units);
+  const sourceFinalStats = recalculateUnitStats(updatedSource, state.registry.toArray());
+  const targetFinalStats = recalculateUnitStats(updatedTarget, state.registry.toArray());
 
   // 集計
   const totalDamageDealt = currentActionLog.primaryDamage.totalDamage
@@ -1192,14 +1471,20 @@ function createEffectInstance(source: Unit, target: Unit, effectDef: IEffectDef)
             ...m,
             source: effectDef.name || 'Buff'
           }))];
-          return updateUnit(s, t.id, { modifiers: newModifiers });
+          return {
+            ...s,
+            registry: s.registry.update(t.id, unit => ({ ...unit, modifiers: newModifiers }))
+          };
         }
         return s;
       },
       onRemove: (t, s) => {
         if (effectDef.modifiers) {
           const newModifiers = t.modifiers.filter(m => m.source !== (effectDef.name || 'Buff'));
-          return updateUnit(s, t.id, { modifiers: newModifiers });
+          return {
+            ...s,
+            registry: s.registry.update(t.id, unit => ({ ...unit, modifiers: newModifiers }))
+          };
         }
         return s;
       },
@@ -1266,8 +1551,8 @@ function stepApplyAbilityEffects(context: ActionContext): ActionContext {
     let effectTargets: Unit[] = [];
     if (effectDef.target === 'target') effectTargets = targets;
     else if (effectDef.target === 'self') effectTargets = [source];
-    else if (effectDef.target === 'all_enemies') effectTargets = state.units.filter(u => u.isEnemy && u.hp > 0);
-    else if (effectDef.target === 'all_allies') effectTargets = state.units.filter(u => !u.isEnemy && u.hp > 0);
+    else if (effectDef.target === 'all_enemies') effectTargets = state.registry.getAliveEnemies();
+    else if (effectDef.target === 'all_allies') effectTargets = state.registry.getAliveAllies();
 
     // Get hit count from damage definition
     let hits = 1;
@@ -1304,6 +1589,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_ULTIMATE_USED',
       sourceId: source.id,
       targetId: targetId,
+      targetType: source.abilities.ultimate?.targetType,
       value: 0
     });
     // 必殺技がダメージを持つ場合のみ攻撃扱い
@@ -1316,6 +1602,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_BASIC_ATTACK',
       sourceId: source.id,
       targetId: targetId,
+      targetType: source.abilities.basic?.targetType,
       value: 0
     });
     isAttackAction = true; // 通常攻撃は常に攻撃
@@ -1325,6 +1612,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_ENHANCED_BASIC_ATTACK',
       sourceId: source.id,
       targetId: targetId,
+      targetType: source.abilities.enhancedBasic?.targetType,
       value: 0
     });
     isAttackAction = true; // 強化通常攻撃も攻撃
@@ -1334,6 +1622,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_SKILL_USED',
       sourceId: source.id,
       targetId: targetId,
+      targetType: source.abilities.skill?.targetType,
       value: 0
     });
     // スキルがダメージを持つ場合のみ攻撃扱い
@@ -1346,6 +1635,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_FOLLOW_UP_ATTACK',
       sourceId: source.id,
       targetId: targetId,
+      targetType: source.abilities.talent?.targetType,
       value: 0
     });
     isAttackAction = true; // 追加攻撃は常に攻撃
@@ -1428,7 +1718,7 @@ function resolveAction(state: GameState, action: Action): GameState {
   // We assume action is a CombatAction here because dispatchInternal only calls this for combat actions.
   // However, for type safety, we can check or cast.
   const combatAction = action as CombatAction;
-  const source = state.units.find(u => u.id === combatAction.sourceId);
+  const source = state.registry.get(createUnitId(combatAction.sourceId));
   if (!source) return state;
 
   let context: ActionContext = {
@@ -1461,7 +1751,44 @@ function resolveAction(state: GameState, action: Action): GameState {
       : action.type === 'SKILL' ? 'スキル'
         : action.type === 'ULTIMATE' ? '必殺技'
           : '追加攻撃';
+
+  // ★敵のターン開始時に蓄積したDoTダメージ（additionalDamage）を保存
+  const previousAdditionalDamage = context.state.currentActionLog?.additionalDamage || [];
+  const previousDamageTaken = context.state.currentActionLog?.damageTaken || [];
+
   context.state = initializeCurrentActionLog(context.state, source.id, source.name, actionTypeName);
+
+  // ★保存したDoTダメージを復元
+  if ((previousAdditionalDamage.length > 0 || previousDamageTaken.length > 0) && context.state.currentActionLog) {
+    context.state = {
+      ...context.state,
+      currentActionLog: {
+        ...context.state.currentActionLog,
+        additionalDamage: previousAdditionalDamage,
+        damageTaken: previousDamageTaken
+      }
+    };
+  }
+
+
+  // ★ ON_BEFORE_ACTION: すべての行動前に発火
+  context.state = publishEvent(context.state, {
+    type: 'ON_BEFORE_ACTION',
+    sourceId: source.id,
+    actionType: action.type
+  } as IEvent);
+
+  // ★ ON_BEFORE_ATTACK: 攻撃行動（ダメージを与える行動）の前に発火
+  const isAttackAction = ['BASIC_ATTACK', 'ENHANCED_BASIC_ATTACK', 'SKILL', 'ULTIMATE', 'FOLLOW_UP_ATTACK'].includes(action.type);
+  if (isAttackAction) {
+    const targetId = (action as CombatAction).targetId;
+    context.state = publishEvent(context.state, {
+      type: 'ON_BEFORE_ATTACK',
+      sourceId: source.id,
+      targetId: targetId,
+      actionType: action.type
+    } as IEvent);
+  }
 
   // Pipeline
   context = stepPayCost(context);
@@ -1480,32 +1807,14 @@ function resolveAction(state: GameState, action: Action): GameState {
 }
 
 function handleActionAdvance(state: GameState, action: ActionAdvanceAction): GameState {
-  const target = state.units.find(u => u.id === action.targetId);
+  const target = state.registry.get(createUnitId(action.targetId));
   if (!target) return state;
 
   // 召喚ユニットは原則として行動順変化の影響を受けない（明示的な指定がない限り）
   if (target.isSummon) return state;
 
-  // Calculate new actionPoint and actionValue
-  const advanceAmount = 10000 * action.percent;
-  const newActionPoint = target.actionPoint + advanceAmount;
-
-  // Use recalculateActionValueFromActionPoint for consistency
-  const updatedTarget = recalculateActionValueFromActionPoint(
-    { ...target, actionPoint: newActionPoint },
-    newActionPoint
-  );
-
-  // Update units
-  const newState = {
-    ...state,
-    units: state.units.map(u =>
-      u.id === target.id ? updatedTarget : u
-    )
-  };
-
-  // Sync actionQueue (with automatic sorting)
-  return updateActionQueue(newState);
+  // Use unified advanceUnitAction function
+  return advanceUnitAction(state, createUnitId(action.targetId), action.percent, 'percent');
 }
 
 function handleBattleStart(state: GameState, action: BattleStartAction): GameState {

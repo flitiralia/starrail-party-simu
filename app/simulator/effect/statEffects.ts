@@ -1,6 +1,8 @@
 import { GameState, Unit } from '../engine/types';
 import { IStatEffect } from './types';
 
+import { createUnitId } from '../engine/unitId';
+
 /**
  * Creates a basic stat buff/debuff effect that can be applied to a unit.
  * This is a factory function to simplify the creation of stat effects.
@@ -44,7 +46,7 @@ export function createStatEffect({
       };
       return {
         ...state,
-        units: state.units.map(u => u.id === newTarget.id ? newTarget : u),
+        registry: state.registry.update(createUnitId(newTarget.id), u => newTarget)
       };
     },
 
@@ -56,7 +58,7 @@ export function createStatEffect({
       };
       return {
         ...state,
-        units: state.units.map(u => u.id === newTarget.id ? newTarget : u),
+        registry: state.registry.update(createUnitId(newTarget.id), u => newTarget)
       };
     },
   };

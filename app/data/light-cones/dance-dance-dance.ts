@@ -29,7 +29,7 @@ export const danceDanceDance: ILightConeData = {
 
         // 味方全体に行動順加速
         let newState = state;
-        const allies = state.units.filter(u => !u.isEnemy && u.hp > 0);
+        const allies = state.registry.getAliveAllies();
         allies.forEach(ally => {
           newState = advanceAction(newState, ally.id, advanceValue);
         });

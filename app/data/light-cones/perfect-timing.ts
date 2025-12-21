@@ -1,4 +1,5 @@
-import { ILightConeData } from '@/app/types';
+import { ILightConeData } from '../../types';
+import { addEffect } from '../../simulator/engine/effectManager';
 
 export const perfectTiming: ILightConeData = {
   id: 'perfect-timing',
@@ -21,33 +22,43 @@ export const perfectTiming: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'effect_res_boost',
+      id: 'perfect-res',
       name: '屈折する視線（効果抵抗）',
       category: 'BUFF',
       targetStat: 'effect_res',
-      effectValue: [0.16, 0.2, 0.24, 0.28, 0.32]
-    },
+      effectValue: [0.16, 0.20, 0.24, 0.28, 0.32]
+    }
+  ],
+
+  eventHandlers: [
     {
-      id: 'healing_boost_from_effect_res',
-      name: '屈折する視線（治癒量）',
-      category: 'BUFF',
-      targetStat: 'outgoing_healing_boost',
-      effectValue: [0.15, 0.18, 0.21, 0.24, 0.27], // 最大値（参考値）
-      calculateValue: (stats, superimposition) => {
-        // 変換率テーブル
-        const conversionRates = [0.33, 0.36, 0.39, 0.42, 0.45];
-        const conversionRate = conversionRates[superimposition - 1];
+      id: 'perfect-dynamic-heal',
+      name: '屈折する視線（動的治癒量）',
+      events: ['ON_BATTLE_START'],
+      handler: (event, state, unit, superimposition) => {
+        const ratio = [0.33, 0.36, 0.39, 0.42, 0.45][superimposition - 1];
+        const maxVal = [0.15, 0.18, 0.21, 0.24, 0.27][superimposition - 1];
 
-        // 最大値テーブル
-        const maxValues = [0.15, 0.18, 0.21, 0.24, 0.27];
-        const maxValue = maxValues[superimposition - 1];
-
-        // 効果抵抗から計算（stats.effect_resには第1パスの+16%が既に適用済み）
-        const effectRes = stats.effect_res || 0;
-        const calculatedValue = effectRes * conversionRate;
-
-        // 最大値でキャップ
-        return Math.min(calculatedValue, maxValue);
+        return addEffect(state, unit.id, {
+          id: `perfect-timing-buff-${unit.id}`,
+          name: '屈折する視線（治癒量）',
+          category: 'BUFF',
+          sourceUnitId: unit.id,
+          durationType: 'PERMANENT',
+          duration: -1,
+          modifiers: [{
+            target: 'outgoing_healing_boost',
+            source: '今が丁度',
+            type: 'add',
+            value: 0,
+            dynamicValue: (u) => {
+              const res = u.stats.effect_res || 0;
+              return Math.min(maxVal, res * ratio);
+            }
+          }],
+          apply: (u, s) => s,
+          remove: (u, s) => s
+        });
       }
     }
   ]

@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const WATCHMAKER_MASTER_OF_DREAM_MACHINATIONS: RelicSet = {
   id: 'watchmaker_master_of_dream_machinations',
@@ -28,7 +29,7 @@ export const WATCHMAKER_MASTER_OF_DREAM_MACHINATIONS: RelicSet = {
             if (event.sourceId !== sourceUnitId) return state;
 
             // 必殺技が味方対象かチェック
-            const sourceUnit = state.units.find(u => u.id === sourceUnitId);
+            const sourceUnit = state.registry.get(createUnitId(sourceUnitId));
             if (!sourceUnit) return state;
 
             const ult = sourceUnit.abilities.ultimate;
@@ -38,7 +39,7 @@ export const WATCHMAKER_MASTER_OF_DREAM_MACHINATIONS: RelicSet = {
             if (!isAllyTarget) return state;
 
             // 味方全体に撃破特効+30%バフを付与
-            const allies = state.units.filter(u => !u.isEnemy);
+            const allies = state.registry.getAliveAllies();
 
             return allies.reduce((currentState, ally) => {
               const buff: IEffect = {

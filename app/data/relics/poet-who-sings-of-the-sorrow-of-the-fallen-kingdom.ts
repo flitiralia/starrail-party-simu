@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const POET_WHO_SINGS_OF_THE_SORROW_OF_THE_FALLEN_KINGDOM: RelicSet = {
   id: 'poet_who_sings_of_the_sorrow_of_the_fallen_kingdom',
@@ -32,7 +33,7 @@ export const POET_WHO_SINGS_OF_THE_SORROW_OF_THE_FALLEN_KINGDOM: RelicSet = {
         {
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
-            const unit = state.units.find(u => u.id === sourceUnitId);
+            const unit = state.registry.get(createUnitId(sourceUnitId));
             if (!unit) return state;
 
             // 速度を取得（-8%は既に適用済み）

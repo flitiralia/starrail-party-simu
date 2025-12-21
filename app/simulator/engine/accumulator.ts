@@ -1,5 +1,6 @@
 import { GameState, Unit } from './types';
 import { addEffect, removeEffect } from './effectManager';
+import { UnitId, createUnitId } from './unitId';
 
 /**
  * Adds a value to a generic accumulator stored as a buff on the unit.
@@ -17,7 +18,7 @@ export function addAccumulatedValue(
     value: number,
     cap?: number
 ): GameState {
-    const u = state.units.find(unit => unit.id === unitId);
+    const u = state.registry.get(createUnitId(unitId));
     if (!u) return state;
 
     const effectName = `蓄積: ${key}`;
@@ -68,7 +69,7 @@ export function getAccumulatedValue(
     unitId: string,
     key: string
 ): number {
-    const u = state.units.find(unit => unit.id === unitId);
+    const u = state.registry.get(createUnitId(unitId));
     if (!u) return 0;
 
     const effectName = `蓄積: ${key}`;
@@ -106,7 +107,7 @@ export function consumeAccumulatedValue(
 
     // Update by removing old and adding new
     const effectName = `蓄積: ${key}`;
-    const u = state.units.find(unit => unit.id === unitId);
+    const u = state.registry.get(createUnitId(unitId));
     if (u) {
         const current = u.effects.find(e => e.name === effectName);
         if (current) {

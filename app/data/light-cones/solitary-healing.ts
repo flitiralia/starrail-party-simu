@@ -1,6 +1,7 @@
 import { ILightConeData } from '@/app/types';
 import { addEffect } from '@/app/simulator/engine/effectManager';
-import { addEnergy } from '@/app/simulator/engine/energy';
+import { addEnergyToUnit } from '@/app/simulator/engine/energy';
+import { publishEvent } from '@/app/simulator/engine/dispatcher';
 
 export const solitudeAndHealing: ILightConeData = {
   id: 'solitary-healing',
@@ -8,11 +9,11 @@ export const solitudeAndHealing: ILightConeData = {
   description: '装備キャラの撃破特効+20%。装備キャラが必殺技を発動した時、装備キャラの持続与ダメージ+24%。2ターン継続。装備キャラに持続ダメージを付与された敵が倒された時、装備キャラのEPを4回復する。',
   descriptionTemplate: '装備キャラの撃破特効+{0}%。装備キャラが必殺技を発動した時、装備キャラの持続与ダメージ+{1}%。2ターン継続。装備キャラに持続ダメージを付与された敵が倒された時、装備キャラのEPを{2}回復する。',
   descriptionValues: [
-    ['20', '24', '4'],
-    ['25', '30', '5'],
-    ['30', '36', '6'],
-    ['35', '42', '7'],
-    ['40', '48', '8']
+    ['20', '24', '4.0'],
+    ['25', '30', '4.5'],
+    ['30', '36', '5.0'],
+    ['35', '42', '5.5'],
+    ['40', '48', '6.0']
   ],
   path: 'Nihility',
   baseStats: {
@@ -67,6 +68,7 @@ export const solitudeAndHealing: ILightConeData = {
       name: '混沌の霊薬（EP回復）',
       events: ['ON_ENEMY_DEFEATED'],
       handler: (event, state, unit, superimposition) => {
+        if (event.type !== 'ON_ENEMY_DEFEATED') return state;
         // 倒された敵がDoTデバフを持っているか確認
         const defeatedEnemy = event.defeatedEnemy;
         if (!defeatedEnemy) return state;
@@ -78,18 +80,16 @@ export const solitudeAndHealing: ILightConeData = {
 
         if (!hasDoTFromWearer) return state;
 
-        const epValue = [4, 5, 6, 7, 8][superimposition - 1];
-        const unitIndex = state.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return state;
+        const epValue = [4.0, 4.5, 5.0, 5.5, 6.0][superimposition - 1];
 
-        const updatedUnit = addEnergy(state.units[unitIndex], epValue);
-        const newUnits = [...state.units];
-        newUnits[unitIndex] = updatedUnit;
+        const newState = addEnergyToUnit(state, unit.id, epValue, 0, false, {
+          sourceId: unit.id,
+          publishEventFn: publishEvent
+        });
 
         return {
-          ...state,
-          units: newUnits,
-          log: [...state.log, {
+          ...newState,
+          log: [...newState.log, {
             actionType: 'EP回復',
             sourceId: unit.id,
             characterName: unit.name,

@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const LONGEVOUS_DISCIPLE: RelicSet = {
   id: 'longevous_disciple',
@@ -22,14 +23,34 @@ export const LONGEVOUS_DISCIPLE: RelicSet = {
       description: '装備キャラが攻撃を受ける、または味方によってHPを消費させられた時、会心率+8%、2ターン継続。最大2層累積できる。',
       eventHandlers: [
         {
-          events: ['ON_DAMAGE_DEALT'],
+          events: ['ON_BEFORE_HIT', 'ON_HP_CONSUMED'],
           handler: (event, state, sourceUnitId) => {
-            // 条件1: 被弾者が装備者であること
-            if (event.targetId !== sourceUnitId) return state;
+            let shouldTrigger = false;
 
-            // 条件2: 攻撃者が敵であること
-            const attacker = state.units.find(u => u.id === event.sourceId);
-            if (!attacker?.isEnemy) return state;
+            // 攻撃を受ける時
+            if (event.type === 'ON_BEFORE_HIT') {
+              // 条件: 被弾者が装備者で、攻撃者が敵
+              if (event.targetId === sourceUnitId) {
+                const attacker = state.registry.get(createUnitId(event.sourceId));
+                if (attacker?.isEnemy) {
+                  shouldTrigger = true;
+                }
+              }
+            }
+            // HP消費時（自身または味方による）
+            else if (event.type === 'ON_HP_CONSUMED') {
+              // 条件: HP消費者が装備者
+              if (event.targetId === sourceUnitId) {
+                // 味方による消費か？ (敵によるドットやダメージはここに来ないはずだが念のため)
+                // ON_HP_CONSUMEDは基本的に味方/自身起因だが、sourceIdを確認
+                const consumer = state.registry.get(createUnitId(event.sourceId));
+                if (consumer && !consumer.isEnemy) {
+                  shouldTrigger = true;
+                }
+              }
+            }
+
+            if (!shouldTrigger) return state;
 
             // バフエフェクトを付与（addEffectが自動的にスタック管理）
             const effect: IEffect = {

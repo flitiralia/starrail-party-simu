@@ -1,6 +1,7 @@
 import { OrnamentSet } from '../../types';
-import { addAura } from '../../simulator/engine/auraManager';
-import { IAura } from '../../simulator/engine/types';
+import { addAura, removeAura } from '../../simulator/engine/auraManager';
+import { IAura, Unit } from '../../simulator/engine/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 永遠の地オンパロス
@@ -24,14 +25,14 @@ export const OMPHALOS_ETERNAL_GROUNDS: OrnamentSet = {
                 {
                     events: ['ON_BATTLE_START', 'ON_TURN_START'],
                     handler: (event, state, sourceUnitId) => {
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // 既存のオーラを確認
                         const hasAura = state.auras?.some(a => a.id === `omphalos-spd-aura-${sourceUnitId}`);
 
                         // 精霊がフィールド上にいるかチェック
-                        const hasSpirit = state.units.some(u =>
+                        const hasSpirit = state.registry.toArray().some((u: Unit) =>
                             u.linkedUnitId === sourceUnitId &&
                             u.isSummon === true &&
                             u.hp > 0
@@ -42,7 +43,7 @@ export const OMPHALOS_ETERNAL_GROUNDS: OrnamentSet = {
                             const aura: IAura = {
                                 id: `omphalos-spd-aura-${sourceUnitId}`,
                                 name: '永遠の地オンパロス',
-                                sourceUnitId: sourceUnitId,
+                                sourceUnitId: createUnitId(sourceUnitId),
                                 target: 'all_allies',
                                 modifiers: [{
                                     target: 'spd_pct',
@@ -56,7 +57,6 @@ export const OMPHALOS_ETERNAL_GROUNDS: OrnamentSet = {
 
                         if (!hasSpirit && hasAura) {
                             // オーラを削除
-                            const { removeAura } = require('../../simulator/engine/auraManager');
                             return removeAura(state, `omphalos-spd-aura-${sourceUnitId}`);
                         }
 

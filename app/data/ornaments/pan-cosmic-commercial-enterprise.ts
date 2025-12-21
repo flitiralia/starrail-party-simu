@@ -1,4 +1,7 @@
 import { OrnamentSet } from '../../types';
+import { Unit, GameState } from '../../simulator/engine/types';
+import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 汎銀河商事会社
@@ -23,7 +26,7 @@ export const PAN_COSMIC_COMMERCIAL_ENTERPRISE: OrnamentSet = {
                     // 効果命中に応じた攻撃力バフをON_TURN_STARTで更新
                     events: ['ON_BATTLE_START', 'ON_TURN_START'],
                     handler: (event, state, sourceUnitId) => {
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // 効果命中25%分の攻撃力アップ（最大25%）
@@ -37,7 +40,6 @@ export const PAN_COSMIC_COMMERCIAL_ENTERPRISE: OrnamentSet = {
                         // 値が変わらない場合はスキップ
                         if (Math.abs(currentValue - atkBonus) < 0.001) return state;
 
-                        const { addEffect, removeEffect } = require('../../simulator/engine/effectManager');
                         let newState = removeEffect(state, sourceUnitId, 'pan-cosmic-atk');
 
                         if (atkBonus > 0) {
@@ -54,8 +56,8 @@ export const PAN_COSMIC_COMMERCIAL_ENTERPRISE: OrnamentSet = {
                                     type: 'add' as const,
                                     value: atkBonus
                                 }],
-                                apply: (t: any, s: any) => s,
-                                remove: (t: any, s: any) => s
+                                apply: (t: Unit, s: GameState) => s,
+                                remove: (t: Unit, s: GameState) => s
                             };
                             newState = addEffect(newState, sourceUnitId, buff);
                         }

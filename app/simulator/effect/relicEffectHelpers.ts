@@ -1,6 +1,7 @@
 import { GameState, Unit, IEvent } from '../engine/types';
 import { Element } from '../../types';
 import { publishEvent } from '../engine/dispatcher';
+import { UnitId, createUnitId } from '../engine/unitId';
 
 /**
  * 条件関数の型定義
@@ -31,11 +32,11 @@ export function createDefIgnoreHandler(
         if (event.sourceId !== sourceUnitId) return state;
 
         // ターゲットIDが存在しない場合は何もしない
-        if (!event.targetId) return state;
+        if (!('targetId' in event) || !event.targetId) return state;
 
         // ターゲットとソースを取得
-        const target = state.units.find(u => u.id === event.targetId);
-        const source = state.units.find(u => u.id === sourceUnitId);
+        const target = state.registry.get(createUnitId(event.targetId));
+        const source = state.registry.get(createUnitId(sourceUnitId));
 
         // どちらかが存在しない場合は何もしない
         if (!target || !source) return state;
@@ -177,7 +178,7 @@ export function combineConditions(
  * // アーカーE6: SP+2
  * newState = addSkillPoints(newState, 2);
  */
-export function addSkillPoints(state: GameState, amount: number): GameState {
+export function addSkillPoints(state: GameState, amount: number, sourceId: string = 'system'): GameState {
     const currentSP = state.skillPoints;
     const maxSP = state.maxSkillPoints;
 
@@ -187,7 +188,7 @@ export function addSkillPoints(state: GameState, amount: number): GameState {
     // デバッグログ（変更があった場合のみ）
     if (newSP !== currentSP) {
         const sign = amount > 0 ? '+' : '';
-        console.log(`[SP] ${currentSP} -> ${newSP} (${sign}${amount})`);
+        console.log(`[SP] ${currentSP} -> ${newSP} (${sign}${amount}) by ${sourceId}`);
     }
 
     let newState = {
@@ -195,12 +196,18 @@ export function addSkillPoints(state: GameState, amount: number): GameState {
         skillPoints: newSP
     };
 
-    // SP変更イベントを発火（増加時のみ）
-    if (amount > 0 && newSP > currentSP) {
+    // SP変更イベントを発火
+    if (newSP > currentSP) {
         newState = publishEvent(newState, {
-            type: 'ON_SP_CHANGE',
-            sourceId: 'system',
-            value: amount
+            type: 'ON_SP_GAINED',
+            sourceId: sourceId,
+            value: newSP - currentSP
+        });
+    } else if (newSP < currentSP) {
+        newState = publishEvent(newState, {
+            type: 'ON_SP_CONSUMED',
+            sourceId: sourceId,
+            value: currentSP - newSP
         });
     }
 

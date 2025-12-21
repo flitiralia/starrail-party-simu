@@ -1,6 +1,7 @@
 import { GameState, IEvent, IEventHandler, Unit, IEventHandlerLogic, IEventHandlerFactory } from '../types';
 import { createStatEffect } from '../../effect/statEffects';
 import { Element, StatKey } from '@/app/types';
+import { createUnitId } from '../unitId';
 
 const elementToDmgBoostMap: Record<Element, StatKey> = {
   Physical: 'physical_dmg_boost',
@@ -36,7 +37,7 @@ export const handlePlanetaryRendezvousLogic: IEventHandlerLogic = (event, state,
   const superimposition = parseInt(parts[2].replace('s', '')) as 1 | 2 | 3 | 4 | 5;
   const sourceUnitId = parts[3];
 
-  const sourceUnit = state.units.find(u => u.id === sourceUnitId);
+  const sourceUnit = state.registry.get(createUnitId(sourceUnitId));
   if (!sourceUnit) {
     console.warn(`Planetary Rendezvous: Source unit ${sourceUnitId} not found.`);
     return state;
@@ -50,7 +51,7 @@ export const handlePlanetaryRendezvousLogic: IEventHandlerLogic = (event, state,
   const dmgBoostStatKey = elementToDmgBoostMap[targetElement];
 
   // Find all allies with the same element and apply the buff
-  for (const unit of newState.units) {
+  for (const unit of newState.registry.toArray()) {
     if (!unit.isEnemy && unit.element === targetElement) {
       const buffEffect = createStatEffect({
         id: `planetary-rendezvous-buff-${unit.id}-${sourceUnit.id}-${superimposition}`,

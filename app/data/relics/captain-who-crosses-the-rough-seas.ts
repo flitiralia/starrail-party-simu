@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 荒海を越える船長
@@ -38,7 +39,7 @@ export const CAPTAIN_WHO_CROSSES_THE_ROUGH_SEAS: RelicSet = {
                         if (event.targetId !== sourceUnitId) return state;
 
                         // ソースが味方かチェック
-                        const source = state.units.find(u => u.id === event.sourceId);
+                        const source = state.registry.get(createUnitId(event.sourceId));
                         if (!source || source.isEnemy) return state;
 
                         // 助力スタック追加
@@ -65,7 +66,7 @@ export const CAPTAIN_WHO_CROSSES_THE_ROUGH_SEAS: RelicSet = {
                     handler: (event, state, sourceUnitId) => {
                         if (event.sourceId !== sourceUnitId) return state;
 
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // 助力スタックを確認

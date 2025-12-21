@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const PRIEST_WHO_WALKS_THE_PATH_OF_SUFFERING: RelicSet = {
   id: 'priest_who_walks_the_path_of_suffering',
@@ -28,7 +29,7 @@ export const PRIEST_WHO_WALKS_THE_PATH_OF_SUFFERING: RelicSet = {
             if (!event.targetId) return state;
 
             // ターゲットが味方かチェック
-            const target = state.units.find(u => u.id === event.targetId);
+            const target = state.registry.get(createUnitId(event.targetId));
             if (!target || target.isEnemy) return state;
 
             // スタック可能なバフを付与

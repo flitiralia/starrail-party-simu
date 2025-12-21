@@ -11,6 +11,8 @@ export const StatKeySchema = z.enum([
   'physical_res', 'fire_res', 'ice_res', 'lightning_res', 'wind_res', 'quantum_res', 'imaginary_res', // Elemental resistances
   'physical_res_pen', 'fire_res_pen', 'ice_res_pen', 'lightning_res_pen', 'wind_res_pen', 'quantum_res_pen', 'imaginary_res_pen', 'all_type_res_pen', // RES penetration
   'all_type_vuln', // Vulnerability (All Types)
+  'break_dmg_taken', // Break Damage Vulnerability
+  'dot_dmg_taken', // DoT Damage Vulnerability
   'physical_vuln', 'fire_vuln', 'ice_vuln', 'lightning_vuln', 'wind_vuln', 'quantum_vuln', 'imaginary_vuln', // Element-specific vulnerabilities
   'break_effect',                                // Break effect
   'energy_regen_rate', 'max_ep',                 // Energy-related stats
@@ -23,9 +25,11 @@ export const StatKeySchema = z.enum([
   'def_reduction', // Defense reduction (Target debuff)
   'def_ignore', // Defense ignore (Source buff)
   'break_efficiency_boost', // Break efficiency boost
+  'break_dmg_boost', // Break Damage Boost (Source)
   'super_break_dmg_boost', // Super Break damage boost
   'fua_dmg_boost', // Follow-up attack damage boost
   'dot_dmg_boost', // DoT damage boost
+  'dot_def_ignore', // DoT DEF ignore
   'all_type_dmg_boost', // All type damage boost
   'all_dmg_dealt_reduction', // All damage dealt reduction (Debuff applied to enemies, reduces their outgoing damage)
   'dmg_taken_reduction', // Damage taken reduction (Buff applied to allies, reduces incoming damage)
@@ -43,7 +47,7 @@ export const STAT_KEYS = StatKeySchema.options;
 export interface Modifier { // NOTE: This interface might be deprecated in favor of IEffect
   target: StatKey; // The stat to be modified
   source: string; // e.g., 'Longevous Disciple 2-pc'
-  type: 'add' | 'pct'; // 'add' for flat additions, 'pct' for percentage increases
+  type: 'add' | 'pct' | 'base'; // 'add' for flat, 'pct' for %, 'base' for modifying base stats directly
   value: number;
   // NEW: 動的計算用（他ユニットのステータス参照）
   // dynamicValueが定義されている場合、valueは無視され、この関数の戻り値が使用される

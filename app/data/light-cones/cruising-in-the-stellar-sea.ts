@@ -1,5 +1,6 @@
 import { ILightConeData } from '@/app/types';
 import { addEffect } from '@/app/simulator/engine/effectManager';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const cruisingInTheStellarSea: ILightConeData = {
   id: 'cruising-in-the-stellar-sea',
@@ -40,10 +41,10 @@ export const cruisingInTheStellarSea: ILightConeData = {
       handler: (event, state, unit, superimposition) => {
         // 攻撃者が自分かチェック
         if (event.sourceId !== unit.id) return state;
-        if (!event.targetId) return state;
+        if (!('targetId' in event) || !event.targetId) return state;
 
         // ターゲットを取得
-        const target = state.units.find(u => u.id === event.targetId);
+        const target = state.registry.get(createUnitId(event.targetId));
         if (!target || target.hp <= 0) return state;
 
         // HP50%以下かチェック
@@ -67,6 +68,8 @@ export const cruisingInTheStellarSea: ILightConeData = {
       name: '猟逐（攻撃力バフ）',
       events: ['ON_ENEMY_DEFEATED'],
       handler: (event, state, unit, superimposition) => {
+        if (event.sourceId !== unit.id) return state;
+
         const atkBoostValue = [0.2, 0.25, 0.3, 0.35, 0.4][superimposition - 1];
 
         return addEffect(state, unit.id, {

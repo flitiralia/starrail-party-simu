@@ -20,8 +20,13 @@ export type SuperimpositionValue = [number, number, number, number, number];
  * クールダウンリセットのタイミング
  * - 'wearer_turn': 装備キャラのターン開始時のみリセット（デフォルト）
  * - 'any_turn': 任意のターン開始時にリセット（輪契など被弾トリガーがある場合）
+ * - 'per_action': 装備キャラのアクション完了時にリセット（「1回の攻撃で1回」制限用）
  */
-export type CooldownResetType = 'wearer_turn' | 'any_turn';
+export enum CooldownResetType {
+  WEARER_TURN = 'wearer_turn',
+  ANY_TURN = 'any_turn',
+  PER_ACTION = 'per_action'
+}
 
 /**
  * パッシブ効果（ステータス変更のみ）
@@ -29,11 +34,12 @@ export type CooldownResetType = 'wearer_turn' | 'any_turn';
 export interface PassiveLightConeEffect {
   id: string;
   name: string;
-  category: 'BUFF' | 'DEBUFF';
+  category: 'BUFF' | 'DEBUFF' | 'STATUS' | 'OTHER';
   targetStat: StatKey;
   effectValue: SuperimpositionValue;
   condition?: (stats: FinalStats) => boolean;
   calculateValue?: (stats: FinalStats, superimposition: number) => number; // 動的計算用
+  type?: 'base' | 'add' | 'pct'; // modifier type override
 }
 
 /**
@@ -44,6 +50,8 @@ export interface LightConeEventHandler {
   name: string;
   events: EventType[];
   cooldownResetType?: CooldownResetType; // デフォルト: 'wearer_turn'
+  cooldownTurns?: number;        // クールダウンターン数（0=CDなし, 1=1ターンなど）
+  maxActivations?: number;       // 1リセットサイクルあたりの最大発動回数（デフォルト: 無制限）
   handler: (
     event: GameEvent,
     state: GameState,

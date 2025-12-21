@@ -17,9 +17,9 @@ export class TargetSelector {
         if (criteria.type === 'self') {
             return [source];
         } else if (criteria.type.includes('enemy')) {
-            candidates = state.units.filter(u => u.isEnemy && u.hp > 0);
+            candidates = state.registry.getAliveEnemies();
         } else if (criteria.type.includes('ally')) {
-            candidates = state.units.filter(u => !u.isEnemy && u.hp > 0);
+            candidates = state.registry.getAliveAllies();
         }
 
         // 2. Filter

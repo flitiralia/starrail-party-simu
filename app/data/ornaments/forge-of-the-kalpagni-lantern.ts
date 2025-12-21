@@ -1,6 +1,7 @@
 import { OrnamentSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const FORGE_OF_THE_KALPAGNI_LANTERN: OrnamentSet = {
   id: 'forge_of_the_kalpagni_lantern',
@@ -18,12 +19,12 @@ export const FORGE_OF_THE_KALPAGNI_LANTERN: OrnamentSet = {
       ],
       eventHandlers: [
         {
-          events: ['ON_DAMAGE_DEALT'],
+          events: ['ON_BEFORE_HIT'], // 敵に命中する時
           handler: (event, state, sourceUnitId) => {
             if (event.sourceId !== sourceUnitId) return state;
             if (!event.targetId) return state;
 
-            const target = state.units.find(u => u.id === event.targetId);
+            const target = state.registry.get(createUnitId(event.targetId));
             if (!target) return state;
 
             // 炎属性弱点を持つ敵に命中した場合、撃破特効+40%

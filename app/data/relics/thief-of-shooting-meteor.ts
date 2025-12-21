@@ -1,5 +1,6 @@
 import { RelicSet } from '../../types';
-import { addEnergy } from '../../simulator/engine/energy';
+import { addEnergyToUnit } from '../../simulator/engine/energy';
+import { publishEvent } from '../../simulator/engine/dispatcher';
 
 export const THIEF_OF_SHOOTING_METEOR: RelicSet = {
   id: 'thief_of_shooting_meteor',
@@ -33,15 +34,10 @@ export const THIEF_OF_SHOOTING_METEOR: RelicSet = {
             if (event.sourceId !== sourceUnitId) return state;
 
             // 弱点撃破時にEPを3回復
-            const unit = state.units.find(u => u.id === sourceUnitId);
-            if (!unit) return state;
-
-            const updatedUnit = addEnergy(unit, 3);
-
-            return {
-              ...state,
-              units: state.units.map(u => u.id === sourceUnitId ? updatedUnit : u)
-            };
+            return addEnergyToUnit(state, sourceUnitId, 3, 0, false, {
+              sourceId: sourceUnitId,
+              publishEventFn: publishEvent
+            });
           }
         }
       ],

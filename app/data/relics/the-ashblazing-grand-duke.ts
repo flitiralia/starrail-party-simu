@@ -31,7 +31,7 @@ export const THE_ASHBLAZING_GRAND_DUKE: RelicSet = {
           }
         },
         {
-          events: ['ON_DAMAGE_DEALT'],
+          events: ['ON_AFTER_HIT'], // ダメージを与えるたびに（追加攻撃のヒット毎）
           handler: (event, state, sourceUnitId) => {
             if (event.sourceId !== sourceUnitId) return state;
             if (event.subType !== 'FOLLOW_UP_ATTACK') return state;

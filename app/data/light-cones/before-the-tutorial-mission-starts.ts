@@ -1,5 +1,7 @@
 import { ILightConeData } from '@/app/types';
-import { addEnergy } from '@/app/simulator/engine/energy';
+import { addEnergyToUnit } from '@/app/simulator/engine/energy';
+import { publishEvent } from '@/app/simulator/engine/dispatcher';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const beforeTheFirstQuest: ILightConeData = {
   id: 'before-the-tutorial-mission-starts',
@@ -30,15 +32,15 @@ export const beforeTheFirstQuest: ILightConeData = {
     {
       id: 'nice_catch_ep',
       name: 'ナイスキャッチ EP回復',
-      events: ['ON_DAMAGE_DEALT'],
+      events: ['ON_ATTACK'], // 攻撃を行った後
       // cooldownResetTypeはデフォルト（wearer_turn）
       handler: (event, state, unit, superimposition) => {
         // イベントタイプチェック不要（eventsで既にフィルタ済み）
         if (event.sourceId !== unit.id) return state;
-        if (!event.targetId) return state;
+        if (!('targetId' in event) || !event.targetId) return state;
 
         // ターゲットが防御ダウン状態かチェック
-        const target = state.units.find(u => u.id === event.targetId);
+        const target = state.registry.get(createUnitId(event.targetId));
         if (!target) return state;
 
         // 防御ダウン（def_reduction）効果を持つかチェック
@@ -52,18 +54,15 @@ export const beforeTheFirstQuest: ILightConeData = {
         const epValue = [4, 5, 6, 7, 8][superimposition - 1];
 
         // EP回復
-        const unitIndex = state.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return state;
-
-        const updatedUnit = addEnergy(state.units[unitIndex], epValue);
-        const newUnits = [...state.units];
-        newUnits[unitIndex] = updatedUnit;
+        const newState = addEnergyToUnit(state, unit.id, epValue, 0, false, {
+          sourceId: unit.id,
+          publishEventFn: publishEvent
+        });
 
         // ログ
         return {
-          ...state,
-          units: newUnits,
-          log: [...state.log, {
+          ...newState,
+          log: [...newState.log, {
             actionType: 'EP回復',
             sourceId: unit.id,
             characterName: unit.name,
@@ -75,5 +74,3 @@ export const beforeTheFirstQuest: ILightConeData = {
     }
   ]
 };
-
-

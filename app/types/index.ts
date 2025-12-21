@@ -14,7 +14,49 @@ export const ELEMENTS = ['Physical', 'Fire', 'Ice', 'Lightning', 'Wind', 'Quantu
 export type Element = (typeof ELEMENTS)[number];
 
 
-export type EventType = 'ON_DAMAGE_DEALT' | 'ON_TURN_START' | 'ON_SKILL_USED' | 'ON_ULTIMATE_USED' | 'ON_UNIT_HEALED' | 'ON_BASIC_ATTACK' | 'ON_WEAKNESS_BREAK' | 'ON_BEFORE_DAMAGE_CALCULATION' | 'ON_DEBUFF_APPLIED' | 'ON_BATTLE_START' | 'ON_ENEMY_DEFEATED';
+// prettier-ignore
+export type EventType =
+  | 'ON_ACTION_START'
+  | 'ON_ACTION_COMPLETE'
+  | 'ON_TURN_START'
+  | 'ON_TURN_END'
+  | 'ON_BATTLE_START'
+  | 'ON_WAVE_START'
+  | 'ON_ATTACK'
+  | 'ON_DAMAGE_DEALT'
+  | 'ON_DAMAGE_RECEIVED'
+  | 'ON_HEAL_RECEIVED'
+  | 'ON_UNIT_HEALED' // Legacy
+  | 'ON_DEATH'
+  | 'ON_REVIVE'
+  | 'ON_SKILL_USED'
+  | 'ON_ULTIMATE_USED'
+  | 'ON_BREAK' // 弱点撃破時
+  | 'ON_WEAKNESS_BREAK' // Alias
+  | 'ON_ENEMY_SPAWNED'
+  | 'ON_BUFF_ADDED'
+  | 'ON_BUFF_REMOVED'
+  | 'ON_DEBUFF_ADDED'
+  | 'ON_DEBUFF_REMOVED'
+  | 'ON_EP_GAINED'
+  | 'ON_SP_GAINED' // SP回復時
+  | 'ON_SP_CONSUMED' // SP消費時
+  | 'ON_BEFORE_DAMAGE_CALCULATION' // ダメージ計算前
+  | 'ON_ENEMY_DEFEATED'
+  | 'ON_BEFORE_ACTION'
+  | 'ON_BEFORE_ATTACK'
+  | 'ON_BEFORE_HIT'
+  | 'ON_AFTER_HIT'
+  | 'ON_WEAKNESS_BREAK_RECOVERY_ATTEMPT'
+  | 'ON_ENHANCED_BASIC_ATTACK'
+  | 'ON_FOLLOW_UP_ATTACK'
+  | 'ON_DOT_DAMAGE'
+  | 'ON_EFFECT_APPLIED'
+  | 'ON_EFFECT_REMOVED'
+  | 'ON_UNIT_DEATH'
+  | 'ON_DEBUFF_APPLIED'
+  | 'ON_BASIC_ATTACK'
+  | 'ON_HP_CONSUMED';
 
 
 /**
@@ -314,6 +356,7 @@ export * from './enemy';
 export * from './stats';
 export * from '../simulator/effect/types'; // IEffect, IStatEffectなどをここからエクスポート
 export * from '../simulator/engine/types'; // CharacterConfigなどをここからエクスポート
+export * from '../simulator/engine/unitId'; // UnitIdなどをここからエクスポート
 export * from '../simulator/engine/simulation'; // EnemyConfigなどをここからエクスポート
 export * from './worker'; // SimulationWorkerMessageなどをここからエクスポート
 
@@ -325,6 +368,7 @@ export interface HitDetail {
   multiplier: number;     // 倍率
   damage: number;         // このヒットのダメージ
   isCrit: boolean;        // 会心したか
+  toughnessReduction?: number; // 削靭値 (Super Break用)
   targetName?: string;    // ターゲット名（複数ターゲット時）
   // ダメージ計算係数
   breakdownMultipliers?: {
@@ -341,12 +385,32 @@ export interface HitDetail {
 /**
  * 付加ダメージエントリ（トリビー結界など）
  */
+export type AdditionalDamageType =
+  | 'additional'       // 付加ダメージ（会心あり、与ダメ適用）
+  | 'break'            // 弱点撃破ダメージ（撃破特効適用）
+  | 'break_additional' // 撃破付加ダメージ（凍結・もつれ、撃破特効適用）
+  | 'super_break'      // 超撃破ダメージ
+  | 'dot';             // 持続ダメージ
+
 export interface AdditionalDamageEntry {
   source: string;        // "トリビー"
   name: string;          // "結界付加ダメージ"
   damage: number;
   isCrit?: boolean;
   target: string;        // ターゲット名
+  damageType?: AdditionalDamageType; // ダメージ種別（ラベル表示用）
+  hitIndex?: number;     // ヒット番号（統一表示用）
+  multiplier?: number;   // 倍率
+  // ダメージ計算係数（HitDetailと同じ形式）
+  breakdownMultipliers?: {
+    baseDmg: number;
+    critMult: number;
+    dmgBoostMult: number;
+    defMult: number;
+    resMult: number;
+    vulnMult: number;
+    brokenMult: number;
+  };
 }
 
 /**
@@ -357,7 +421,27 @@ export interface DamageTakenEntry {
   type: 'enemy' | 'self' | 'dot';
   damage: number;
   dotType?: string;      // DoTの場合の種類
+  // ダメージ計算係数（敵からのダメージ用）
+  breakdownMultipliers?: {
+    baseDmg: number;
+    critMult: number;
+    dmgBoostMult: number;
+    defMult: number;
+    resMult: number;
+    vulnMult: number;
+    brokenMult: number;
+  };
+  // HP消費の計算式（self用）
+  hpConsumeBreakdown?: {
+    maxHp: number;           // 最大HP
+    consumeRatio: number;    // 消費割合（例: 0.10 = 10%）
+    expectedCost: number;    // 想定コスト（最大HP × 消費割合）
+    actualConsumed: number;  // 実際の消費量（HP不足時に調整）
+    hpBefore: number;        // 消費前HP
+    hpAfter: number;         // 消費後HP
+  };
 }
+
 
 /**
  * 回復エントリ
@@ -367,6 +451,16 @@ export interface HealingEntry {
   name: string;          // "結界回復"
   amount: number;
   target: string;        // 回復対象
+  // 回復計算式の内訳
+  breakdownMultipliers?: {
+    baseHeal: number;           // 基礎回復量（スケーリングステータス × 倍率 + 固定値）
+    outgoingHealBoost: number;  // 与回復バフ
+    incomingHealBoost: number;  // 受回復バフ
+    healBoostMult: number;      // 回復係数 (1 + outgoing + incoming)
+    scalingStat?: string;       // 参照ステータス
+    multiplier?: number;        // 倍率
+    flat?: number;              // 固定値
+  };
 }
 
 /**
@@ -377,6 +471,14 @@ export interface ShieldEntry {
   name: string;
   amount: number;
   target: string;
+  // シールド計算式の内訳
+  breakdownMultipliers?: {
+    baseShield: number;         // 基礎シールド値（スケーリングステータス × 倍率 + 固定値）
+    scalingStat?: string;       // 参照ステータス
+    multiplier?: number;        // 倍率
+    flat?: number;              // 固定値
+    cap?: number;               // 上限値（累積シールドの場合）
+  };
 }
 
 /**

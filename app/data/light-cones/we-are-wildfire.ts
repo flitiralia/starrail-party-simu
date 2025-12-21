@@ -1,6 +1,9 @@
 import { ILightConeData } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 
+import { Unit } from '../../simulator/engine/types';
+import { createUnitId } from '../../simulator/engine/unitId';
+
 export const weAreTheWildfire: ILightConeData = {
   id: 'we-are-wildfire',
   name: '我ら地炎',
@@ -26,7 +29,7 @@ export const weAreTheWildfire: ILightConeData = {
 
         // 味方全体にバフ付与
         let newState = state;
-        const allies = state.units.filter(u => !u.isEnemy && u.hp > 0);
+        const allies = state.registry.getAliveAllies();
 
         for (const ally of allies) {
           newState = addEffect(newState, ally.id, {
@@ -70,18 +73,21 @@ export const weAreTheWildfire: ILightConeData = {
         const healPercent = [0.3, 0.35, 0.4, 0.45, 0.5][superimposition - 1];
 
         // 味方全体のHP回復
-        const newUnits = state.units.map(u => {
-          if (u.isEnemy || u.hp <= 0) return u;
+        let newState = state;
+        state.registry.getAliveAllies().forEach((u: Unit) => {
           const lostHp = u.stats.hp - u.hp;
           const healAmount = lostHp * healPercent;
-          if (healAmount <= 0) return u;
-          return { ...u, hp: Math.min(u.stats.hp, u.hp + healAmount) };
+          if (healAmount <= 0) return;
+          const newHp = Math.min(u.stats.hp, u.hp + healAmount);
+          newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(u.id), unit => ({ ...unit, hp: newHp }))
+          };
         });
 
         return {
-          ...state,
-          units: newUnits,
-          log: [...state.log, {
+          ...newState,
+          log: [...newState.log, {
             actionType: '回復',
             sourceId: unit.id,
             characterName: unit.name,
@@ -93,3 +99,4 @@ export const weAreTheWildfire: ILightConeData = {
     }
   ]
 };
+

@@ -91,6 +91,13 @@ function calculateDmgBoost(source: Unit, action: Action, modifiers: DamageCalcul
   const allDmgDealtReduction = source.stats.all_dmg_dealt_reduction || 0; // Debuff that reduces outgoing damage
   const dynamicDmgBoost = modifiers.allTypeDmg || 0;
 
+  if (action.type === 'FOLLOW_UP_ATTACK' && modifiers.fuaDmg) {
+    typeSpecificDmgBoost += modifiers.fuaDmg;
+  }
+  if (action.type === 'ULTIMATE' && modifiers.ultDmg) {
+    typeSpecificDmgBoost += modifiers.ultDmg;
+  }
+
   // 与ダメージバフ - 与ダメージ減少
   return 1 + elementalDmgBoost + typeSpecificDmgBoost + allTypeDmgBoost - allDmgDealtReduction + dynamicDmgBoost;
 }
@@ -189,6 +196,9 @@ export interface DamageCalculationModifiers {
   critDmg?: number; // 動的会心ダメージ
   allTypeDmg?: number; // 動的与ダメージバフ
   atkBoost?: number; // 動的攻撃力バフ（ルアン・メェイE2等）
+  baseDmgAdd?: number; // 基礎ダメージ加算（「これがウチだよ！」等）
+  fuaDmg?: number; // 動的追加攻撃ダメバフ
+  ultDmg?: number; // 動的必殺技ダメバフ
 }
 
 export interface DamageResultWithCritInfo {
@@ -222,6 +232,11 @@ export function calculateDamageWithCritInfo(
   // ATKブースト適用（ルアン・メェイE2等）
   if (modifiers.atkBoost && ability.damage.scaling === 'atk') {
     baseDmg *= (1 + modifiers.atkBoost);
+  }
+
+  // 基礎ダメージ加算（「これがウチだよ！」等）
+  if (modifiers.baseDmgAdd) {
+    baseDmg += modifiers.baseDmgAdd;
   }
 
   const critResult = calculateCritMultiplierWithInfo(source, modifiers);
@@ -373,6 +388,53 @@ export function calculateBreakDamage(
 }
 
 /**
+ * Calculates Break Damage with breakdown multipliers.
+ * Returns damage and breakdown for logging.
+ */
+export function calculateBreakDamageWithBreakdown(
+  source: Unit,
+  target: Unit,
+  modifiers: DamageCalculationModifiers = {}
+): DamageResultWithCritInfo {
+  const baseBreakDmg = getLevelMultiplier(source.level);
+
+  const elementMultipliers: Record<Element, number> = {
+    Physical: 2.0,
+    Fire: 2.0,
+    Ice: 1.0,
+    Lightning: 1.0,
+    Wind: 1.5,
+    Quantum: 0.5,
+    Imaginary: 0.5,
+  };
+  const elementMultiplier = elementMultipliers[source.element] || 1.0;
+
+  const breakEffect = source.stats.break_effect || 0;
+  const toughnessMultiplier = 0.5 + (target.maxToughness / 40);
+  const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
+  const resMultiplier = calculateResMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
+
+  const baseDmg = baseBreakDmg * elementMultiplier * toughnessMultiplier;
+  const damage = baseDmg * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
+
+  return {
+    damage,
+    isCrit: false, // 撃破ダメージは会心なし
+    breakdownMultipliers: {
+      baseDmg,
+      critMult: 1.0,
+      dmgBoostMult: 1 + breakEffect, // 撃破特効として表示
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
+}
+
+/**
  * Calculates Super Break Damage.
  * Formula: LevelMultiplier * (ToughnessReduction / 10) * SuperBreakMultiplier * (1 + BreakEffect) * DefMultiplier * ResMultiplier * VulnMultiplier
  */
@@ -410,6 +472,58 @@ export function calculateSuperBreakDamage(
 }
 
 /**
+ * Calculates Super Break Damage with breakdown multipliers.
+ */
+export function calculateSuperBreakDamageWithBreakdown(
+  source: Unit,
+  target: Unit,
+  toughnessReduction: number,
+  modifiers: DamageCalculationModifiers = {}
+): DamageResultWithCritInfo {
+  const superBreakMultiplier = source.stats.super_break_dmg_boost || 0;
+  if (superBreakMultiplier <= 0) {
+    return {
+      damage: 0,
+      isCrit: false,
+      breakdownMultipliers: {
+        baseDmg: 0,
+        critMult: 1.0,
+        dmgBoostMult: 1.0,
+        defMult: 1.0,
+        resMult: 1.0,
+        vulnMult: 1.0,
+        brokenMult: 1.0
+      }
+    };
+  }
+
+  const levelMultiplier = getLevelMultiplier(source.level);
+  const toughnessFactor = toughnessReduction / 10;
+  const breakEffect = source.stats.break_effect || 0;
+  const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
+  const resMultiplier = calculateResMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
+
+  const baseDmg = levelMultiplier * toughnessFactor * superBreakMultiplier;
+  const damage = baseDmg * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
+
+  return {
+    damage,
+    isCrit: false,
+    breakdownMultipliers: {
+      baseDmg,
+      critMult: 1.0,
+      dmgBoostMult: 1 + breakEffect,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
+}
+
+/**
  * Calculates Break DoT Damage (Burn, Shock, Bleed, Wind Shear from Break).
  * Formula: BaseDmg * (1 + BreakEffect) * DefMultiplier * ResMultiplier * VulnMultiplier * (1 + DoTBoost) * ToughnessBrokenMultiplier
  */
@@ -419,30 +533,45 @@ export function calculateBreakDoTDamage(
   baseDamage: number,
   modifiers: DamageCalculationModifiers = {}
 ): number {
-  // 1. Break Effect
+  return calculateBreakDoTDamageWithBreakdown(source, target, baseDamage, modifiers).damage;
+}
+
+/**
+ * Calculates Break DoT Damage with breakdown multipliers.
+ */
+export function calculateBreakDoTDamageWithBreakdown(
+  source: Unit,
+  target: Unit,
+  baseDamage: number,
+  modifiers: DamageCalculationModifiers = {}
+): DamageResultWithCritInfo {
   const breakEffect = source.stats.break_effect || 0;
-
-  // 2. Defense Multiplier
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
-
-  // 3. Resistance Multiplier
   const resMultiplier = calculateResMultiplier(source, target);
-
-  // 4. Vulnerability Multiplier
   const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
-
-  // 5. DoT Boost (Generic DoT boost from relics/LCs)
   const dotBoost = source.stats.dot_dmg_boost || 0;
-
-  // 6. Toughness Broken Multiplier
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
-  const finalDamage = baseDamage * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * (1 + dotBoost) * toughnessBrokenMultiplier;
+  const dmgBoostMult = (1 + breakEffect) * (1 + dotBoost);
+  const finalDamage = baseDamage * dmgBoostMult * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
 
   console.log(`[calculateBreakDoTDamage] baseDamage=${baseDamage}, breakEffect=${breakEffect}, defMult=${defMultiplier.toFixed(3)}, resMult=${resMultiplier.toFixed(3)}, vulnMult=${vulnMultiplier.toFixed(3)}, dotBoost=${dotBoost}, toughnessMult=${toughnessBrokenMultiplier.toFixed(3)}, final=${finalDamage.toFixed(2)}`);
 
-  return finalDamage;
+  return {
+    damage: finalDamage,
+    isCrit: false, // DoTは会心しない
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      critMult: 1.0,
+      dmgBoostMult: dmgBoostMult,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
 }
+
 
 /**
  * Calculates Normal DoT Damage (Character ability based DoT).
@@ -459,13 +588,19 @@ export function calculateNormalDoTDamage(
   modifiers: DamageCalculationModifiers = {},
   actionType: 'BASIC_ATTACK' | 'SKILL' | 'ULTIMATE' | 'FOLLOW_UP_ATTACK' | 'DOT' = 'DOT' // Context for DMG boost
 ): number {
-  // 1. Damage Boost
-  // We need to reconstruct a partial Action or just calculate boost manually here.
-  // Since calculateDmgBoost requires an Action object, let's simplify or reuse logic.
-  // For DoT, usually only Elemental DMG Boost and All Type DMG Boost apply.
-  // Specific boosts like "Skill DMG Boost" do NOT apply to DoT unless specified.
-  // "DoT DMG Boost" applies.
+  return calculateNormalDoTDamageWithBreakdown(source, target, baseDamage, modifiers, actionType).damage;
+}
 
+/**
+ * Calculates Normal DoT Damage with breakdown multipliers.
+ */
+export function calculateNormalDoTDamageWithBreakdown(
+  source: Unit,
+  target: Unit,
+  baseDamage: number,
+  modifiers: DamageCalculationModifiers = {},
+  actionType: 'BASIC_ATTACK' | 'SKILL' | 'ULTIMATE' | 'FOLLOW_UP_ATTACK' | 'DOT' = 'DOT'
+): DamageResultWithCritInfo {
   const elementalDmgBoostKey = elementToDmgBoostMap[source.element];
   const elementalDmgBoost = source.stats[elementalDmgBoostKey] || 0;
   const allTypeDmgBoost = source.stats.all_type_dmg_boost || 0;
@@ -473,26 +608,30 @@ export function calculateNormalDoTDamage(
   const dynamicDmgBoost = modifiers.allTypeDmg || 0;
 
   const dmgBoostMultiplier = 1 + elementalDmgBoost + allTypeDmgBoost + dotBoost + dynamicDmgBoost;
-
-  // 2. Defense Multiplier
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
-
-  // 3. Resistance Multiplier
   const resMultiplier = calculateResMultiplier(source, target);
-
-  // 4. Vulnerability Multiplier
   const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
-
-  // 5. Toughness Broken Multiplier
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   const finalDamage = baseDamage * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
 
   console.log(`[calculateNormalDoTDamage] baseDamage=${baseDamage.toFixed(2)}, dmgBoost=${dmgBoostMultiplier.toFixed(3)} (elem=${elementalDmgBoost}, all=${allTypeDmgBoost}, dot=${dotBoost}), defMult=${defMultiplier.toFixed(3)}, resMult=${resMultiplier.toFixed(3)}, vulnMult=${vulnMultiplier.toFixed(3)}, toughnessMult=${toughnessBrokenMultiplier.toFixed(3)}, final=${finalDamage.toFixed(2)}`);
-  console.trace('[calculateNormalDoTDamage] Call stack:');
 
-  return finalDamage;
+  return {
+    damage: finalDamage,
+    isCrit: false, // DoTは会心しない
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      critMult: 1.0,
+      dmgBoostMult: dmgBoostMultiplier,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
 }
+
 
 /**
  * Calculates Break Additional Damage (e.g. Entanglement, Ice Break).
@@ -514,6 +653,38 @@ export function calculateBreakAdditionalDamage(
 }
 
 /**
+ * Calculates Break Additional Damage with breakdown multipliers.
+ */
+export function calculateBreakAdditionalDamageWithBreakdown(
+  source: Unit,
+  target: Unit,
+  baseDamage: number,
+  modifiers: DamageCalculationModifiers = {}
+): DamageResultWithCritInfo {
+  const breakEffect = source.stats.break_effect || 0;
+  const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
+  const resMultiplier = calculateResMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
+
+  const damage = baseDamage * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
+
+  return {
+    damage,
+    isCrit: false,
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      critMult: 1.0,
+      dmgBoostMult: 1 + breakEffect,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
+}
+
+/**
  * Calculates Normal Additional Damage (e.g. March 7th Technique, Tribbie Field).
  * Formula: BaseDmg * CritMultiplier * DmgBoostMultiplier * DefMultiplier * ResMultiplier * VulnMultiplier * ToughnessBrokenMultiplier
  */
@@ -529,6 +700,18 @@ export function calculateNormalAdditionalDamage(
   // But here we take baseDamage as input.
   // Let's assume generic boosts for now unless context provided.
 ): number {
+  return calculateNormalAdditionalDamageWithCritInfo(source, target, baseDamage, modifiers).damage;
+}
+
+/**
+ * Calculates Normal Additional Damage with crit info and breakdown multipliers.
+ */
+export function calculateNormalAdditionalDamageWithCritInfo(
+  source: Unit,
+  target: Unit,
+  baseDamage: number,
+  modifiers: DamageCalculationModifiers = {},
+): DamageResultWithCritInfo {
   // 1. Damage Boost
   const elementalDmgBoostKey = elementToDmgBoostMap[source.element];
   const elementalDmgBoost = source.stats[elementalDmgBoostKey] || 0;
@@ -553,7 +736,21 @@ export function calculateNormalAdditionalDamage(
   // 6. Toughness Broken Multiplier
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
-  return baseDamage * critMultiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
+  const damage = baseDamage * critMultiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
+
+  return {
+    damage,
+    isCrit: critResult.isCrit,
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      critMult: critMultiplier,
+      dmgBoostMult: dmgBoostMultiplier,
+      defMult: defMultiplier,
+      resMult: resMultiplier,
+      vulnMult: vulnMultiplier,
+      brokenMult: toughnessBrokenMultiplier
+    }
+  };
 }
 
 /**
@@ -571,13 +768,274 @@ export function calculateHeal(
   target: Unit,
   logic: HealLogic
 ): number {
+  return calculateHealWithBreakdown(source, target, logic).amount;
+}
+
+/**
+ * 回復計算（内訳情報付き）
+ */
+export interface HealResultWithBreakdown {
+  amount: number;
+  breakdownMultipliers: {
+    baseHeal: number;
+    outgoingHealBoost: number;
+    incomingHealBoost: number;
+    healBoostMult: number;
+    scalingStat: string;
+    multiplier: number;
+    flat: number;
+  };
+}
+
+export function calculateHealWithBreakdown(
+  source: Unit,
+  target: Unit,
+  logic: HealLogic
+): HealResultWithBreakdown {
   const scalingValue = source.stats[logic.scaling] || 0;
   const baseHeal = scalingValue * logic.multiplier + (logic.flat || 0);
 
   const outgoingHealBoost = source.stats.outgoing_healing_boost || 0;
-  // Assuming incoming_heal_boost might exist in stats or modifiers, but for now just outgoing.
-  // If target has incoming heal boost, it should be in stats.
   const incomingHealBoost = target.stats.incoming_heal_boost || 0;
+  const healBoostMult = 1 + outgoingHealBoost + incomingHealBoost;
 
-  return baseHeal * (1 + outgoingHealBoost + incomingHealBoost);
+  const amount = baseHeal * healBoostMult;
+
+  return {
+    amount,
+    breakdownMultipliers: {
+      baseHeal,
+      outgoingHealBoost,
+      incomingHealBoost,
+      healBoostMult,
+      scalingStat: logic.scaling,
+      multiplier: logic.multiplier,
+      flat: logic.flat || 0,
+    }
+  };
+}
+
+/**
+ * シールド計算ロジック
+ */
+export interface ShieldLogic {
+  scaling: 'atk' | 'hp' | 'def';
+  multiplier: number;
+  flat?: number;
+  cap?: number;  // 上限値（累積シールドの場合）
+}
+
+/**
+ * シールド計算（内訳情報付き）
+ */
+export interface ShieldResultWithBreakdown {
+  amount: number;
+  breakdownMultipliers: {
+    baseShield: number;
+    scalingStat: string;
+    multiplier: number;
+    flat: number;
+    cap?: number;
+  };
+}
+
+export function calculateShield(
+  source: Unit,
+  logic: ShieldLogic
+): number {
+  return calculateShieldWithBreakdown(source, logic).amount;
+}
+
+export function calculateShieldWithBreakdown(
+  source: Unit,
+  logic: ShieldLogic
+): ShieldResultWithBreakdown {
+  const scalingValue = source.stats[logic.scaling] || 0;
+  let amount = scalingValue * logic.multiplier + (logic.flat || 0);
+
+  // 上限適用
+  if (logic.cap !== undefined) {
+    amount = Math.min(amount, logic.cap);
+  }
+
+  return {
+    amount,
+    breakdownMultipliers: {
+      baseShield: amount,
+      scalingStat: logic.scaling,
+      multiplier: logic.multiplier,
+      flat: logic.flat || 0,
+      cap: logic.cap,
+    }
+  };
+}
+
+/**
+ * Calculates True Damage (確定ダメージ).
+ * True Damage ignores:
+ * - Crit multiplier
+ * - Defense multiplier
+ * - Resistance multiplier
+ * - Vulnerability/DMG Taken multiplier
+ * - Toughness Broken multiplier
+ * 
+ * It deals the base damage directly to HP.
+ * The baseDamage should be calculated as: (referenceActualDamage * multiplier)
+ * 
+ * @param baseDamage The base damage amount (reference damage * percentage)
+ * @returns The true damage amount
+ */
+export function calculateTrueDamage(baseDamage: number): number {
+  return baseDamage;
+}
+
+/**
+ * Calculates True Damage with breakdown multipliers.
+ * All multipliers are 1.0 (ignored).
+ */
+export function calculateTrueDamageWithBreakdown(baseDamage: number): DamageResultWithCritInfo {
+  return {
+    damage: baseDamage,
+    isCrit: false,
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      critMult: 1.0,
+      dmgBoostMult: 1.0,
+      defMult: 1.0,
+      resMult: 1.0,
+      vulnMult: 1.0,
+      brokenMult: 1.0
+    }
+  };
+}
+
+// ============================================================
+// 味方への被ダメージ計算（敵から味方への攻撃）
+// ============================================================
+
+/**
+ * 味方への被ダメージ計算結果
+ */
+export interface DamageToAllyResult {
+  damage: number;
+  breakdownMultipliers: {
+    baseDmg: number;           // 敵の基礎ダメージ（ATK × 倍率）
+    dmgBoostMult: number;      // 敵の与ダメージ係数
+    defMult: number;           // 味方の防御係数
+    resMult: number;           // 属性耐性係数
+    dmgReductionMult: number;  // 被ダメージ軽減係数
+  };
+}
+
+/**
+ * 味方の防御係数を計算
+ * 公式: 1 - DEF / (DEF + 10 × 敵Lv + 200)
+ */
+function calculateAllyDefMultiplier(target: Unit, sourceLevel: number): number {
+  const targetDef = target.stats.def || 0;
+  const denominator = targetDef + (10 * sourceLevel) + 200;
+
+  // 防御力が負でも係数は0～1の範囲に収める
+  if (denominator <= 0) return 1.0;
+
+  return 1 - (targetDef / denominator);
+}
+
+/**
+ * 味方の属性耐性係数を計算
+ * 公式: 1 - (耐性 - 耐性貫通)
+ */
+function calculateAllyResMultiplier(source: Unit, target: Unit): number {
+  const resKey = elementToResMap[source.element];
+  const baseRes = target.stats[resKey] || 0;
+
+  // 敵の耐性貫通（通常は敵には設定されないが念のため）
+  const resPenKey = elementToResPenMap[source.element];
+  const resPen = source.stats[resPenKey] || 0;
+  const allTypeResPen = source.stats.all_type_res_pen || 0;
+
+  return 1 - (baseRes - resPen - allTypeResPen);
+}
+
+/**
+ * 味方の被ダメージ軽減係数を計算
+ * 公式: (1 - dmg_taken_reduction)
+ * 注意: 各効果は独立して乗算されるべきだが、現状は加算値として管理
+ */
+function calculateAllyDmgReductionMultiplier(target: Unit): number {
+  const dmgTakenReduction = target.stats.dmg_taken_reduction || 0;
+
+  // 係数が0以下にならないよう保護（最低でも1%のダメージを受ける）
+  return Math.max(0.01, 1 - dmgTakenReduction);
+}
+
+/**
+ * 味方への被ダメージを計算する
+ * 
+ * 計算式: 基礎ダメージ × 与ダメージ係数 × 防御係数 × 属性耐性係数 × 被ダメージ軽減係数
+ * 
+ * @param source 敵ユニット（攻撃者）
+ * @param target 味方ユニット（被ダメージ対象）
+ * @param baseDamage 敵の基礎ダメージ（ATK × 倍率）
+ * @returns 最終ダメージと内訳
+ */
+export function calculateDamageToAlly(
+  source: Unit,
+  target: Unit,
+  baseDamage: number
+): DamageToAllyResult {
+  // 1. 敵の与ダメージ係数
+  // all_type_dmg_boost から all_dmg_dealt_reduction を引く
+  const allTypeDmgBoost = source.stats.all_type_dmg_boost || 0;
+  const allDmgDealtReduction = source.stats.all_dmg_dealt_reduction || 0;
+  const dmgBoostMult = 1 + allTypeDmgBoost - allDmgDealtReduction;
+
+  // 2. 味方の防御係数
+  const defMult = calculateAllyDefMultiplier(target, source.level);
+
+  // 3. 属性耐性係数
+  const resMult = calculateAllyResMultiplier(source, target);
+
+  // 4. 被ダメージ軽減係数
+  const dmgReductionMult = calculateAllyDmgReductionMultiplier(target);
+
+  // 最終ダメージ計算
+  const damage = baseDamage * dmgBoostMult * defMult * resMult * dmgReductionMult;
+
+  return {
+    damage: Math.max(0, damage), // マイナスダメージ防止
+    breakdownMultipliers: {
+      baseDmg: baseDamage,
+      dmgBoostMult,
+      defMult,
+      resMult,
+      dmgReductionMult
+    }
+  };
+}
+
+/**
+ * 味方への被ダメージを計算する（DamageResultWithCritInfo形式）
+ * 既存のログ出力との互換性のため
+ */
+export function calculateDamageToAllyWithCritInfo(
+  source: Unit,
+  target: Unit,
+  baseDamage: number
+): DamageResultWithCritInfo {
+  const result = calculateDamageToAlly(source, target, baseDamage);
+
+  return {
+    damage: result.damage,
+    isCrit: false, // 敵の攻撃は会心判定なし（簡略化）
+    breakdownMultipliers: {
+      baseDmg: result.breakdownMultipliers.baseDmg,
+      critMult: 1.0,
+      dmgBoostMult: result.breakdownMultipliers.dmgBoostMult,
+      defMult: result.breakdownMultipliers.defMult,
+      resMult: result.breakdownMultipliers.resMult,
+      vulnMult: result.breakdownMultipliers.dmgReductionMult, // 被ダメ軽減をvulnMult欄に表示
+      brokenMult: 1.0 // 味方は靭性がないため常に1.0
+    }
+  };
 }

@@ -1,4 +1,5 @@
 import { RelicSet } from '../../types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 荒地で盗みを働く廃土客
@@ -30,7 +31,7 @@ export const WASTELANDER_OF_BANDITRY_DESERT: RelicSet = {
                         if (event.sourceId !== sourceUnitId) return state;
                         if (!event.targetId) return state;
 
-                        const target = state.units.find(u => u.id === event.targetId);
+                        const target = state.registry.get(createUnitId(event.targetId));
                         if (!target) return state;
 
                         let critRateBonus = 0;

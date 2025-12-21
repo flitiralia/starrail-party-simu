@@ -1,5 +1,6 @@
-import { ILightConeData } from '@/app/types';
-import { addEnergy } from '@/app/simulator/engine/energy';
+import { ILightConeData, CooldownResetType } from '@/app/types';
+import { addEnergyToUnit } from '@/app/simulator/engine/energy';
+import { publishEvent } from '@/app/simulator/engine/dispatcher';
 
 export const meshingCogs: ILightConeData = {
   id: 'meshing-cogs',
@@ -29,30 +30,29 @@ export const meshingCogs: ILightConeData = {
     {
       id: 'ep_regen_on_attack_or_hit',
       name: '速決（EP回復）',
-      events: ['ON_DAMAGE_DEALT'],
-      cooldownResetType: 'any_turn', // 重要: 被弾でもトリガーするため、任意のターン開始でリセット
+      events: ['ON_ATTACK', 'ON_BEFORE_HIT'], // 攻撃を行った後 or 命中を受けた時
+      cooldownResetType: CooldownResetType.ANY_TURN, // 重要: 被弾でもトリガーするため、任意のターン開始でリセット
+      cooldownTurns: 1,
+      maxActivations: 1,
       handler: (event, state, unit, superimposition) => {
         // 攻撃者または被弾者かチェック
-        const isAttacker = event.sourceId === unit.id;
-        const isHit = event.targetId === unit.id;
+        const isAttacker = event.type === 'ON_ATTACK' && event.sourceId === unit.id;
+        const isHit = event.type === 'ON_BEFORE_HIT' && event.targetId === unit.id;
         if (!isAttacker && !isHit) return state;
 
         // 重畳ランクに応じたEP回復量
         const epValue = [4, 5, 6, 7, 8][superimposition - 1];
 
         // EP回復
-        const unitIndex = state.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return state;
-
-        const updatedUnit = addEnergy(state.units[unitIndex], epValue);
-        const newUnits = [...state.units];
-        newUnits[unitIndex] = updatedUnit;
+        const newState = addEnergyToUnit(state, unit.id, epValue, 0, false, {
+          sourceId: unit.id,
+          publishEventFn: publishEvent
+        });
 
         // ログ
         return {
-          ...state,
-          units: newUnits,
-          log: [...state.log, {
+          ...newState,
+          log: [...newState.log, {
             actionType: 'EP回復',
             sourceId: unit.id,
             characterName: unit.name,

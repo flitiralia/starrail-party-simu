@@ -1,17 +1,33 @@
 import { Character, Element, Path, StatKey } from '../../types/index';
-import { IEventHandlerFactory, GameState, IEvent, Unit } from '../../simulator/engine/types';
+import { IEventHandlerFactory, GameState, IEvent, Unit, GeneralEvent, ActionEvent, DamageDealtEvent } from '../../simulator/engine/types';
 import { IEffect } from '../../simulator/effect/types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { calculateHeal } from '../../simulator/damage';
 import { applyHealing, cleanse, applyShield, dispelBuffs } from '../../simulator/engine/utils';
 // 星魂対応ユーティリティ
-import { getLeveledValue } from '../../simulator/utils/abilityLevel';
+import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
+import { UnitRegistry } from '../../simulator/engine/unitRegistry';
+import { UnitId, createUnitId } from '../../simulator/engine/unitId';
+
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'luocha';
-const ABYSS_FLOWER_STACK_ID = 'luocha-abyss-flower-stack';
-const FIELD_BUFF_ID = 'luocha-field-buff';
-const AUTO_SKILL_COOLDOWN_ID = 'luocha-auto-skill-cooldown';
+
+const EFFECT_IDS = {
+    ABYSS_FLOWER_STACK: (sourceId: string) => `luocha-abyss-flower-stack-${sourceId}`,
+    FIELD_BUFF: (sourceId: string) => `luocha-field-buff-${sourceId}`,
+    AUTO_SKILL_COOLDOWN: (sourceId: string) => `luocha-auto-skill-cooldown-${sourceId}`,
+    E1_BUFF: (sourceId: string, targetId: string) => `luocha-e1-atk-buff-${sourceId}-${targetId}`,
+    E4_DEBUFF: (sourceId: string, targetId: string) => `luocha-e4-dmg-reduction-${sourceId}-${targetId}`,
+    E2_SHIELD: (targetId: string) => `luocha-e2-shield-${targetId}`,
+    E6_RES_DOWN: (targetId: string) => `luocha-e6-res-down-${targetId}`,
+} as const;
+
+const TRACE_IDS = {
+    CLEANSING_REVIVAL: 'luocha-trace-a2', // 滴水蘇生
+    SANITIFIED_IN_ASH: 'luocha-trace-a4', // 清めし塵の身
+    THROUGH_THE_VALLEY: 'luocha-trace-a6', // 幽谷を越え
+} as const;
 
 // --- E3/E5パターン ---
 // E3: スキルLv+2, 通常Lv+1 → スキル回復がLv12
@@ -116,6 +132,7 @@ export const luocha: Character = {
             type: 'Technique',
             description: '戦闘開始時、天賦の結界を即座に発動する。',
             targetType: 'self',
+            energyGain: 0,
         }
     },
     traces: [
@@ -149,8 +166,8 @@ export const luocha: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'perfect-timing',
-        superimposition: 5,
+        lightConeId: 'echoes-of-the-coffin',
+        superimposition: 1,
         relicSetId: 'warlord_of_blazing_sun_and_thunderous_roar',
         ornamentSetId: 'broken_keel',
         mainStats: {
@@ -160,10 +177,10 @@ export const luocha: Character = {
             rope: 'energy_regen_rate',
         },
         subStats: [
-            { stat: 'atk_pct', value: 0.432 },
-            { stat: 'hp_pct', value: 0.324 },
-            { stat: 'effect_res', value: 0.216 },
-            { stat: 'spd', value: 12 },
+            { stat: 'atk_pct', value: 0.15 },
+            { stat: 'spd', value: 6 },
+            { stat: 'hp_pct', value: 0.15 },
+            { stat: 'def_pct', value: 0.15 },
         ],
         rotationMode: 'spam_skill',
         ultStrategy: 'immediate',
@@ -175,54 +192,71 @@ export const luocha: Character = {
 // スキル効果を適用
 function applyLuochaSkill(state: GameState, source: Unit, target: Unit): GameState {
     let newState = state;
-    let healBoost = 0;
-    if (source.eidolonLevel! >= 2 && (target.hp / target.stats.hp) < 0.5) healBoost = E2_HEAL_BOOST;
 
-    let effectiveSource = source;
-    if (healBoost > 0) {
-        effectiveSource = { ...source, stats: { ...source.stats, outgoing_healing_boost: (source.stats.outgoing_healing_boost || 0) + healBoost } };
-    }
-
-    // E3でスキルLv+2 → Lv12の回復値を使用
-    const skillLevel = (source.eidolonLevel || 0) >= 3 ? 12 : 10;
+    // E3でスキルLv+2 → calculateAbilityLevelを使用
+    const skillLevel = calculateAbilityLevel(source.eidolonLevel || 0, 3, 'Skill');
     const skillHeal = getLeveledValue(ABILITY_VALUES.skillHeal, skillLevel);
-    const finalHeal = calculateHeal(effectiveSource, target, { scaling: 'atk', multiplier: skillHeal.mult, flat: skillHeal.flat });
 
-    newState = applyHealing(newState, source.id, target.id, finalHeal, '羅刹スキル回復', true);
+    // E2: HP50%未満の場合、与回復+30%
+    const additionalBoost = (source.eidolonLevel! >= 2 && (target.hp / target.stats.hp) < 0.5) ? E2_HEAL_BOOST : 0;
 
-    const freshTarget = newState.units.find(u => u.id === target.id)!;
-    let appliedShieldValue = 0;
-    if (source.eidolonLevel! >= 2 && (target.hp / target.stats.hp) >= 0.5) {
-        const shieldValue = source.stats.atk * E2_SHIELD_MULT + E2_SHIELD_FLAT;
-        appliedShieldValue = shieldValue;
-        newState = applyShield(newState, source.id, target.id, shieldValue, 2, 'TURN_START_BASED', 'Luocha E2 Shield', `luocha-e2-shield`, true);
+    newState = applyHealing(newState, source.id, target.id, {
+        scaling: 'atk',
+        multiplier: skillHeal.mult,
+        flat: skillHeal.flat,
+        additionalOutgoingBoost: additionalBoost
+    }, '羅刹スキル回復', true);
+
+    // 回復量を計算（ログ用）
+    const appliedShieldValue = (source.eidolonLevel! >= 2 && (target.hp / target.stats.hp) >= 0.5)
+        ? source.stats.atk * E2_SHIELD_MULT + E2_SHIELD_FLAT
+        : 0;
+
+    if (appliedShieldValue > 0) {
+        newState = applyShield(newState, source.id, target.id, { scaling: 'atk', multiplier: E2_SHIELD_MULT, flat: E2_SHIELD_FLAT }, 2, 'TURN_START_BASED', 'Luocha E2 Shield', EFFECT_IDS.E2_SHIELD(target.id), true);
     }
 
-    newState = cleanse(newState, target.id, 1);
+    if (source.traces?.some(t => t.id === TRACE_IDS.CLEANSING_REVIVAL)) {
+        newState = cleanse(newState, target.id, 1);
+    }
     newState = addAbyssFlowerStack(newState, source.id);
-    newState = { ...newState, log: [...newState.log, { actionType: 'スキル', sourceId: source.id, targetId: target.id, healingDone: finalHeal, shieldApplied: appliedShieldValue > 0 ? appliedShieldValue : undefined, details: appliedShieldValue > 0 ? '羅刹スキル (回復 + E2シールド)' : '羅刹スキル (回復)' }] };
     return newState;
 }
 
 // 白花の刻スタックを追加
 function addAbyssFlowerStack(state: GameState, sourceId: string): GameState {
-    const source = state.units.find(u => u.id === sourceId);
+    const source = state.registry.get(createUnitId(sourceId));
     if (!source) return state;
-    const fieldActive = source.effects.some(e => e.id === FIELD_BUFF_ID);
+    const fieldActive = source.effects.some(e => e.id === EFFECT_IDS.FIELD_BUFF(sourceId));
     if (fieldActive) return state;
 
-    const stackEffect = source.effects.find(e => e.id === ABYSS_FLOWER_STACK_ID);
+    const stackEffect = source.effects.find(e => e.id === EFFECT_IDS.ABYSS_FLOWER_STACK(sourceId));
     let currentStacks = stackEffect ? (stackEffect.stackCount || 0) : 0;
     currentStacks++;
 
     if (currentStacks >= 2) {
-        if (stackEffect) state = removeEffect(state, sourceId, ABYSS_FLOWER_STACK_ID);
+        if (stackEffect) state = removeEffect(state, sourceId, EFFECT_IDS.ABYSS_FLOWER_STACK(sourceId));
         state = deployField(state, sourceId);
     } else {
         if (stackEffect) {
-            state = { ...state, units: state.units.map(u => u.id === sourceId ? { ...u, effects: u.effects.map(e => e.id === ABYSS_FLOWER_STACK_ID ? { ...e, stackCount: currentStacks } : e) } : u) };
+            const updatedEffect = { ...stackEffect, stackCount: currentStacks };
+            const updatedEffects = source.effects.map(e => e.id === EFFECT_IDS.ABYSS_FLOWER_STACK(sourceId) ? updatedEffect : e);
+            state = {
+                ...state,
+                registry: state.registry.update(createUnitId(sourceId), u => ({ ...u, effects: updatedEffects }))
+            };
         } else {
-            const newStackEffect: IEffect = { id: ABYSS_FLOWER_STACK_ID, name: '白花の刻', category: 'STATUS', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1, stackCount: currentStacks, apply: (t, s) => s, remove: (t, s) => s };
+            const newStackEffect: IEffect = {
+                id: EFFECT_IDS.ABYSS_FLOWER_STACK(sourceId),
+                name: '白花の刻',
+                category: 'STATUS',
+                sourceUnitId: sourceId,
+                durationType: 'PERMANENT',
+                duration: -1,
+                stackCount: currentStacks,
+                apply: (t, s) => s,
+                remove: (t, s) => s
+            };
             state = addEffect(state, sourceId, newStackEffect);
         }
     }
@@ -231,37 +265,61 @@ function addAbyssFlowerStack(state: GameState, sourceId: string): GameState {
 
 // 結界を展開
 function deployField(state: GameState, sourceId: string): GameState {
-    const source = state.units.find(u => u.id === sourceId);
+    const source = state.registry.get(createUnitId(sourceId));
     if (!source) return state;
 
     const fieldEffect: IEffect = {
-        id: FIELD_BUFF_ID, name: '白花の刻 (結界)', category: 'BUFF', sourceUnitId: sourceId, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true, duration: 2, tags: ['LUOCHA_FIELD'],
+        id: EFFECT_IDS.FIELD_BUFF(sourceId), name: '白花の刻 (結界)', category: 'BUFF', sourceUnitId: sourceId, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true, duration: 2, tags: ['LUOCHA_FIELD'],
         onApply: (target, state) => {
             let newState = state;
             if (source.eidolonLevel! >= 1) {
-                state.units.forEach(u => {
-                    if (!u.isEnemy && u.hp > 0) {
-                        const e1Buff: IEffect = {
-                            id: `luocha-e1-atk-buff-${sourceId}-${u.id}`, name: '羅刹 E1 攻撃力+20%', category: 'BUFF', sourceUnitId: sourceId, durationType: 'LINKED', duration: 0, linkedEffectId: FIELD_BUFF_ID,
-                            onApply: (t, s) => ({ ...s, units: s.units.map(unit => unit.id === t.id ? { ...unit, modifiers: [...unit.modifiers, { source: '羅刹 E1', target: 'atk_pct' as StatKey, type: 'add' as const, value: E1_ATK_BOOST }] } : unit) }),
-                            onRemove: (t, s) => ({ ...s, units: s.units.map(unit => unit.id === t.id ? { ...unit, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E1') } : unit) }),
-                            apply: (t, s) => s, remove: (t, s) => s
-                        };
-                        newState = addEffect(newState, u.id, e1Buff);
-                    }
+                state.registry.getAliveAllies().forEach(u => {
+                    const e1Buff: IEffect = {
+                        id: EFFECT_IDS.E1_BUFF(sourceId, u.id), name: '羅刹 E1 攻撃力+20%', category: 'BUFF', sourceUnitId: sourceId, durationType: 'LINKED', duration: 0, linkedEffectId: EFFECT_IDS.FIELD_BUFF(sourceId),
+                        onApply: (t, s) => {
+                            const unit = s.registry.get(createUnitId(t.id));
+                            if (!unit) return s;
+                            return {
+                                ...s,
+                                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: [...unit.modifiers, { source: '羅刹 E1', target: 'atk_pct' as StatKey, type: 'add' as const, value: E1_ATK_BOOST }] }))
+                            };
+                        },
+                        onRemove: (t, s) => {
+                            const unit = s.registry.get(createUnitId(t.id));
+                            if (!unit) return s;
+                            return {
+                                ...s,
+                                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E1') }))
+                            };
+                        },
+                        apply: (t, s) => s, remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, u.id, e1Buff);
                 });
             }
             if (source.eidolonLevel! >= 4) {
-                state.units.forEach(u => {
-                    if (u.isEnemy && u.hp > 0) {
-                        const e4Debuff: IEffect = {
-                            id: `luocha-e4-dmg-reduction-${sourceId}-${u.id}`, name: '羅刹 E4 与ダメージ-12%', category: 'DEBUFF', sourceUnitId: sourceId, durationType: 'LINKED', duration: 0, linkedEffectId: FIELD_BUFF_ID,
-                            onApply: (t, s) => ({ ...s, units: s.units.map(unit => unit.id === t.id ? { ...unit, modifiers: [...unit.modifiers, { source: '羅刹 E4', target: 'all_dmg_dealt_reduction' as StatKey, type: 'add' as const, value: E4_DMG_REDUCTION }] } : unit) }),
-                            onRemove: (t, s) => ({ ...s, units: s.units.map(unit => unit.id === t.id ? { ...unit, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E4') } : unit) }),
-                            apply: (t, s) => s, remove: (t, s) => s
-                        };
-                        newState = addEffect(newState, u.id, e4Debuff);
-                    }
+                state.registry.getAliveEnemies().forEach(u => {
+                    const e4Debuff: IEffect = {
+                        id: EFFECT_IDS.E4_DEBUFF(sourceId, u.id), name: '羅刹 E4 与ダメージ-12%', category: 'DEBUFF', sourceUnitId: sourceId, durationType: 'LINKED', duration: 0, linkedEffectId: EFFECT_IDS.FIELD_BUFF(sourceId),
+                        onApply: (t, s) => {
+                            const unit = s.registry.get(createUnitId(t.id));
+                            if (!unit) return s;
+                            return {
+                                ...s,
+                                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: [...unit.modifiers, { source: '羅刹 E4', target: 'all_dmg_dealt_reduction' as StatKey, type: 'add' as const, value: E4_DMG_REDUCTION }] }))
+                            };
+                        },
+                        onRemove: (t, s) => {
+                            const unit = s.registry.get(createUnitId(t.id));
+                            if (!unit) return s;
+                            return {
+                                ...s,
+                                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E4') }))
+                            };
+                        },
+                        apply: (t, s) => s, remove: (t, s) => s
+                    };
+                    newState = addEffect(newState, u.id, e4Debuff);
                 });
             }
             return newState;
@@ -271,97 +329,172 @@ function deployField(state: GameState, sourceId: string): GameState {
     return addEffect(state, sourceId, fieldEffect);
 }
 
+// --- ハンドラー関数 ---
+
+function onAutoSkillCheck(event: GeneralEvent, state: GameState, sourceUnitId: string): GameState {
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source) return state;
+
+    const onCooldown = source.effects.some(e => e.id === EFFECT_IDS.AUTO_SKILL_COOLDOWN(sourceUnitId));
+    if (!onCooldown) {
+        const lowHpAlly = state.registry.getAliveAllies().find(u => (u.hp / u.stats.hp) <= 0.5);
+        if (lowHpAlly) {
+            state = applyLuochaSkill(state, source, lowHpAlly);
+            const cooldownEffect: IEffect = {
+                id: EFFECT_IDS.AUTO_SKILL_COOLDOWN(sourceUnitId),
+                name: 'オートスキルクールダウン',
+                category: 'STATUS',
+                sourceUnitId: sourceUnitId,
+                durationType: 'TURN_END_BASED',
+                skipFirstTurnDecrement: true,
+                duration: 2,
+                apply: (t, s) => s,
+                remove: (t, s) => s
+            };
+            state = addEffect(state, sourceUnitId, cooldownEffect);
+            state = { ...state, log: [...state.log, { actionType: 'オートスキル', sourceId: sourceUnitId, targetId: lowHpAlly.id, details: '羅刹オートスキル発動' }] };
+        }
+    }
+    return state;
+}
+
+function onBattleStart(event: GeneralEvent, state: GameState, sourceUnitId: string): GameState {
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source) return state;
+
+    const useTechnique = source.config?.useTechnique !== false;
+    if (useTechnique) {
+        state = deployField(state, sourceUnitId);
+        state = {
+            ...state,
+            log: [...state.log, {
+                characterName: source.name,
+                actionTime: state.time,
+                actionType: '秘技',
+                details: '秘技: 結界を展開'
+            }]
+        };
+    }
+    return state;
+}
+
+function onSkillUsed(event: ActionEvent, state: GameState, sourceUnitId: string): GameState {
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source || !event.targetId) return state;
+    if (event.sourceId !== sourceUnitId) return state;
+
+    const target = state.registry.get(createUnitId(event.targetId));
+    if (target) state = applyLuochaSkill(state, source, target);
+    return state;
+}
+
+function onUltimateUsed(event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState {
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source || event.sourceId !== sourceUnitId) return state;
+
+    // バフ解除（全敵から1つずつ）
+    state.registry.getAliveEnemies().forEach(enemy => {
+        state = dispelBuffs(state, enemy.id, 1);
+    });
+
+    state = addAbyssFlowerStack(state, sourceUnitId);
+
+    // E6: 全属性耐性ダウン
+    if (source.eidolonLevel! >= 6) {
+        const resElements: StatKey[] = ['physical_res', 'fire_res', 'ice_res', 'lightning_res', 'wind_res', 'quantum_res', 'imaginary_res'];
+        state.registry.getAliveEnemies().forEach(enemy => {
+            const resDownEffect: IEffect = {
+                id: EFFECT_IDS.E6_RES_DOWN(enemy.id),
+                name: '全属性耐性ダウン (E6)',
+                category: 'DEBUFF',
+                sourceUnitId: sourceUnitId,
+                durationType: 'TURN_END_BASED',
+                skipFirstTurnDecrement: true,
+                duration: 2,
+                ignoreResistance: true,
+                isCleansable: true,
+                modifiers: resElements.map(key => ({ target: key, type: 'add' as const, value: -E6_RES_DOWN, source: '羅刹 E6' })),
+                apply: (t, s) => s,
+                remove: (t, s) => s
+            };
+            state = addEffect(state, enemy.id, resDownEffect);
+        });
+    }
+    return state;
+}
+
+function onFieldHeal(event: DamageDealtEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState {
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source) return state;
+
+    const attacker = state.registry.get(createUnitId(event.sourceId));
+    if (!attacker || attacker.isEnemy) return state; // 味方の攻撃のみ
+
+    const fieldActive = source.effects.some(e => e.id === EFFECT_IDS.FIELD_BUFF(sourceUnitId));
+    if (fieldActive) {
+        // E5で天賦Lv+2 → calculateAbilityLevelを使用
+        const talentLevel = calculateAbilityLevel(source.eidolonLevel || 0, 5, 'Talent');
+        const talentHeal = getLeveledValue(ABILITY_VALUES.talentHeal, talentLevel);
+
+        // 攻撃者への回復
+        state = applyHealing(state, sourceUnitId, attacker.id, {
+            scaling: 'atk',
+            multiplier: talentHeal.mult,
+            flat: talentHeal.flat
+        }, '羅刹結界回復', true);
+
+        // A4: 攻撃者以外の味方への回復
+        if (source.traces?.some(t => t.id === TRACE_IDS.SANITIFIED_IN_ASH)) {
+            const otherAllies = state.registry.getAliveAllies().filter(u => u.id !== attacker.id);
+            for (const ally of otherAllies) {
+                state = applyHealing(state, sourceUnitId, ally.id, {
+                    scaling: 'atk',
+                    multiplier: A4_MULT,
+                    flat: A4_FLAT
+                }, '羅刹A4回復', true);
+            }
+        }
+    }
+    return state;
+}
+
 // --- ハンドラーファクトリ ---
 export const luochaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, eidolonLevel = 0) => {
     return {
         handlerMetadata: { id: `luocha-handler-${sourceUnitId}`, subscribesTo: ['ON_BATTLE_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_DAMAGE_DEALT', 'ON_TURN_START'] },
-        handlerLogic: (event, state, handlerId) => {
-            const source = state.units.find(u => u.id === sourceUnitId);
+        handlerLogic: (event: IEvent, state: GameState, _handlerId: string): GameState => {
+            const source = state.registry.get(createUnitId(sourceUnitId));
             if (!source) return state;
+
+            let newState = state;
 
             // オートスキル
             if (event.type === 'ON_DAMAGE_DEALT' || event.type === 'ON_TURN_START') {
-                const onCooldown = source.effects.some(e => e.id === AUTO_SKILL_COOLDOWN_ID);
-                if (!onCooldown) {
-                    const lowHpAlly = state.units.find(u => !u.isEnemy && u.hp > 0 && (u.hp / u.stats.hp) <= 0.5);
-                    if (lowHpAlly) {
-                        state = applyLuochaSkill(state, source, lowHpAlly);
-                        const cooldownEffect: IEffect = { id: AUTO_SKILL_COOLDOWN_ID, name: 'オートスキルクールダウン', category: 'STATUS', sourceUnitId: sourceUnitId, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true, duration: 2, apply: (t, s) => s, remove: (t, s) => s };
-                        state = addEffect(state, sourceUnitId, cooldownEffect);
-                        state = { ...state, log: [...state.log, { actionType: 'オートスキル', sourceId: sourceUnitId, targetId: lowHpAlly.id, details: '羅刹オートスキル発動' }] };
-                    }
-                }
+                newState = onAutoSkillCheck(event as GeneralEvent, newState, sourceUnitId);
             }
 
             // 秘技
             if (event.type === 'ON_BATTLE_START') {
-                // 秘技使用フラグを確認 (デフォルト true)
-                const useTechnique = source.config?.useTechnique !== false;
-
-                if (useTechnique) {
-                    state = deployField(state, sourceUnitId);
-                    state = {
-                        ...state,
-                        log: [...state.log, {
-                            characterName: source.name,
-                            actionTime: state.time,
-                            actionType: '秘技',
-                            details: '秘技: 結界を展開'
-                        }]
-                    };
-                }
+                newState = onBattleStart(event as GeneralEvent, newState, sourceUnitId);
             }
 
             // スキル
-            if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId && event.targetId) {
-                const target = state.units.find(u => u.id === event.targetId);
-                if (target) state = applyLuochaSkill(state, source, target);
+            if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
+                newState = onSkillUsed(event as ActionEvent, newState, sourceUnitId);
             }
 
             // 必殺技
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId === sourceUnitId) {
-                // バフ解除（全敵から1つずつ）
-                state.units.filter(u => u.isEnemy && u.hp > 0).forEach(enemy => {
-                    state = dispelBuffs(state, enemy.id, 1);
-                });
-
-                state = addAbyssFlowerStack(state, sourceUnitId);
-
-                // E6: 全属性耐性ダウン
-                if (source.eidolonLevel! >= 6) {
-                    const resElements: StatKey[] = ['physical_res', 'fire_res', 'ice_res', 'lightning_res', 'wind_res', 'quantum_res', 'imaginary_res'];
-                    state.units.filter(u => u.isEnemy && u.hp > 0).forEach(enemy => {
-                        const resDownEffect: IEffect = { id: `luocha-e6-res-down-${enemy.id}-${Date.now()}`, name: '全属性耐性ダウン (E6)', category: 'DEBUFF', sourceUnitId: sourceUnitId, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true, duration: 2, ignoreResistance: true, isCleansable: true, modifiers: resElements.map(key => ({ target: key, type: 'add' as const, value: -E6_RES_DOWN, source: '羅刹 E6' })), apply: (t, s) => s, remove: (t, s) => s };
-                        state = addEffect(state, enemy.id, resDownEffect);
-                    });
-                }
+                newState = onUltimateUsed(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
-            // 結界回復
-            if (event.type === 'ON_DAMAGE_DEALT' && !state.units.find(u => u.id === event.sourceId)?.isEnemy) {
-                const fieldActive = source.effects.some(e => e.id === FIELD_BUFF_ID);
-                if (fieldActive && event.sourceId) {
-                    const attacker = state.units.find(u => u.id === event.sourceId);
-                    if (attacker) {
-                        // E5で天賦Lv+2 → Lv12の回復値を使用
-                        const talentLevel = (source.eidolonLevel || 0) >= 5 ? 12 : 10;
-                        const talentHeal = getLeveledValue(ABILITY_VALUES.talentHeal, talentLevel);
-                        const healAmount = calculateHeal(source, attacker, { scaling: 'atk', multiplier: talentHeal.mult, flat: talentHeal.flat });
-
-                        // 攻撃者への回復（applyHealing使用、統合ログへの追記はapplyHealing内で自動）
-                        state = applyHealing(state, sourceUnitId, attacker.id, healAmount, '羅刹結界回復', true);
-
-                        // A4: 攻撃者以外の味方への回復
-                        const a4HealAmount = calculateHeal(source, attacker, { scaling: 'atk', multiplier: A4_MULT, flat: A4_FLAT });
-                        const otherAllies = state.units.filter(u => !u.isEnemy && u.id !== attacker.id && u.hp > 0);
-                        for (const ally of otherAllies) {
-                            state = applyHealing(state, sourceUnitId, ally.id, a4HealAmount, '羅刹A4回復', true);
-                        }
-                    }
-                }
+            // 結界回復 (ON_DAMAGE_DEALT is also used for autoskill check... check both?)
+            // Note: onAutoSkillCheck is called first. newState is updated.
+            if (event.type === 'ON_DAMAGE_DEALT') {
+                newState = onFieldHeal(event as DamageDealtEvent, newState, sourceUnitId, eidolonLevel);
             }
 
-            return state;
+            return newState;
         }
     };
 };

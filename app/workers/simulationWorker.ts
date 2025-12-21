@@ -21,14 +21,15 @@ self.onmessage = (event: MessageEvent<SimulationWorkerMessage>) => {
     // eventHandlerLogics contains functions which cannot be cloned.
     // Also, units contain effects which contain functions (apply/remove).
     // We create a sanitized copy of the state to send back.
-    const sanitizedUnits = finalState.units.map(unit => {
+    const allUnits = finalState.registry.toArray();
+    const sanitizedUnits = allUnits.map(unit => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { effects, ...rest } = unit;
       return { ...rest, effects: [] };
     });
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { eventHandlerLogics, units, ...restState } = finalState;
+    const { eventHandlerLogics, registry, ...restState } = finalState;
     const sanitizedState = { ...restState, units: sanitizedUnits };
 
     self.postMessage({ type: 'SIMULATION_COMPLETE', gameState: sanitizedState as any });

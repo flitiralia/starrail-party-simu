@@ -1,38 +1,95 @@
 import { GameState, Unit } from './types';
+import { UnitId, createUnitId } from './unitId';
 import { removeEffect, addEffect } from './effectManager';
+import { advanceUnitAction, delayUnitAction } from './actionValue';
 import { IEffect } from '../effect/types';
-import { publishEvent, appendShield, appendHealing } from './dispatcher';
+import { publishEvent, appendShield, appendHealing, appendDamageTaken } from './dispatcher';
+
+/**
+ * 回復計算ロジック
+ */
+export interface HealLogic {
+    scaling: 'atk' | 'hp' | 'def';
+    multiplier: number;
+    flat?: number;
+    /** 追加の与回復ブースト（加算、例: 羅刹E2の+30%） */
+    additionalOutgoingBoost?: number;
+    /** 基礎回復量に乗算（例: ヒアンシーの速度ブースト） */
+    baseMultiplier?: number;
+    /** 最終回復量に乗算（例: ヒアンシーの微笑む暗雲+25%） */
+    finalMultiplier?: number;
+}
 
 /**
  * Applies healing to a target unit.
  * @param state Current game state
  * @param sourceId ID of the source unit
  * @param targetId ID of the target unit
- * @param healAmount Amount of healing
+ * @param healLogicOrAmount HealLogic for auto-calculation, or number for pre-calculated amount
  * @param details Optional details for the log
+ * @param skipLog Whether to skip logging
  * @returns Updated game state
  */
 export function applyHealing(
     state: GameState,
     sourceId: string,
     targetId: string,
-    healAmount: number,
+    healLogicOrAmount: HealLogic | number,
     details: string = 'Heal',
     skipLog: boolean = false
 ): GameState {
     let newState = { ...state };
-    const source = newState.units.find(u => u.id === sourceId);
-    const target = newState.units.find(u => u.id === targetId);
+    const source = newState.registry.get(createUnitId(sourceId));
+    const target = newState.registry.get(createUnitId(targetId));
 
+    if (!source || !target) return newState;
+
+    let healAmount: number;
+    let breakdownMultipliers: any;
+
+    if (typeof healLogicOrAmount === 'number') {
+        // 計算済み回復量が渡された場合（後方互換性）
+        healAmount = healLogicOrAmount;
+        // 内訳は生成しない（キャラクター側で複雑な計算をしている場合）
+        breakdownMultipliers = undefined;
+    } else {
+        // HealLogicが渡された場合、内部で計算
+        const healLogic = healLogicOrAmount;
+        const scalingValue = source.stats[healLogic.scaling] || 0;
+        let baseHeal = scalingValue * healLogic.multiplier + (healLogic.flat || 0);
+
+        // 基礎回復量に乗算（速度ブースト等）
+        const baseMultiplier = healLogic.baseMultiplier || 1;
+        baseHeal *= baseMultiplier;
+
+        const outgoingHealBoost = (source.stats.outgoing_healing_boost || 0) + (healLogic.additionalOutgoingBoost || 0);
+        const incomingHealBoost = target.stats.incoming_heal_boost || 0;
+        const healBoostMult = 1 + outgoingHealBoost + incomingHealBoost;
+        healAmount = baseHeal * healBoostMult;
+
+        // 最終回復量に乗算（微笑む暗雲等）
+        const finalMultiplier = healLogic.finalMultiplier || 1;
+        healAmount *= finalMultiplier;
+
+        // 計算式内訳を生成
+        breakdownMultipliers = {
+            baseHeal,
+            outgoingHealBoost,
+            incomingHealBoost,
+            healBoostMult,
+            scalingStat: healLogic.scaling,
+            multiplier: healLogic.multiplier,
+            flat: healLogic.flat || 0,
+            baseMultiplier: baseMultiplier !== 1 ? baseMultiplier : undefined,
+            finalMultiplier: finalMultiplier !== 1 ? finalMultiplier : undefined
+        };
+    }
+
+    // HP回復適用
+    const newHp = Math.min(target.stats.hp, target.hp + healAmount);
     newState = {
         ...newState,
-        units: newState.units.map(u => {
-            if (u.id === targetId) {
-                const newHp = Math.min(u.stats.hp, u.hp + healAmount);
-                return { ...u, hp: newHp };
-            }
-            return u;
-        })
+        registry: newState.registry.update(createUnitId(targetId), u => ({ ...u, hp: newHp }))
     };
 
     // Update Statistics
@@ -56,11 +113,10 @@ export function applyHealing(
     };
 
     if (!skipLog) {
-        const sourceUnit = newState.units.find(u => u.id === sourceId);
         newState.log = [...newState.log, {
             actionType: '回復',
             sourceId: sourceId,
-            characterName: sourceUnit?.name || sourceId,
+            characterName: source.name,
             targetId: targetId,
             healingDone: healAmount,
             details: details === 'Heal' ? '回復' : details
@@ -69,10 +125,11 @@ export function applyHealing(
 
     // 統合ログに回復を追記
     newState = appendHealing(newState, {
-        source: source?.name || sourceId,
+        source: source.name,
         name: details === 'Heal' ? '回復' : details,
         amount: healAmount,
-        target: target?.name || targetId
+        target: target.name,
+        breakdownMultipliers
     });
 
     // ON_UNIT_HEALED イベント発行
@@ -100,7 +157,7 @@ export function cleanse(
     count: number = 1
 ): GameState {
     let newState = state;
-    const targetUnit = newState.units.find(u => u.id === targetId);
+    const targetUnit = newState.registry.get(createUnitId(targetId));
     if (!targetUnit) return newState;
 
     const debuffs = targetUnit.effects.filter(e =>
@@ -115,7 +172,7 @@ export function cleanse(
         newState = removeEffect(newState, targetId, debuffToRemove.id);
 
         // Log the cleanse
-        const targetUnit2 = newState.units.find(u => u.id === targetId);
+        const targetUnit2 = newState.registry.get(createUnitId(targetId));
         newState.log = [...newState.log, {
             actionType: 'デバフ解除',
             sourceId: targetId,
@@ -143,7 +200,7 @@ export function dispelBuffs(
     count: number = 1
 ): GameState {
     let newState = state;
-    const targetUnit = newState.units.find(u => u.id === targetId);
+    const targetUnit = newState.registry.get(createUnitId(targetId));
     if (!targetUnit) return newState;
 
     // 明示的にisDispellable: trueのバフのみを対象（シールド、リンクは除外）
@@ -161,7 +218,7 @@ export function dispelBuffs(
         newState = removeEffect(newState, targetId, buffToRemove.id);
 
         // Log the dispel
-        const targetUnit2 = newState.units.find(u => u.id === targetId);
+        const targetUnit2 = newState.registry.get(createUnitId(targetId));
         newState = {
             ...newState,
             log: [...newState.log, {
@@ -180,6 +237,15 @@ export function dispelBuffs(
 }
 
 /**
+ * シールド計算ロジック
+ */
+export interface ShieldLogic {
+    scaling: 'atk' | 'hp' | 'def';
+    multiplier: number;
+    flat?: number;
+}
+
+/**
  * Options for applying a shield.
  */
 export interface ApplyShieldOptions {
@@ -191,10 +257,11 @@ export interface ApplyShieldOptions {
 
 /**
  * Applies a shield to a target unit.
+ * Shield calculation is done internally based on shieldLogic.
  * @param state Current game state
  * @param sourceId ID of the source unit
  * @param targetId ID of the target unit
- * @param shieldValue Amount of shield to add
+ * @param shieldLogic Shield calculation logic (scaling stat, multiplier, flat)
  * @param duration Duration of the shield
  * @param durationType Type of duration
  * @param name Name of the shield effect
@@ -207,7 +274,7 @@ export function applyShield(
     state: GameState,
     sourceId: string,
     targetId: string,
-    shieldValue: number,
+    shieldLogic: ShieldLogic,
     duration: number,
     durationType: 'TURN_START_BASED' | 'TURN_END_BASED',
     name: string = 'Shield',
@@ -216,11 +283,27 @@ export function applyShield(
     options?: ApplyShieldOptions
 ): GameState {
     let newState = state;
-    const source = newState.units.find(u => u.id === sourceId);
+    const source = newState.registry.get(createUnitId(sourceId));
     if (!source) return newState;
 
-    const target = newState.units.find(u => u.id === targetId);
+    const target = newState.registry.get(createUnitId(targetId));
     if (!target) return newState;
+
+    // シールド計算（ソースのステータスを参照）
+    const scalingValue = source.stats[shieldLogic.scaling] || 0;
+    const shieldBoost = source.stats.shield_strength_boost || 0;
+    const baseShieldValue = (scalingValue * shieldLogic.multiplier + (shieldLogic.flat || 0)) * (1 + shieldBoost);
+    let shieldValue = baseShieldValue;
+
+    // 計算式内訳を生成
+    const breakdownMultipliers = {
+        baseShield: baseShieldValue,
+        scalingStat: shieldLogic.scaling,
+        multiplier: shieldLogic.multiplier,
+        flat: shieldLogic.flat || 0,
+        shieldBoost: shieldBoost,
+        cap: options?.cap
+    };
 
     let finalShieldValue = shieldValue;
     let addedShieldValue = shieldValue; // 今回追加した分（統計・ログ用）
@@ -267,19 +350,23 @@ export function applyShield(
         skipFirstTurnDecrement: true,
         value: finalShieldValue,
         onApply: (t: Unit, s: GameState) => {
-            const u = s.units.find(unit => unit.id === t.id);
+            const u = s.registry.get(t.id);
             if (u) {
-                const newU = { ...u, shield: (u.shield || 0) + finalShieldValue };
-                return { ...s, units: s.units.map(unit => unit.id === u.id ? newU : unit) };
+                return {
+                    ...s,
+                    registry: s.registry.update(t.id, unit => ({ ...unit, shield: (unit.shield || 0) + finalShieldValue }))
+                };
             }
             return s;
         },
         onRemove: (t: Unit, s: GameState) => {
-            const u = s.units.find(unit => unit.id === t.id);
+            const u = s.registry.get(t.id);
             if (u) {
                 const newShield = Math.max(0, (u.shield || 0) - finalShieldValue);
-                const newU = { ...u, shield: newShield };
-                return { ...s, units: s.units.map(unit => unit.id === u.id ? newU : unit) };
+                return {
+                    ...s,
+                    registry: s.registry.update(t.id, unit => ({ ...unit, shield: newShield }))
+                };
             }
             return s;
         },
@@ -325,7 +412,8 @@ export function applyShield(
         source: source.name,
         name: options?.stackable ? `${name} (累積)` : name,
         amount: addedShieldValue,
-        target: target.name
+        target: target.name,
+        breakdownMultipliers
     });
 
     return newState;
@@ -333,6 +421,7 @@ export function applyShield(
 
 /**
  * Advances the action of a unit.
+ * Wrapper for advanceUnitAction in actionValue.ts.
  * @param state Current game state
  * @param unitId ID of the unit to advance
  * @param value Amount to advance (0.0 to 1.0 for percent, or flat value if type is 'fixed')
@@ -345,47 +434,18 @@ export function advanceAction(
     value: number,
     type: 'percent' | 'fixed' = 'percent'
 ): GameState {
-    let newState = state;
-    const idx = newState.actionQueue.findIndex(i => i.unitId === unitId);
-    if (idx !== -1) {
-        const item = newState.actionQueue[idx];
-        const unit = newState.units.find(u => u.id === unitId);
-
-        let reduction = 0;
-        if (type === 'percent') {
-            const spd = unit ? unit.stats.spd : 100; // Fallback
-            const baseAV = 10000 / Math.max(1, spd); // Avoid div by zero
-            reduction = baseAV * value;
-        } else {
-            reduction = value;
-        }
-
-        // AV=0未満にはならない（ターン開始時にAVが設定されるため）
-        const newAV = Math.max(0, item.actionValue - reduction);
-        const newQueue = [...newState.actionQueue];
-        newQueue[idx] = { ...item, actionValue: newAV };
-        // Sort queue
-        newQueue.sort((a, b) => a.actionValue - b.actionValue);
-
-        // ログは呼び出し元で管理するため、ここでは出力しない
-
-        // Sync units array with actionQueue
-        const newUnits = newState.units.map(u =>
-            u.id === unitId ? { ...u, actionValue: newAV } : u
-        );
-
-        newState = { ...newState, actionQueue: newQueue, units: newUnits };
-    }
-    return newState;
+    // 一元化された関数を呼び出し
+    return advanceUnitAction(state, unitId, value, type);
 }
 
 /**
  * Delays the action of a unit (opposite of advanceAction).
+ * Wrapper for delayUnitAction in actionValue.ts.
  * @param state Current game state
  * @param unitId ID of the unit to delay
  * @param value Amount to delay (0.0 to 1.0 for percent, or flat value if type is 'fixed')
  * @param type Type of delay ('percent' of Action Gauge (Base AV), or 'fixed' value)
- * @param skipLog Whether to skip logging the delay
+ * @param skipLog Whether to skip logging the delay (currently unused, preserved for API compatibility)
  * @returns Updated game state
  */
 export function delayAction(
@@ -395,46 +455,81 @@ export function delayAction(
     type: 'percent' | 'fixed' = 'percent',
     skipLog: boolean = false
 ): GameState {
+    // 一元化された関数を呼び出し
+    return delayUnitAction(state, unitId, value, type);
+}
+
+/**
+ * Consumes HP from a unit.
+ * @param state Current game state
+ * @param sourceId ID of the unit causing the consumption (usually self, or ally)
+ * @param targetId ID of the unit losing HP
+ * @param hpCostRatio Ratio of max HP to consume (e.g. 0.30 for 30%)
+ * @param description Description for the log
+ * @param options optional { minHp?: number }
+ * @returns Updated game state and amount consumed
+ */
+export function consumeHp(
+    state: GameState,
+    sourceId: string,
+    targetId: string,
+    hpCostRatio: number,
+    description: string,
+    options: { minHp?: number } = { minHp: 1 }
+): { state: GameState; consumed: number } {
     let newState = state;
-    const idx = newState.actionQueue.findIndex(i => i.unitId === unitId);
-    if (idx !== -1) {
-        const item = newState.actionQueue[idx];
-        const unit = newState.units.find(u => u.id === unitId);
+    const target = newState.registry.get(createUnitId(targetId));
+    if (!target) return { state, consumed: 0 };
 
-        let delay = 0;
-        if (type === 'percent') {
-            const spd = unit ? unit.stats.spd : 100; // Fallback
-            const baseAV = 10000 / Math.max(1, spd); // Avoid div by zero
-            delay = baseAV * value;
-        } else {
-            delay = value;
-        }
+    const maxHp = target.stats.hp;
+    const costAmount = maxHp * hpCostRatio;
+    const minHp = options.minHp !== undefined ? options.minHp : 1;
 
-        const newAV = item.actionValue + delay;
-        const newQueue = [...newState.actionQueue];
-        newQueue[idx] = { ...item, actionValue: newAV };
-        // Sort queue
-        newQueue.sort((a, b) => a.actionValue - b.actionValue);
+    let newHp: number;
+    let actualConsumed: number;
 
-        // Update Log
-        if (!skipLog) {
-            const actionUnit = newState.units.find(u => u.id === unitId);
-            newState.log.push({
-                actionType: '行動遅延',
-                sourceId: unitId,
-                characterName: actionUnit?.name || unitId,
-                targetId: unitId,
-                value: delay,
-                details: `行動遅延 ${type === 'percent' ? (value * 100).toFixed(0) + '%' : value.toFixed(0)}`
-            } as any);
-        }
-
-        // Sync units array with actionQueue
-        const newUnits = newState.units.map(u =>
-            u.id === unitId ? { ...u, actionValue: newAV } : u
-        );
-
-        newState = { ...newState, actionQueue: newQueue, units: newUnits };
+    if (target.hp - costAmount < minHp) {
+        // HP不足: minHpにする
+        newHp = minHp;
+        actualConsumed = Math.max(0, target.hp - minHp);
+    } else {
+        actualConsumed = costAmount;
+        newHp = target.hp - costAmount;
     }
-    return newState;
+
+    if (actualConsumed <= 0) return { state, consumed: 0 };
+
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(targetId), u => ({ ...u, hp: newHp }))
+    };
+
+    // ログ更新
+    if (newState.currentActionLog) {
+        newState = appendDamageTaken(newState, {
+            source: description,
+            type: 'self',
+            damage: actualConsumed,
+            dotType: `HP消費 (${(hpCostRatio * 100).toFixed(0)}%)`,
+            hpConsumeBreakdown: {
+                maxHp: maxHp,
+                consumeRatio: hpCostRatio,
+                expectedCost: costAmount,
+                actualConsumed: actualConsumed,
+                hpBefore: target.hp,
+                hpAfter: newHp
+            }
+        });
+    }
+
+    // イベント発行
+    newState = publishEvent(newState, {
+        type: 'ON_HP_CONSUMED',
+        targetId,
+        sourceId,
+        amount: actualConsumed,
+        sourceType: description
+    });
+
+    return { state: newState, consumed: actualConsumed };
 }

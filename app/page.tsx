@@ -52,14 +52,14 @@ const containerStyle: React.CSSProperties = {
   flexDirection: 'column',
   padding: '16px',
   gap: '24px',
-  maxWidth: '1600px',
-  margin: '0 auto',
+  // maxWidth: '1600px', // 削除: 画面幅制限を解除
+  // margin: '0 auto', // 削除: 左詰めにする
 };
 
 const mainLayoutStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '300px 1fr 500px', // Widened right column
-  gap: '24px',
+  gridTemplateColumns: '280px 1fr 420px', // 右カラムを500px->420pxに縮小、左も微調整
+  gap: '16px', // gapを詰める
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -403,7 +403,7 @@ export default function Home() {
 
   return (
     <main>
-      <h1 style={{ padding: '0 16px' }}>崩壊スターレイル パーティビルドシミュレーター</h1>
+      <h1 style={{ padding: '0 16px', textAlign: 'center' }}>崩壊スターレイル パーティビルドシミュレーター</h1>
 
       <div style={containerStyle}>
         <div style={mainLayoutStyle}>

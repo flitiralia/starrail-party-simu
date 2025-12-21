@@ -2,6 +2,7 @@ import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
 import { Unit } from '../../simulator/engine/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * ターゲットのデバフ数を取得
@@ -25,7 +26,7 @@ export const PIONEER_DIVER_OF_DEAD_WATERS: RelicSet = {
             if (event.sourceId !== sourceUnitId) return state;
             if (!event.targetId) return state;
 
-            const target = state.units.find(u => u.id === event.targetId);
+            const target = state.registry.get(createUnitId(event.targetId));
             if (!target) return state;
 
             // デバフ数をチェック
@@ -83,8 +84,8 @@ export const PIONEER_DIVER_OF_DEAD_WATERS: RelicSet = {
             if (event.sourceId !== sourceUnitId) return state;
             if (!event.targetId) return state;
 
-            const target = state.units.find(u => u.id === event.targetId);
-            const source = state.units.find(u => u.id === sourceUnitId);
+            const target = state.registry.get(createUnitId(event.targetId));
+            const source = state.registry.get(createUnitId(sourceUnitId));
             if (!target || !source) return state;
 
             const debuffCount = getDebuffCount(target);

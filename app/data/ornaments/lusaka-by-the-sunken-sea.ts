@@ -21,10 +21,11 @@ export const LUSAKA_BY_THE_SUNKEN_SEA: OrnamentSet = {
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
             // 装備キャラが1枠目でなければ、1枠目に攻撃力+12%を付与
-            const unitIndex = state.units.findIndex(u => u.id === sourceUnitId);
+            const units = state.registry.toArray();
+            const unitIndex = units.findIndex(u => u.id === sourceUnitId);
             if (unitIndex === -1 || unitIndex === 0) return state;
 
-            const target = state.units[0];
+            const target = units[0];
             const buff: IEffect = {
               id: 'lusaka-atk-buff',
               name: '海に沈んだルサカ',

@@ -1,7 +1,6 @@
 import { GameState, IEvent, IEventHandler, IEventHandlerLogic, IEventHandlerFactory, Unit } from '../types';
-import { getUnit, updateUnit } from '../gameState';
 import { addEnergyToUnit } from '../energy';
-
+import { createUnitId } from '../unitId';
 // 重畳ランク1-5に対応するEP回復量
 const EP_RECOVERY_VALUES = [4, 5, 6, 7, 8];
 const COOLDOWN_TURNS = 1;
@@ -30,7 +29,7 @@ export const handleMemoriesOfThePastLogic: IEventHandlerLogic = (event, state, h
         return state;
     }
 
-    const sourceUnit = getUnit(state, sourceUnitId);
+    const sourceUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!sourceUnit) {
         return state;
     }

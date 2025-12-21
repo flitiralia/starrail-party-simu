@@ -1,6 +1,6 @@
 import { GameState, Unit } from './types';
 import { FinalStats, Modifier } from '../../types/stats';
-
+import { UnitId, createUnitId } from './unitId';
 import { Element } from '../../types/index';
 
 /**
@@ -18,6 +18,8 @@ export interface SummonTemplate {
     debuffImmune?: boolean; // If true, immune to all debuffs
 }
 
+import { UnitRegistry } from './unitRegistry';
+
 /**
  * Helper to get an active summon owned by a specific unit.
  * @param state Current GameState
@@ -25,8 +27,8 @@ export interface SummonTemplate {
  * @param idPrefix Optional prefix to filter specific summon types
  */
 export function getActiveSummon(state: GameState, ownerId: string, idPrefix?: string): Unit | undefined {
-    return state.units.find(u =>
-        u.isSummon &&
+    return state.registry.find(u =>
+        u.isSummon === true &&
         u.ownerId === ownerId &&
         (!idPrefix || u.id.startsWith(idPrefix))
     );
@@ -38,7 +40,7 @@ export function getActiveSummon(state: GameState, ownerId: string, idPrefix?: st
 export function removeSummon(state: GameState, summonId: string): GameState {
     return {
         ...state,
-        units: state.units.filter(u => u.id !== summonId)
+        registry: state.registry.remove(createUnitId(summonId))
     };
 }
 
@@ -49,7 +51,7 @@ export function removeSummon(state: GameState, summonId: string): GameState {
  */
 export function createSummon(owner: Unit, template: SummonTemplate): Unit {
     return {
-        id: `${template.idPrefix}-${owner.id}`,
+        id: createUnitId(`${template.idPrefix}-${owner.id}`),
         name: template.name,
         isEnemy: false,
         isSummon: true,
@@ -76,7 +78,6 @@ export function createSummon(owner: Unit, template: SummonTemplate): Unit {
         modifiers: template.modifiers || [],
         effects: [],
         actionValue: 10000 / template.baseSpd,
-        actionPoint: 0,
         rotationIndex: 0,
         ultCooldown: 0,
         config: {
@@ -100,12 +101,16 @@ export function insertSummonAfterOwner(
     summon: Unit,
     ownerId: string
 ): GameState {
-    const ownerIndex = state.units.findIndex(u => u.id === ownerId);
+    const units = state.registry.toArray();
+    const ownerIndex = units.findIndex(u => u.id === ownerId);
+    let newUnits: Unit[];
     if (ownerIndex === -1) {
         // Fallback: append to end if owner not found
-        return { ...state, units: [...state.units, summon] };
+        newUnits = [...units, summon];
+    } else {
+        const before = units.slice(0, ownerIndex + 1);
+        const after = units.slice(ownerIndex + 1);
+        newUnits = [...before, summon, ...after];
     }
-    const before = state.units.slice(0, ownerIndex + 1);
-    const after = state.units.slice(ownerIndex + 1);
-    return { ...state, units: [...before, summon, ...after] };
+    return { ...state, registry: UnitRegistry.fromArray(newUnits) };
 }

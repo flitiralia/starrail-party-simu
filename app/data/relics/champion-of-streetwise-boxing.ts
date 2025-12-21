@@ -27,13 +27,13 @@ export const CHAMPION_OF_STREETWISE_BOXING: RelicSet = {
             description: '装備キャラが攻撃を行う、または攻撃を受けた後、今回の戦闘中の攻撃力+5%、最大で5層累積できる。',
             eventHandlers: [
                 {
-                    // 攻撃時/被攻撃時 (ON_DAMAGE_DEALTでカバー)
-                    events: ['ON_DAMAGE_DEALT'],
+                    // 攻撃時: ON_ATTACK / 被攻撃時: ON_BEFORE_HIT
+                    events: ['ON_ATTACK', 'ON_BEFORE_HIT'],
                     handler: (event, state, sourceUnitId) => {
                         // 攻撃時: sourceが自分
                         // 被攻撃時: targetが自分
-                        const isAttacker = event.sourceId === sourceUnitId;
-                        const isTarget = event.targetId === sourceUnitId;
+                        const isAttacker = event.type === 'ON_ATTACK' && event.sourceId === sourceUnitId;
+                        const isTarget = event.type === 'ON_BEFORE_HIT' && event.targetId === sourceUnitId;
 
                         if (!isAttacker && !isTarget) return state;
 

@@ -1,5 +1,7 @@
 import { RelicSet } from '../../types';
 
+import { createUnitId } from '../../simulator/engine/unitId';
+
 /**
  * 吹雪と対峙する兵士
  * 2セット: 被ダメージ-8%
@@ -29,7 +31,7 @@ export const GUARD_OF_WUTHERING_SNOW: RelicSet = {
                     handler: (event, state, sourceUnitId) => {
                         if (event.sourceId !== sourceUnitId) return state;
 
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // HP50%以下かチェック
@@ -48,11 +50,7 @@ export const GUARD_OF_WUTHERING_SNOW: RelicSet = {
 
                         return {
                             ...state,
-                            units: state.units.map(u =>
-                                u.id === sourceUnitId
-                                    ? { ...u, hp: newHp, ep: newEp }
-                                    : u
-                            )
+                            registry: state.registry.update(createUnitId(sourceUnitId), u => ({ ...u, hp: newHp, ep: newEp }))
                         };
                     }
                 }

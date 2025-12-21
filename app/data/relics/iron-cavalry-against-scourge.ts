@@ -1,4 +1,5 @@
 import { RelicSet } from '../../types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 蝗害を一掃せし鉄騎
@@ -32,7 +33,7 @@ export const IRON_CAVALRY_AGAINST_SCOURGE: RelicSet = {
                     handler: (event, state, sourceUnitId) => {
                         if (event.sourceId !== sourceUnitId) return state;
 
-                        const source = state.units.find(u => u.id === sourceUnitId);
+                        const source = state.registry.get(createUnitId(sourceUnitId));
                         if (!source) return state;
 
                         const breakEffect = source.stats.break_effect || 0;

@@ -1,4 +1,5 @@
 import { OrnamentSet } from '../../types';
+import { Unit } from '../../simulator/engine/types';
 
 export const UNFORESEEN_VANADISE: OrnamentSet = {
   id: 'unforeseen_vanadise',
@@ -18,9 +19,9 @@ export const UNFORESEEN_VANADISE: OrnamentSet = {
           value: 0.32,
           target: 'self',
           condition: (stats, state, unitId) => {
-            if (!state) return false;
+            if (!state?.registry) return false;
             // 召喚ユニット（isSummon: true, ownerId: unitId）が存在するかチェック
-            const hasSummon = state.units.some(u =>
+            const hasSummon = state.registry.toArray().some((u: Unit) =>
               u.isSummon &&
               u.ownerId === unitId &&
               u.hp > 0

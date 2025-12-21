@@ -1,5 +1,7 @@
 import { Character, Element, Path, StatKey } from '../../types';
 import { IEventHandlerFactory, GameState, IEvent, Unit, IHit, ActionContext, Action } from '../../simulator/engine/types';
+import { UnitId, createUnitId } from '../../simulator/engine/unitId';
+
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
 import { calculateNormalAdditionalDamage, calculateDamage } from '../../simulator/damage';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
@@ -242,7 +244,7 @@ export const archar: Character = {
     // デフォルト設定
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'cruising-in-the-stellar-sea',
+        lightConeId: 'the-hell-where-ideals-burn',
         superimposition: 1,
         relicSetId: 'genius_of_brilliant_stars',
         ornamentSetId: 'rutilant_arena',
@@ -253,10 +255,10 @@ export const archar: Character = {
             rope: 'atk_pct',
         },
         subStats: [
-            { stat: 'atk_pct', value: 0.432 },
             { stat: 'crit_rate', value: 0.324 },
             { stat: 'crit_dmg', value: 0.648 },
-            { stat: 'spd', value: 12 },
+            { stat: 'atk_pct', value: 0.432 },
+            { stat: 'spd', value: 6 },
         ],
         rotationMode: 'spam_skill',
         spamSkillTriggerSp: 6,
@@ -266,7 +268,7 @@ export const archar: Character = {
 
 // Helper to manage Charge (Stackable Buff)
 function addCharge(state: GameState, unitId: string, amount: number): GameState {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return state;
 
     const buffId = `archar-charge-${unitId}`;
@@ -304,7 +306,7 @@ function applyCircuitConnection(state: GameState, unitId: string, eidolonLevel: 
     const buffId = `archar-circuit-${unitId}`;
 
     // Check if already active
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (unit?.effects.find(e => e.id === buffId)) return state;
 
     const circuitBuff: IEffect = {
@@ -314,7 +316,7 @@ function applyCircuitConnection(state: GameState, unitId: string, eidolonLevel: 
         sourceUnitId: unitId,
         durationType: 'PERMANENT', // Managed manually by Skill count / SP check
         duration: 0,
-        tags: ['PREVENT_TURN_END'], // System flag to skip turn end
+        tags: [], // ターン終了制御はcurrentTurnStateで管理
         onApply: (t, s) => {
             return s;
         },
@@ -335,11 +337,11 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
     return {
         handlerMetadata: {
             id: `archar-handler-${sourceUnitId}`,
-            subscribesTo: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ATTACK', 'ON_ACTION_COMPLETE', 'ON_BEFORE_DAMAGE_CALCULATION', 'ON_SP_CHANGE'],
+            subscribesTo: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ATTACK', 'ON_ACTION_COMPLETE', 'ON_BEFORE_DAMAGE_CALCULATION', 'ON_SP_GAINED'],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
             if (event.sourceId === sourceUnitId) console.log(`[ArcherHandler] Event: ${event.type}`);
-            const archarUnit = state.units.find(u => u.id === sourceUnitId);
+            const archarUnit = state.registry.get(createUnitId(sourceUnitId));
             if (!archarUnit) return state;
 
             let newState = state;
@@ -390,10 +392,10 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 if (useTechnique) {
                     // Technique: 200% ATK to all enemies + 1 Charge
                     if (archarUnit.abilities.technique) {
-                        const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+                        const enemies = newState.registry.getAliveEnemies();
                         const techAbility = archarUnit.abilities.technique;
                         // 最新のUnitを取得（E4バフ適用後）
-                        const freshArcharUnit = newState.units.find(u => u.id === sourceUnitId);
+                        const freshArcharUnit = newState.registry.get(createUnitId(sourceUnitId));
                         if (freshArcharUnit) {
                             enemies.forEach(enemy => {
                                 // calculateDamageを使用してダメージ計算
@@ -429,8 +431,25 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 // 1. Enter Circuit Connection if not present
                 newState = applyCircuitConnection(newState, sourceUnitId, eidolonLevel);
 
+                // ★ ターン終了スキップ設定（初回スキル発動時のみ）
+                // 終了条件: 5回アクション OR SP < 2
+                // actionCount: -1 は最初のスキル発動自体をカウントしないため
+                if (!newState.currentTurnState) {
+                    newState = {
+                        ...newState,
+                        currentTurnState: {
+                            skipTurnEnd: true,
+                            endConditions: [
+                                { type: 'action_count', actionCount: 5 },
+                                { type: 'sp_threshold', spThreshold: 2 }
+                            ],
+                            actionCount: -1
+                        }
+                    };
+                }
+
                 // 2. Update Skill Count & Check Exit Conditions
-                const circuitBuff = newState.units.find(u => u.id === sourceUnitId)?.effects.find(e => e.id === `archar-circuit-${sourceUnitId}`);
+                const circuitBuff = newState.registry.get(createUnitId(sourceUnitId))?.effects.find(e => e.id === `archar-circuit-${sourceUnitId}`);
                 if (circuitBuff) {
                     let skillCount = (circuitBuff as any).customData?.skillCount || 0;
                     skillCount++;
@@ -439,7 +458,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
 
                     // Apply Stacking Damage Buff
                     const stackBuffId = `archar-circuit-stacks-${sourceUnitId}`;
-                    const existingStackBuff = newState.units.find(u => u.id === sourceUnitId)?.effects.find(e => e.id === stackBuffId);
+                    const existingStackBuff = newState.registry.get(createUnitId(sourceUnitId))?.effects.find(e => e.id === stackBuffId);
                     let stacks = (existingStackBuff as any)?.stackCount || 0;
                     const maxStacks = eidolonLevel >= 6 ? 3 : 2;
                     stacks = Math.min(maxStacks, stacks + 1);
@@ -482,7 +501,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
 
                 // E2: Apply Quantum Res Down & Quantum Weakness
                 if (eidolonLevel >= 2 && event.targetId) {
-                    const targetUnit = newState.units.find(u => u.id === event.targetId);
+                    const targetUnit = newState.registry.get(createUnitId(event.targetId));
                     if (targetUnit && targetUnit.isEnemy) {
                         const e2DebuffId = `archar-e2-debuff-${targetUnit.id}`;
 
@@ -509,7 +528,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                                 };
                                 return {
                                     ...s,
-                                    units: s.units.map(u => u.id === t.id ? updatedUnit : u)
+                                    registry: s.registry.update(t.id, u => updatedUnit)
                                 };
                             },
                             onRemove: (t, s) => s,  // 弱点は消えない（原作仕様）
@@ -524,10 +543,9 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
             }
 
             // Talent Logic: Follow-up on Ally Attack (ON_ATTACK イベントで発動)
-            // 条件: アーチャー以外の味方が敵を攻撃した時
             if (event.type === 'ON_ATTACK' && event.sourceId !== sourceUnitId) {
-                const sourceUnit = newState.units.find(u => u.id === event.sourceId);
-                const targetUnit = event.targetId ? newState.units.find(u => u.id === event.targetId) : undefined;
+                const sourceUnit = newState.registry.get(createUnitId(event.sourceId));
+                const targetUnit = event.targetId ? newState.registry.get(createUnitId(event.targetId)) : undefined;
 
                 // 発動条件: ソースが味方で、ターゲットが敵
                 if (sourceUnit && !sourceUnit.isEnemy && targetUnit?.isEnemy) {
@@ -541,11 +559,11 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
 
                         // Target: メインターゲット（敵）または生存敵からランダム選択
                         let followUpTargetId = event.targetId;
-                        let followUpTarget = newState.units.find(u => u.id === followUpTargetId);
+                        let followUpTarget = followUpTargetId ? newState.registry.get(createUnitId(followUpTargetId)) : undefined;
 
                         // ターゲットが倒されていた場合、ランダムな敵を選択
                         if (!followUpTarget || followUpTarget.hp <= 0) {
-                            const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+                            const enemies = newState.registry.getAliveEnemies();
                             if (enemies.length > 0) {
                                 followUpTarget = enemies[Math.floor(Math.random() * enemies.length)];
                                 followUpTargetId = followUpTarget.id;
@@ -629,7 +647,7 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
             }
 
             // A6: Crit DMG +120% when SP >= 4 after SP gain
-            if (event.type === 'ON_SP_CHANGE') {
+            if (event.type === 'ON_SP_GAINED') {
                 const a6Trace = archarUnit.traces?.find(t => t.id === 'archar-trace-a6');
                 if (a6Trace && newState.skillPoints >= 4) {
                     const a6BuffId = `archar-a6-buff-${sourceUnitId}`;

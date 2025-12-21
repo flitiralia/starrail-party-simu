@@ -70,7 +70,424 @@ const HitDetailsRow: React.FC<{ hitDetails: HitDetail[] }> = ({ hitDetails }) =>
   );
 };
 
-// 付加ダメージ詳細コンポーネント
+// 統一アクション詳細コンポーネント（与ダメージ + 被ダメージ + 回復 + シールド）
+const UnifiedActionDetails: React.FC<{
+  primaryDamage?: { hitDetails: HitDetail[]; totalDamage: number };
+  additionalDamage?: AdditionalDamageEntry[];
+  damageTaken?: DamageTakenEntry[];
+  healing?: HealingEntry[];
+  shields?: ShieldEntry[];
+}> = ({ primaryDamage, additionalDamage, damageTaken, healing, shields }) => {
+  // 与ダメージのデータがあるかどうか
+  const hasDamageDealt = (primaryDamage?.hitDetails && primaryDamage.hitDetails.length > 0) ||
+    (additionalDamage && additionalDamage.length > 0);
+  // 被ダメージのデータがあるかどうか
+  const hasDamageTaken = damageTaken && damageTaken.length > 0;
+  // 回復のデータがあるかどうか
+  const hasHealing = healing && healing.length > 0;
+  // シールドのデータがあるかどうか
+  const hasShields = shields && shields.length > 0;
+
+  // どれかデータがあればtrue
+  const hasData = hasDamageDealt || hasDamageTaken || hasHealing || hasShields;
+  if (!hasData) return null;
+
+  // 係数名のマッピング
+  const multiplierLabels: Record<string, string> = {
+    baseDmg: '基礎ダメ',
+    critMult: '会心系数',
+    dmgBoostMult: '与ダメ係数',
+    defMult: '防御係数',
+    resMult: '耐性係数',
+    vulnMult: '被ダメ係数',
+    brokenMult: '撃破係数'
+  };
+
+  // 与ダメージ合計計算
+  const primaryTotal = primaryDamage?.totalDamage || 0;
+  const additionalTotal = additionalDamage?.reduce((sum, e) => sum + e.damage, 0) || 0;
+  const damageDealtTotal = primaryTotal + additionalTotal;
+
+  // 被ダメージ合計計算
+  const damageTakenTotal = damageTaken?.reduce((sum, e) => sum + e.damage, 0) || 0;
+
+  // 回復合計計算
+  const healingTotal = healing?.reduce((sum, e) => sum + e.amount, 0) || 0;
+
+  // シールド合計計算
+  const shieldsTotal = shields?.reduce((sum, e) => sum + e.amount, 0) || 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+        アクション詳細
+      </div>
+
+      {/* 与ダメージセクション */}
+      {hasDamageDealt && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-red-600 dark:text-red-400">
+            与ダメージ (合計: {Math.round(damageDealtTotal).toLocaleString()})
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2 bg-gray-100 dark:bg-gray-900 rounded">
+            {/* メインダメージのヒット */}
+            {primaryDamage?.hitDetails.map((hit, idx) => (
+              <div
+                key={`hit-${idx}`}
+                className={`relative group flex items-center gap-2 px-2 py-1 rounded text-xs cursor-help ${hit.isCrit ? 'bg-yellow-200 dark:bg-yellow-800 border-l-4 border-yellow-500' : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+              >
+                <span className="font-semibold">Hit {hit.hitIndex + 1}:</span>
+                <span className="text-gray-600 dark:text-gray-300">{(hit.multiplier * 100).toFixed(0)}%</span>
+                <span className="font-bold">{Math.round(hit.damage)}</span>
+                {hit.isCrit ? (
+                  <span className="text-yellow-600 dark:text-yellow-400 font-bold">✓ 会心</span>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+                {hit.targetName && <span className="text-gray-500 text-xs">({hit.targetName})</span>}
+
+                {/* ダメージ係数ツールチップ */}
+                {hit.breakdownMultipliers && (
+                  <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                    <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[200px]">
+                      <div className="font-semibold mb-1 text-yellow-400">📊 ダメージ計算式</div>
+                      <div className="space-y-0.5">
+                        {Object.entries(hit.breakdownMultipliers).map(([key, value]) => (
+                          <div key={key} className="flex justify-between">
+                            <span className="text-gray-300">{multiplierLabels[key] || key}:</span>
+                            <span className="font-mono">
+                              {key === 'baseDmg'
+                                ? Math.round(value as number).toLocaleString()
+                                : (value as number).toFixed(4)
+                              }
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                        <span>最終ダメージ:</span>
+                        <span className="text-green-400">{Math.round(hit.damage).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* 付加ダメージ */}
+            {additionalDamage?.map((entry, idx) => {
+              // ダメージ種別に基づくラベルと色
+              const getDamageTypeLabel = (type?: string) => {
+                switch (type) {
+                  case 'break': return { label: '[撃破]', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/50 border-orange-400' };
+                  case 'break_additional': return { label: '[撃破付加]', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/50 border-red-400' };
+                  case 'super_break': return { label: '[超撃破]', color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/50 border-purple-400' };
+                  case 'dot': return { label: '[DoT]', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/50 border-green-400' };
+                  case 'additional':
+                  default: return { label: '[付加]', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/50 border-blue-400' };
+                }
+              };
+              const typeInfo = getDamageTypeLabel(entry.damageType);
+
+              return (
+                <div
+                  key={`add-${idx}`}
+                  className={`relative group flex items-center gap-2 px-2 py-1 rounded text-xs cursor-help ${entry.isCrit ? `bg-opacity-50 border-l-4` : `border-l-2`
+                    } ${typeInfo.bg}`}
+                >
+                  <span className={`font-semibold ${typeInfo.color}`}>{typeInfo.label}</span>
+                  <span className="text-gray-600 dark:text-gray-300 truncate max-w-[80px]" title={`${entry.source}: ${entry.name}`}>
+                    {entry.name}
+                  </span>
+                  <span className="font-bold">{Math.round(entry.damage)}</span>
+                  {entry.isCrit && (
+                    <span className="text-yellow-600 dark:text-yellow-400 font-bold">✓</span>
+                  )}
+                  <span className="text-gray-500 text-xs truncate">({entry.target})</span>
+
+                  {/* ダメージ係数ツールチップ（付加ダメージ用） */}
+                  {entry.breakdownMultipliers ? (
+                    <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                      <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[200px]">
+                        <div className="font-semibold mb-1 text-blue-400">📊 {entry.source}: {entry.name}</div>
+                        <div className="space-y-0.5">
+                          {Object.entries(entry.breakdownMultipliers).map(([key, value]) => (
+                            <div key={key} className="flex justify-between">
+                              <span className="text-gray-300">{multiplierLabels[key] || key}:</span>
+                              <span className="font-mono">
+                                {key === 'baseDmg'
+                                  ? Math.round(value as number).toLocaleString()
+                                  : (value as number).toFixed(4)
+                                }
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                          <span>最終ダメージ:</span>
+                          <span className="text-green-400">{Math.round(entry.damage).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                      <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600">
+                        <div className="font-semibold text-blue-400">{entry.source}: {entry.name}</div>
+                        <div className="text-gray-300">ダメージ: {Math.round(entry.damage).toLocaleString()}</div>
+                        <div className="text-gray-400">→ {entry.target}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 被ダメージセクション */}
+      {hasDamageTaken && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+            被ダメージ (合計: {Math.round(damageTakenTotal).toLocaleString()})
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2 bg-gray-100 dark:bg-gray-900 rounded">
+            {damageTaken?.map((entry, idx) => {
+              const getTypeLabel = (type: string) => {
+                switch (type) {
+                  case 'self': return { label: '[自傷]', color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/50 border-purple-400' };
+                  case 'dot': return { label: `[${entry.dotType || 'DoT'}]`, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/50 border-green-400' };
+                  case 'enemy':
+                  default: return { label: '[敵]', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/50 border-orange-400' };
+                }
+              };
+              const typeInfo = getTypeLabel(entry.type);
+
+              return (
+                <div
+                  key={`taken-${idx}`}
+                  className={`relative group flex items-center gap-2 px-2 py-1 rounded text-xs cursor-help border-l-2 ${typeInfo.bg}`}
+                >
+                  <span className={`font-semibold ${typeInfo.color}`}>{typeInfo.label}</span>
+                  <span className="text-gray-600 dark:text-gray-300 truncate max-w-[100px]">
+                    {entry.source}
+                  </span>
+                  <span className="font-bold text-orange-500">-{Math.round(entry.damage)}</span>
+
+                  {/* ダメージ係数ツールチップ（被ダメージ用） */}
+                  {entry.breakdownMultipliers && (
+                    <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                      <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[200px]">
+                        <div className="font-semibold mb-1 text-orange-400">📊 被ダメージ計算式</div>
+                        <div className="space-y-0.5">
+                          {Object.entries(entry.breakdownMultipliers).map(([key, value]) => (
+                            <div key={key} className="flex justify-between">
+                              <span className="text-gray-300">{multiplierLabels[key] || key}:</span>
+                              <span className="font-mono">
+                                {key === 'baseDmg'
+                                  ? Math.round(value as number).toLocaleString()
+                                  : (value as number).toFixed(4)
+                                }
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                          <span>最終被ダメージ:</span>
+                          <span className="text-orange-400">{Math.round(entry.damage).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* HP消費計算式ツールチップ */}
+                  {entry.hpConsumeBreakdown && (
+                    <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                      <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[220px]">
+                        <div className="font-semibold mb-1 text-purple-400">📊 HP消費計算式</div>
+                        <div className="space-y-0.5">
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">最大HP:</span>
+                            <span className="font-mono">{Math.round(entry.hpConsumeBreakdown.maxHp).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">消費割合:</span>
+                            <span className="font-mono">{(entry.hpConsumeBreakdown.consumeRatio * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">想定コスト:</span>
+                            <span className="font-mono">{Math.round(entry.hpConsumeBreakdown.expectedCost).toLocaleString()}</span>
+                          </div>
+                          <div className="border-t border-gray-600 mt-1 pt-1">
+                            <div className="flex justify-between">
+                              <span className="text-gray-300">消費前HP:</span>
+                              <span className="font-mono">{Math.round(entry.hpConsumeBreakdown.hpBefore).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-300">消費後HP:</span>
+                              <span className="font-mono">{Math.round(entry.hpConsumeBreakdown.hpAfter).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                          <span>実際の消費量:</span>
+                          <span className="text-purple-400">-{Math.round(entry.hpConsumeBreakdown.actualConsumed).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 回復セクション */}
+      {hasHealing && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-green-600 dark:text-green-400">
+            回復 (合計: {Math.round(healingTotal).toLocaleString()})
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2 bg-gray-100 dark:bg-gray-900 rounded">
+            {healing?.map((entry, idx) => (
+              <div
+                key={`heal-${idx}`}
+                className="relative group flex items-center gap-2 px-2 py-1 bg-green-100 dark:bg-green-900/50 rounded text-xs border-l-2 border-green-400 cursor-help"
+              >
+                <span className="text-green-600 dark:text-green-400 font-semibold">[回復]</span>
+                <span className="text-gray-600 dark:text-gray-300 truncate max-w-[80px]" title={`${entry.source}: ${entry.name}`}>
+                  {entry.name}
+                </span>
+                <span className="font-bold text-green-500">+{Math.round(entry.amount)}</span>
+                <span className="text-gray-500 text-xs truncate">→ {entry.target}</span>
+
+                {/* 回復計算式ツールチップ */}
+                {entry.breakdownMultipliers && (
+                  <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                    <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[200px]">
+                      <div className="font-semibold mb-1 text-green-400">📊 回復計算式</div>
+                      <div className="space-y-0.5">
+                        {entry.breakdownMultipliers.scalingStat && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">参照ステータス:</span>
+                            <span className="font-mono">{entry.breakdownMultipliers.scalingStat}</span>
+                          </div>
+                        )}
+                        {entry.breakdownMultipliers.multiplier !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">倍率:</span>
+                            <span className="font-mono">{(entry.breakdownMultipliers.multiplier * 100).toFixed(1)}%</span>
+                          </div>
+                        )}
+                        {entry.breakdownMultipliers.flat !== undefined && entry.breakdownMultipliers.flat > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">固定値:</span>
+                            <span className="font-mono">+{Math.round(entry.breakdownMultipliers.flat)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">基礎回復量:</span>
+                          <span className="font-mono">{Math.round(entry.breakdownMultipliers.baseHeal).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">与回復バフ:</span>
+                          <span className="font-mono">{(entry.breakdownMultipliers.outgoingHealBoost * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">受回復バフ:</span>
+                          <span className="font-mono">{(entry.breakdownMultipliers.incomingHealBoost * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">回復係数:</span>
+                          <span className="font-mono">{entry.breakdownMultipliers.healBoostMult.toFixed(4)}</span>
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                        <span>最終回復量:</span>
+                        <span className="text-green-400">+{Math.round(entry.amount).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* シールドセクション */}
+      {hasShields && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+            シールド (合計: {Math.round(shieldsTotal).toLocaleString()})
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2 bg-gray-100 dark:bg-gray-900 rounded">
+            {shields?.map((entry, idx) => (
+              <div
+                key={`shield-${idx}`}
+                className="relative group flex items-center gap-2 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded text-xs border-l-2 border-purple-400 cursor-help"
+              >
+                <span className="text-purple-600 dark:text-purple-400 font-semibold">[シールド]</span>
+                <span className="text-gray-600 dark:text-gray-300 truncate max-w-[80px]" title={`${entry.source}: ${entry.name}`}>
+                  {entry.name}
+                </span>
+                <span className="font-bold text-purple-500">{Math.round(entry.amount)}</span>
+                <span className="text-gray-500 text-xs truncate">→ {entry.target}</span>
+
+                {/* シールド計算式ツールチップ */}
+                {entry.breakdownMultipliers && (
+                  <div className="absolute z-50 bottom-full left-0 mb-1 hidden group-hover:block">
+                    <div className="bg-gray-800 dark:bg-gray-950 text-white text-xs p-2 rounded shadow-lg border border-gray-600 min-w-[200px]">
+                      <div className="font-semibold mb-1 text-purple-400">📊 シールド計算式</div>
+                      <div className="space-y-0.5">
+                        {entry.breakdownMultipliers.scalingStat && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">参照ステータス:</span>
+                            <span className="font-mono">{entry.breakdownMultipliers.scalingStat}</span>
+                          </div>
+                        )}
+                        {entry.breakdownMultipliers.multiplier !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">倍率:</span>
+                            <span className="font-mono">{(entry.breakdownMultipliers.multiplier * 100).toFixed(1)}%</span>
+                          </div>
+                        )}
+                        {entry.breakdownMultipliers.flat !== undefined && entry.breakdownMultipliers.flat > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">固定値:</span>
+                            <span className="font-mono">+{Math.round(entry.breakdownMultipliers.flat)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">基礎シールド:</span>
+                          <span className="font-mono">{Math.round(entry.breakdownMultipliers.baseShield).toLocaleString()}</span>
+                        </div>
+                        {entry.breakdownMultipliers.cap !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-300">上限値:</span>
+                            <span className="font-mono">{Math.round(entry.breakdownMultipliers.cap).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold">
+                        <span>最終シールド:</span>
+                        <span className="text-purple-400">{Math.round(entry.amount).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 付加ダメージ詳細コンポーネント（後方互換性のため残す）
 const AdditionalDamageDetails: React.FC<{ entries: AdditionalDamageEntry[] }> = ({ entries }) => {
   if (!entries || entries.length === 0) return null;
 
@@ -132,19 +549,36 @@ const ShieldDetails: React.FC<{ entries: ShieldEntry[] }> = ({ entries }) => {
 const DamageTakenDetails: React.FC<{ entries: DamageTakenEntry[] }> = ({ entries }) => {
   if (!entries || entries.length === 0) return null;
 
+  const getBreakdownTooltip = (entry: DamageTakenEntry) => {
+    if (!entry.breakdownMultipliers) return undefined;
+    const m = entry.breakdownMultipliers;
+    return `基礎ダメージ: ${m.baseDmg.toFixed(2)}
+与ダメ倍率: ${m.dmgBoostMult.toFixed(3)}
+防御補正: ${m.defMult.toFixed(3)}
+耐性補正: ${m.resMult.toFixed(3)}
+脆弱倍率: ${m.vulnMult.toFixed(3)}
+撃破倍率: ${m.brokenMult.toFixed(3)}`;
+  };
+
   return (
     <div className="space-y-1">
       <div className="text-xs font-semibold text-orange-600 dark:text-orange-400">被ダメ:</div>
       {entries.map((entry, idx) => (
-        <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-orange-50 dark:bg-orange-900/30 rounded text-xs border-l-2 border-orange-400">
+        <div
+          key={idx}
+          className="flex items-center gap-2 px-2 py-1 bg-orange-50 dark:bg-orange-900/30 rounded text-xs border-l-2 border-orange-400"
+          title={getBreakdownTooltip(entry)}
+        >
           <span className="text-orange-600 dark:text-orange-400">[{entry.source}]</span>
           <span>{entry.type === 'self' ? '自傷' : entry.type === 'dot' ? entry.dotType || 'DoT' : '敵'}</span>
-          <span className="font-bold text-orange-500">-{Math.round(entry.damage)}</span>
+          <span className="font-bold text-orange-500">{Math.round(entry.damage)}</span>
+          {entry.breakdownMultipliers && <span className="text-gray-400">📊</span>}
         </div>
       ))}
     </div>
   );
 };
+
 
 // 装備効果詳細コンポーネント
 const EquipmentEffectDetails: React.FC<{ entries: EquipmentEffectEntry[] }> = ({ entries }) => {
@@ -344,7 +778,8 @@ const SimulationLogTable: React.FC<SimulationLogTableProps> = ({ logs }) => {
       (log.logDetails.damageTaken && log.logDetails.damageTaken.length > 0) ||
       (log.logDetails.equipmentEffects && log.logDetails.equipmentEffects.length > 0)
     );
-    return hasHitDetails || !!hasDetails;
+    const hasEffects = !!((log.sourceEffects && log.sourceEffects.length > 0) || (log.targetEffects && log.targetEffects.length > 0) || (log.activeEffects && log.activeEffects.length > 0));
+    return hasHitDetails || !!hasDetails || hasEffects;
   };
 
   return (
@@ -422,97 +857,87 @@ const SimulationLogTable: React.FC<SimulationLogTableProps> = ({ logs }) => {
                 {isExpanded && showToggle && (
                   <tr className="bg-gray-50 dark:bg-gray-800">
                     <td colSpan={13} className="px-4 py-3 space-y-3">
-                      {/* プライマリダメージのヒット詳細 */}
-                      {log.logDetails?.primaryDamage && log.logDetails.primaryDamage.hitDetails.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">メインダメージ ({Math.round(log.logDetails.primaryDamage.totalDamage)}):</div>
-                          <HitDetailsRow hitDetails={log.logDetails.primaryDamage.hitDetails} />
-                        </div>
+                      {/* 統一アクション詳細表示 */}
+                      {(log.logDetails?.primaryDamage || log.logDetails?.additionalDamage || log.logDetails?.damageTaken || log.logDetails?.healing || log.logDetails?.shields) && (
+                        <UnifiedActionDetails
+                          primaryDamage={log.logDetails.primaryDamage}
+                          additionalDamage={log.logDetails.additionalDamage}
+                          damageTaken={log.logDetails.damageTaken}
+                          healing={log.logDetails.healing}
+                          shields={log.logDetails.shields}
+                        />
                       )}
 
-                      {/* 後方互換性: hitDetails */}
-                      {!log.logDetails?.primaryDamage && log.hitDetails && log.hitDetails.length > 0 && (
+                      {/* 後方互換性: hitDetails のみある場合 */}
+                      {!log.logDetails?.primaryDamage && !log.logDetails?.additionalDamage && log.hitDetails && log.hitDetails.length > 0 && (
                         <div>
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">ヒット詳細:</div>
                           <HitDetailsRow hitDetails={log.hitDetails} />
                         </div>
                       )}
 
-                      {/* 付加ダメージ */}
-                      {log.logDetails?.additionalDamage && (
-                        <AdditionalDamageDetails entries={log.logDetails.additionalDamage} />
-                      )}
-
-                      {/* 被ダメージ */}
-                      {log.logDetails?.damageTaken && (
-                        <DamageTakenDetails entries={log.logDetails.damageTaken} />
-                      )}
-
-                      {/* 回復 */}
-                      {log.logDetails?.healing && (
-                        <HealingDetails entries={log.logDetails.healing} />
-                      )}
-
-                      {/* シールド */}
-                      {log.logDetails?.shields && (
-                        <ShieldDetails entries={log.logDetails.shields} />
-                      )}
+                      {/* 被ダメージ、回復、シールドは UnifiedActionDetails に統合されたため削除 */}
 
                       {/* 装備効果 */}
                       {log.logDetails?.equipmentEffects && (
                         <EquipmentEffectDetails entries={log.logDetails.equipmentEffects} />
                       )}
+
+                      {/* 効果・ステータス詳細（トグル） */}
+                      {(log.sourceEffects || log.targetEffects || (log.activeEffects && log.activeEffects.length > 0)) && (
+                        <details className="mt-2 p-2 bg-gray-100 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
+                          <summary className="cursor-pointer font-semibold text-sm text-gray-700 dark:text-gray-300 select-none">
+                            ステータス・効果詳細
+                          </summary>
+                          <div className="mt-2 pl-2">
+                            {/* 新しい表示形式: 分割表示 */}
+                            {log.sourceEffects || log.targetEffects ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Source Effects */}
+                                <div className="bg-gray-100/50 dark:bg-gray-700/30 p-2 rounded border border-gray-200 dark:border-gray-700">
+                                  <EffectList
+                                    effects={log.sourceEffects || []}
+                                    title="自身 (Source)"
+                                    stats={log.sourceFinalStats || log.statTotals?.source}
+                                    emptyMessage="自身へのバフなし"
+                                    statsTitle={log.sourceFinalStats ? "📊 ステータス:" : "📊 バフ合計:"}
+                                  />
+                                </div>
+
+                                {/* Target Effects */}
+                                <div className="bg-gray-100/50 dark:bg-gray-700/30 p-2 rounded border border-gray-200 dark:border-gray-700">
+                                  <EffectList
+                                    effects={log.targetEffects || []}
+                                    title="対象 (Target)"
+                                    stats={log.targetFinalStats || log.statTotals?.target}
+                                    emptyMessage="ターゲットへのデバフなし"
+                                    statsTitle={log.targetFinalStats ? "📊 ステータス:" : "📊 バフ合計:"}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              /* 後方互換性: 旧表示形式 */
+                              <div className="flex flex-wrap gap-2 min-h-[24px] items-center">
+                                <span className="font-semibold">効果:</span>
+                                {log.activeEffects && log.activeEffects.length > 0 ? (
+                                  log.activeEffects.map((e, i) => (
+                                    <span key={i} className="bg-gray-200 dark:bg-gray-700 px-1 rounded flex items-center gap-1">
+                                      {e.owner && <span className="text-gray-500 dark:text-gray-400">[From: {e.owner}]</span>}
+                                      <span>{e.name}</span>
+                                      <span className="text-gray-500 dark:text-gray-400">({typeof e.duration === 'number' ? `残${e.duration}T` : '∞'})</span>
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-400 italic">なし</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      )}
                     </td>
                   </tr>
                 )}
-
-                {/* 効果行 */}
-                <tr className="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                  <td colSpan={13} className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
-                    {/* 新しい表示形式: 分割表示 */}
-                    {log.sourceEffects || log.targetEffects ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Source Effects */}
-                        <div className="bg-gray-100/50 dark:bg-gray-700/30 p-2 rounded border border-gray-200 dark:border-gray-700">
-                          <EffectList
-                            effects={log.sourceEffects || []}
-                            title="自身 (Source)"
-                            stats={log.sourceFinalStats || log.statTotals?.source}
-                            emptyMessage="自身へのバフなし"
-                            statsTitle={log.sourceFinalStats ? "📊 ステータス:" : "📊 バフ合計:"}
-                          />
-                        </div>
-
-                        {/* Target Effects */}
-                        <div className="bg-gray-100/50 dark:bg-gray-700/30 p-2 rounded border border-gray-200 dark:border-gray-700">
-                          <EffectList
-                            effects={log.targetEffects || []}
-                            title="対象 (Target)"
-                            stats={log.targetFinalStats || log.statTotals?.target}
-                            emptyMessage="ターゲットへのデバフなし"
-                            statsTitle={log.targetFinalStats ? "📊 ステータス:" : "📊 バフ合計:"}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      /* 後方互換性: 旧表示形式 */
-                      <div className="flex flex-wrap gap-2 min-h-[24px] items-center">
-                        <span className="font-semibold">効果:</span>
-                        {log.activeEffects && log.activeEffects.length > 0 ? (
-                          log.activeEffects.map((e, i) => (
-                            <span key={i} className="bg-gray-200 dark:bg-gray-700 px-1 rounded flex items-center gap-1">
-                              {e.owner && <span className="text-gray-500 dark:text-gray-400">[From: {e.owner}]</span>}
-                              <span>{e.name}</span>
-                              <span className="text-gray-500 dark:text-gray-400">({typeof e.duration === 'number' ? `残${e.duration}T` : '∞'})</span>
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-gray-400 italic">なし</span>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
               </React.Fragment>
             );
           })}

@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { advanceAction } from '../../simulator/engine/utils';
 import { appendEquipmentEffect } from '../../simulator/engine/dispatcher';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
   id: 'eagle_of_twilight_line',
@@ -26,7 +27,7 @@ export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
           handler: (event, state, sourceUnitId) => {
             if (event.sourceId !== sourceUnitId) return state;
 
-            const unit = state.units.find(u => u.id === sourceUnitId);
+            const unit = state.registry.get(createUnitId(sourceUnitId));
             if (!unit) return state;
 
             // Action Advance 25%

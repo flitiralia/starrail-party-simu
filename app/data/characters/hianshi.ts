@@ -1,11 +1,14 @@
-
 import { Character, CharacterBaseStats } from '../../types/index';
-import { IEventHandlerLogic, GameState, Unit, IEvent } from '../../simulator/engine/types';
-import { applyUnifiedDamage, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
+import { IEventHandlerFactory, IEventHandlerLogic, GameState, IEvent, Unit, ActionEvent, GeneralEvent, DamageDealtEvent } from '../../simulator/engine/types';
+import { UnitRegistry } from '../../simulator/engine/unitRegistry';
+import { UnitId, createUnitId } from '../../simulator/engine/unitId';
+
+import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { FinalStats, Modifier } from '../../types/stats';
 import { cleanse, applyHealing } from '../../simulator/engine/utils';
-import { addEnergy } from '../../simulator/engine/energy';
+import { addEnergyToUnit } from '../../simulator/engine/energy';
+import { publishEvent } from '../../simulator/engine/dispatcher';
 import { getActiveSummon } from '../../simulator/engine/summonManager';
 import { addAccumulatedValue, getAccumulatedValue, consumeAccumulatedValue } from '../../simulator/engine/accumulator';
 import { advanceAction } from '../../simulator/engine/utils';
@@ -122,11 +125,11 @@ function createIkarunDefinition(owner: Unit): IMemorySpiritDefinition {
 
 // --- Helper: Talent Stack ---
 function addTalentStack(state: GameState, ikarunId: string, sourceId: string): GameState {
-    const ikarun = state.units.find(u => u.id === ikarunId);
+    const ikarun = state.registry.get(createUnitId(ikarunId));
     if (!ikarun) return state;
 
     const stackName = '世界療しの曙光';
-    const existing = ikarun.effects.find(e => e.id === `talent-stack-${ikarunId}`);
+    const existing = ikarun.effects.find(e => e.id === `talent - stack - ${ikarunId} `);
     let stacks = 0;
     if (existing) {
         stacks = (existing as any).value || 0;
@@ -136,7 +139,7 @@ function addTalentStack(state: GameState, ikarunId: string, sourceId: string): G
         stacks++;
         state = removeEffect(state, ikarunId, existing?.id || '');
         state = addEffect(state, ikarunId, {
-            id: `talent-stack-${ikarunId}`,
+            id: `talent - stack - ${ikarunId} `,
             name: stackName,
             category: 'BUFF',
             type: 'Buff',
@@ -154,12 +157,10 @@ function addTalentStack(state: GameState, ikarunId: string, sourceId: string): G
 
 // --- Helper: Reduce Ikarun Duration ---
 function reduceIkarunDuration(state: GameState, ikarunId: string): GameState {
-    const ikarunIndex = state.units.findIndex(u => u.id === ikarunId);
-    if (ikarunIndex === -1) return state;
+    const ikarun = state.registry.get(createUnitId(ikarunId));
+    if (!ikarun) return state;
 
     let newState = state;
-    const ikarun = newState.units[ikarunIndex];
-
     const expirations: string[] = [];
     const updatedEffects = ikarun.effects.map(e => {
         if (typeof e.duration === 'number' && e.duration > 0) {
@@ -172,10 +173,9 @@ function reduceIkarunDuration(state: GameState, ikarunId: string): GameState {
         return e;
     });
 
-    const updatedIkarun = { ...ikarun, effects: updatedEffects };
     newState = {
         ...newState,
-        units: newState.units.map(u => u.id === ikarunId ? updatedIkarun : u)
+        registry: newState.registry.update(createUnitId(ikarunId), u => ({ ...u, effects: updatedEffects }))
     };
 
     for (const effId of expirations) {
@@ -187,9 +187,9 @@ function reduceIkarunDuration(state: GameState, ikarunId: string): GameState {
 
 // --- Logic ---
 
-const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
-    const source = state.units.find(u => u.id === sourceUnitId);
+    const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
     let newState = state;
@@ -202,7 +202,7 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): Gam
     // 新規召喚時の追加処理
     if (summonResult.isNew) {
         // 初回召喚EP追加
-        const isFirst = !source.effects.some(e => e.id === `first-${source.id}`);
+        const isFirst = !source.effects.some(e => e.id === `first - ${source.id} `);
         let epGain = 15;
         if (isFirst) {
             epGain += 30;
@@ -212,21 +212,24 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): Gam
                 category: 'OTHER' as any,
                 duration: -1,
                 durationType: 'PERMANENT',
-                id: `first-${source.id}`,
+                id: `first - ${source.id} `,
                 sourceUnitId: source.id,
                 apply: (t: Unit, s: GameState) => s,
                 remove: (t: Unit, s: GameState) => s,
                 modifiers: []
             });
         }
-        newState = { ...newState, units: newState.units.map(u => u.id === source.id ? addEnergy(u, 0, epGain) : u) };
+        newState = addEnergyToUnit(newState, source.id, 0, epGain, false, {
+            sourceId: source.id,
+            publishEventFn: publishEvent
+        });
 
         // E6: イカルン存在時、味方全体の全属性耐性貫通+20%
         if ((source.eidolonLevel || 0) >= 6) {
-            const allies = newState.units.filter(u => !u.isEnemy);
+            const allies = newState.registry.getAliveAllies();
             allies.forEach(ally => {
                 newState = addEffect(newState, ally.id, {
-                    id: `e6-res-pen-${ally.id}`,
+                    id: `e6 - res - pen - ${ally.id} `,
                     name: 'E6 全属性耐性貫通',
                     category: 'BUFF',
                     type: 'Buff',
@@ -243,7 +246,7 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): Gam
         // 微笑む暗雲: イカルンにも会心率+100%
         if (source.traces?.some(t => t.name === '微笑む暗雲')) {
             newState = addEffect(newState, ikarun.id, {
-                id: `trace-smiling-dark-cloud-ikarun-${ikarun.id}`,
+                id: `trace - smiling - dark - cloud - ikarun - ${ikarun.id} `,
                 name: '微笑む暗雲 (イカルン)',
                 category: 'BUFF',
                 type: 'Buff',
@@ -258,56 +261,69 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): Gam
     }
 
     // Refresh ikarun reference from state
-    ikarun = newState.units.find(u => u.id === ikarun.id)!;
+    ikarun = newState.registry.get(createUnitId(ikarun.id))!;
 
     // 2. Clear Debuff
     if (source.traces?.some(t => t.name === '優しい雷雨')) {
-        newState.units.filter(u => !u.isEnemy).forEach(u => {
+        newState.registry.getAliveAllies().forEach(u => {
             newState = cleanse(newState, u.id, 1);
         });
     }
 
     // 3. Heal Allies
-    const allies = newState.units.filter(u => !u.isEnemy && u.id !== ikarun.id);
+    const allies = newState.registry.getAliveAllies().filter(u => u.id !== ikarun.id);
 
-    let healBonusMult = 1.0;
+    // 速度ブースト計算
+    let baseMultiplier = 1.0;
     if (source.traces?.some(t => t.name === '凪いだ暴風')) {
         const excess = Math.max(0, Math.min(source.stats.spd - 200, 200));
-        healBonusMult += (excess * 0.01);
+        baseMultiplier += (excess * 0.01);
     }
 
     // E5でスキルLv+2 → Lv12の回復値を使用 (非標準パターン)
     const skillLevel = (source.eidolonLevel || 0) >= 5 ? 12 : 10;
     const skillHealAlly = getLeveledValue(ABILITY_VALUES.skillHealAlly, skillLevel);
     const skillHealIkarun = getLeveledValue(ABILITY_VALUES.skillHealIkarun, skillLevel);
-    const healAllyBase = (skillHealAlly.pct * source.stats.hp + skillHealAlly.flat) * healBonusMult;
-    const healIkarunBase = (skillHealIkarun.pct * source.stats.hp + skillHealIkarun.flat) * healBonusMult;
 
     // Execute Heal
     allies.forEach(ally => {
-        let amount = healAllyBase;
-        if (source.traces?.some(t => t.name === '微笑む暗雲') && (ally.hp / ally.stats.hp) <= 0.5) amount *= 1.25;
+        // 微笑む暗雲: HP50%以下の味方に回復量+25%
+        const finalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (ally.hp / ally.stats.hp) <= 0.5) ? 1.25 : 1.0;
 
-        const detail = `戦闘スキル: 味方回復 (回復量: ${amount.toFixed(0)})`;
-        newState = applyHealing(newState, source.id, ally.id, amount, detail, true);
-        newState = addAccumulatedValue(newState, source.id, 'healing', amount);
+        newState = applyHealing(newState, source.id, ally.id, {
+            scaling: 'hp',
+            multiplier: skillHealAlly.pct,
+            flat: skillHealAlly.flat,
+            baseMultiplier,
+            finalMultiplier
+        }, '戦闘スキル: 味方回復', true);
+
+        // 蓄積値は実際の回復量を計算して追加
+        const healAmount = (skillHealAlly.pct * source.stats.hp + skillHealAlly.flat) * baseMultiplier * finalMultiplier;
+        newState = addAccumulatedValue(newState, source.id, 'healing', healAmount);
         newState = addTalentStack(newState, ikarun.id, source.id);
     });
 
     // Heal Ikarun
-    let amountIk = healIkarunBase;
-    if (source.traces?.some(t => t.name === '微笑む暗雲') && (ikarun.hp / ikarun.stats.hp) <= 0.5) amountIk *= 1.25;
-    const detailIk = `戦闘スキル: イカルン回復 (回復量: ${amountIk.toFixed(0)})`;
-    newState = applyHealing(newState, source.id, ikarun.id, amountIk, detailIk, true);
-    newState = addAccumulatedValue(newState, source.id, 'healing', amountIk);
+    const ikarunFinalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (ikarun.hp / ikarun.stats.hp) <= 0.5) ? 1.25 : 1.0;
+    newState = applyHealing(newState, source.id, ikarun.id, {
+        scaling: 'hp',
+        multiplier: skillHealIkarun.pct,
+        flat: skillHealIkarun.flat,
+        baseMultiplier,
+        finalMultiplier: ikarunFinalMultiplier
+    }, '戦闘スキル: イカルン回復', true);
+
+    const ikarunHealAmount = (skillHealIkarun.pct * source.stats.hp + skillHealIkarun.flat) * baseMultiplier * ikarunFinalMultiplier;
+    newState = addAccumulatedValue(newState, source.id, 'healing', ikarunHealAmount);
     newState = addTalentStack(newState, ikarun.id, source.id);
 
     return newState;
 };
 
-const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
-    const source = state.units.find(u => u.id === sourceUnitId);
+    const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
     let newState = state;
@@ -318,42 +334,56 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string): 
     let ikarun = summonResult.spirit;
 
     // Refresh ikarun reference from state
-    ikarun = newState.units.find(u => u.id === ikarun.id)!;
+    ikarun = newState.registry.get(createUnitId(ikarun.id))!;
 
     if (source.traces?.some(t => t.name === '優しい雷雨')) {
-        newState.units.filter(u => !u.isEnemy).forEach(u => newState = cleanse(newState, u.id, 1));
+        newState.registry.getAliveAllies().forEach(u => newState = cleanse(newState, u.id, 1));
     }
 
-    const allies = newState.units.filter(u => !u.isEnemy && u.id !== ikarun.id);
-    let healBonusMult = 1.0;
+    const allies = newState.registry.getAliveAllies().filter(u => u.id !== ikarun.id);
+
+    // 速度ブースト計算
+    let baseMultiplier = 1.0;
     if (source.traces?.some(t => t.name === '凪いだ暴風')) {
         const excess = Math.max(0, Math.min(source.stats.spd - 200, 200));
-        healBonusMult += (excess * 0.01);
+        baseMultiplier += (excess * 0.01);
     }
     // E3で必殺技Lv+2 → Lv12の回復値を使用 (非標準パターン)
     const ultLevel = (source.eidolonLevel || 0) >= 3 ? 12 : 10;
     const ultHealAlly = getLeveledValue(ABILITY_VALUES.ultHealAlly, ultLevel);
     const ultHealIkarun = getLeveledValue(ABILITY_VALUES.ultHealIkarun, ultLevel);
-    const healAllyBase = (ultHealAlly.pct * source.stats.hp + ultHealAlly.flat) * healBonusMult;
-    const healIkarunBase = (ultHealIkarun.pct * source.stats.hp + ultHealIkarun.flat) * healBonusMult;
 
     allies.forEach(ally => {
-        let amount = healAllyBase;
-        if (source.traces?.some(t => t.name === '微笑む暗雲') && (ally.hp / ally.stats.hp) <= 0.5) amount *= 1.25;
-        const detail = `必殺技: 味方回復 (回復量: ${amount.toFixed(0)})`;
-        newState = applyHealing(newState, source.id, ally.id, amount, detail, true);
-        newState = addAccumulatedValue(newState, source.id, 'healing', amount);
+        // 微笑む暗雲: HP50%以下の味方に回復量+25%
+        const finalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (ally.hp / ally.stats.hp) <= 0.5) ? 1.25 : 1.0;
+
+        newState = applyHealing(newState, source.id, ally.id, {
+            scaling: 'hp',
+            multiplier: ultHealAlly.pct,
+            flat: ultHealAlly.flat,
+            baseMultiplier,
+            finalMultiplier
+        }, '必殺技: 味方回復', true);
+
+        const healAmount = (ultHealAlly.pct * source.stats.hp + ultHealAlly.flat) * baseMultiplier * finalMultiplier;
+        newState = addAccumulatedValue(newState, source.id, 'healing', healAmount);
         newState = addTalentStack(newState, ikarun.id, source.id);
     });
 
-    let amountIk = healIkarunBase;
-    if (source.traces?.some(t => t.name === '微笑む暗雲') && (ikarun.hp / ikarun.stats.hp) <= 0.5) amountIk *= 1.25;
-    const detailIk = `必殺技: イカルン回復 (回復量: ${amountIk.toFixed(0)})`;
-    newState = applyHealing(newState, source.id, ikarun.id, amountIk, detailIk, true);
-    newState = addAccumulatedValue(newState, source.id, 'healing', amountIk);
+    const ikarunFinalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (ikarun.hp / ikarun.stats.hp) <= 0.5) ? 1.25 : 1.0;
+    newState = applyHealing(newState, source.id, ikarun.id, {
+        scaling: 'hp',
+        multiplier: ultHealIkarun.pct,
+        flat: ultHealIkarun.flat,
+        baseMultiplier,
+        finalMultiplier: ikarunFinalMultiplier
+    }, '必殺技: イカルン回復', true);
+
+    const ikarunHealAmount = (ultHealIkarun.pct * source.stats.hp + ultHealIkarun.flat) * baseMultiplier * ikarunFinalMultiplier;
+    newState = addAccumulatedValue(newState, source.id, 'healing', ikarunHealAmount);
     newState = addTalentStack(newState, ikarun.id, source.id);
 
-    const afterRainId = `after-rain-${source.id}`;
+    const afterRainId = `after - rain - ${source.id} `;
     newState = addEffect(newState, source.id, {
         id: afterRainId,
         name: '雨上がり',
@@ -369,11 +399,10 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string): 
     const e1 = (source.eidolonLevel || 0) >= 1;
     const hpBuffPct = ULT_MAX_HP_BUFF_PCT * (e1 ? 1.5 : 1.0);
     const hpBuffFlat = ULT_MAX_HP_BUFF_FLAT * (e1 ? 1.5 : 1.0);
-
-    const allAllies = newState.units.filter(u => !u.isEnemy);
+    const allAllies = newState.registry.getAliveAllies();
     allAllies.forEach(u => {
         newState = addEffect(newState, u.id, {
-            id: `rain-hp-buff-${u.id}`,
+            id: `rain - hp - buff - ${u.id} `,
             name: 'HPバフ (雨上がり)',
             category: 'BUFF',
             type: 'Buff',
@@ -392,8 +421,8 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string): 
     return newState;
 };
 
-const onActionComplete = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
-    const source = state.units.find(u => u.id === sourceUnitId);
+const onActionComplete = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
+    const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
     // 1. Auto Skill Logic (Hianshi's After Rain)
@@ -408,8 +437,7 @@ const onActionComplete = (event: IEvent, state: GameState, sourceUnitId: string)
                 let newState = state;
                 const accHeal = getAccumulatedValue(newState, sourceUnitId, 'healing');
                 const dmg = accHeal * SPIRIT_SKILL_DMG_PCT;
-
-                const enemies = newState.units.filter(u => u.isEnemy);
+                const enemies = newState.registry.getAliveEnemies();
                 enemies.forEach(e => {
                     newState = applyUnifiedDamage(newState, ikarun!, e, dmg, {
                         damageType: 'スキル',
@@ -450,59 +478,77 @@ const onActionComplete = (event: IEvent, state: GameState, sourceUnitId: string)
     return state;
 };
 
-const onDamageDealt = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
-    const source = state.units.find(u => u.id === sourceUnitId);
+const onDamageDealt = (event: DamageDealtEvent, state: GameState, sourceUnitId: string): GameState => {
+    const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
     let newState = state;
 
     // E1: 雨上がり状態で味方が攻撃後HP8%回復
     if ((source.eidolonLevel || 0) >= 1) {
-        const afterRain = source.effects.find(e => e.id === `after-rain-${source.id}`);
-        const attacker = state.units.find(u => u.id === event.sourceId);
+        const afterRain = source.effects.find(e => e.id === `after - rain - ${source.id} `);
+        const attacker = state.registry.get(createUnitId(event.sourceId));
         if (afterRain && attacker && !attacker.isEnemy && attacker.id !== sourceUnitId) {
-            const healAmount = source.stats.hp * 0.08;
-            const detail = `E1 攻撃後回復 (${healAmount.toFixed(0)})`;
-            newState = applyHealing(newState, source.id, attacker.id, healAmount, detail, true);
+            newState = applyHealing(newState, source.id, attacker.id, {
+                scaling: 'hp',
+                multiplier: 0.08,
+                flat: 0
+            }, 'E1 攻撃後回復', true);
         }
     }
 
     // 精霊天賦: リアクティブヒール
-    if (event.targetId && newState.units.some(u => u.id === event.targetId && !u.isEnemy && u.id !== `${SUMMON_ID_PREFIX}-${sourceUnitId}`)) {
+    if (event.targetId && newState.registry.toArray().some(u => u.id === event.targetId && !u.isEnemy && u.id !== `${SUMMON_ID_PREFIX} -${sourceUnitId} `)) {
         const ikarun = getActiveSummon(newState, sourceUnitId, SUMMON_ID_PREFIX);
 
         if (ikarun) {
             const cost = ikarun.stats.hp * SPIRIT_TALENT_COST_PCT;
             if (ikarun.hp > cost) {
-                let newState = { ...state, units: state.units.map(u => u.id === ikarun.id ? { ...u, hp: u.hp - cost } : u) };
+                // HPコスト消費: updateUnitを使用
+                let newState = {
+                    ...state,
+                    registry: state.registry.update(createUnitId(ikarun.id), u => ({ ...u, hp: ikarun.hp - cost }))
+                };
 
-                const source = state.units.find(u => u.id === sourceUnitId)!;
-                let healBonusMult = 1.0;
+                const source = state.registry.get(createUnitId(sourceUnitId))!;
+                // 速度ブースト計算
+                let baseMultiplier = 1.0;
                 if (source.traces?.some(t => t.name === '凪いだ暴風')) {
                     const excess = Math.max(0, Math.min(source.stats.spd - 200, 200));
-                    healBonusMult += (excess * 0.01);
+                    baseMultiplier += (excess * 0.01);
                 }
-                const healAmt = (SPIRIT_TALENT_HEAL_PCT * source.stats.hp + SPIRIT_TALENT_HEAL_FLAT) * healBonusMult;
 
-                const target = newState.units.find(u => u.id === event.targetId);
+                const target = newState.registry.get(createUnitId(event.targetId));
                 if (target) {
-                    let finalHeal = healAmt;
-                    if (source.traces?.some(t => t.name === '微笑む暗雲') && (target.hp / target.stats.hp) <= 0.5) finalHeal *= 1.25;
+                    // 微笑む暗雲: HP50%以下の味方に回復量+25%
+                    const finalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (target.hp / target.stats.hp) <= 0.5) ? 1.25 : 1.0;
 
-                    const detail = `リアクティブヒール (回復量: ${finalHeal.toFixed(0)})`;
-                    newState = applyHealing(newState, ikarun.id, target.id, finalHeal, detail, true);
+                    newState = applyHealing(newState, ikarun.id, target.id, {
+                        scaling: 'hp',
+                        multiplier: SPIRIT_TALENT_HEAL_PCT,
+                        flat: SPIRIT_TALENT_HEAL_FLAT,
+                        baseMultiplier,
+                        finalMultiplier
+                    }, 'リアクティブヒール', true);
 
-                    const allies = newState.units.filter(u => !u.isEnemy);
+                    const allies = newState.registry.getAliveAllies();
                     allies.forEach(a => {
-                        let aHeal = healAmt;
-                        if (source.traces?.some(t => t.name === '微笑む暗雲') && (a.hp / a.stats.hp) <= 0.5) aHeal *= 1.25;
-                        newState = { ...newState, units: newState.units.map(u => u.id === a.id ? { ...u, hp: Math.min(u.hp + aHeal, u.stats.hp) } : u) };
+                        const allyFinalMultiplier = (source.traces?.some(t => t.name === '微笑む暗雲') && (a.hp / a.stats.hp) <= 0.5) ? 1.25 : 1.0;
+
+                        // 本来applyHealingを使うべきだが、元コードに合わせてHP直接加算
+                        const baseHeal = source.stats.hp * SPIRIT_TALENT_HEAL_PCT + SPIRIT_TALENT_HEAL_FLAT;
+                        const aHeal = baseHeal * baseMultiplier * allyFinalMultiplier;
+                        const newHp = Math.min(a.hp + aHeal, a.stats.hp);
+                        newState = {
+                            ...newState,
+                            registry: newState.registry.update(createUnitId(a.id), u => ({ ...u, hp: newHp }))
+                        };
                     });
 
                     if ((source.eidolonLevel || 0) >= 2) {
                         const tId = event.targetId!;
                         newState = addEffect(newState, tId, {
-                            id: `e2-spd-${tId}-${Date.now()}`, name: 'E2 速度アップ', category: 'BUFF', type: 'Buff', sourceUnitId: source.id, duration: 2, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
+                            id: `e2 - spd - ${tId} -${Date.now()} `, name: 'E2 速度アップ', category: 'BUFF', type: 'Buff', sourceUnitId: source.id, duration: 2, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
                             modifiers: [{ target: 'spd_pct', value: 0.30, type: 'add', source: 'E2' }], apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
                         });
                     }
@@ -553,7 +599,7 @@ export const Hianshi: Character = {
     },
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'memorys-curtain-never-falls',
+        lightConeId: 'so-the-rainbow-doesnt-fade',
         superimposition: 1,
         relicSetId: 'warlord_of_blazing_sun_and_thunderous_roar',
         ornamentSetId: 'giant_tree_immersed_in_deep_thought',
@@ -567,7 +613,7 @@ export const Hianshi: Character = {
             { stat: 'spd', value: 25 },
             { stat: 'hp_pct', value: 0.388 },
             { stat: 'crit_dmg', value: 0.648 },
-            { stat: 'hp', value: 300 },
+            { stat: 'effect_res', value: 0.20 },
         ],
         rotation: ['s', 'b', 'b'],
         rotationMode: 'sequence',
@@ -578,7 +624,7 @@ export const Hianshi: Character = {
 
 const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
     // Note: ON_BATTLE_START has sourceId='system', so do not check event.sourceId === handlerId
-    const source = state.units.find(u => u.id === handlerId);
+    const source = state.registry.get(createUnitId(handlerId));
     if (!source) return state;
 
     let newState = state;
@@ -588,7 +634,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
     // 1. 微笑む暗雲: Crit Rate +100%
     if (source.traces?.some(t => t.name === '微笑む暗雲')) {
         newState = addEffect(newState, source.id, {
-            id: `trace-smiling-dark-cloud-${source.id}`,
+            id: `trace - smiling - dark - cloud - ${source.id} `,
             name: '微笑む暗雲 (パッシブ)',
             category: 'BUFF',
             type: 'Buff',
@@ -603,7 +649,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
     // 2. 優しい雷雨: Effect Res +50%
     if (source.traces?.some(t => t.name === '優しい雷雨')) {
         newState = addEffect(newState, source.id, {
-            id: `trace-gentle-thunderstorm-${source.id}`,
+            id: `trace - gentle - thunderstorm - ${source.id} `,
             name: '優しい雷雨 (パッシブ)',
             category: 'BUFF',
             type: 'Buff',
@@ -622,7 +668,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
 
             // HP +20% for Hianshi
             newState = addEffect(newState, source.id, {
-                id: `trace-calm-storm-${source.id}`,
+                id: `trace - calm - storm - ${source.id} `,
                 name: '凪いだ暴風 (パッシブ)',
                 category: 'BUFF',
                 type: 'Buff',
@@ -637,7 +683,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
             if ((source.eidolonLevel || 0) >= 4) {
                 const critDmgBonus = excessSpd * 0.02;
                 newState = addEffect(newState, source.id, {
-                    id: `e4-calm-storm-${source.id}`,
+                    id: `e4 - calm - storm - ${source.id} `,
                     name: 'E4 凪いだ暴風強化',
                     category: 'BUFF',
                     type: 'Buff',
@@ -666,14 +712,17 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
         const hpBuffPct = 0.20;
         const hpBuffFlat = 0;
 
-        const allies = newState.units.filter(u => !u.isEnemy);
+        const allies = newState.registry.getAliveAllies();
 
         allies.forEach(ally => {
-            const detail = `秘技「お日様ぽかぽか」: 回復`;
-            newState = applyHealing(newState, source.id, ally.id, healBase, detail, true);
+            newState = applyHealing(newState, source.id, ally.id, {
+                scaling: 'hp',
+                multiplier: techHealPct,
+                flat: techHealFlat
+            }, '秘技「お日様ぽかぽか」: 回復', true);
 
             newState = addEffect(newState, ally.id, {
-                id: `sunny-everyone-hp-${ally.id}`,
+                id: `sunny - everyone - hp - ${ally.id} `,
                 name: 'HPバフ (お日様ぽかぽか)',
                 category: 'BUFF',
                 type: 'Buff',
@@ -701,19 +750,19 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
     return newState;
 };
 
-const onUnitDeath = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onUnitDeath = (event: GeneralEvent, state: GameState, sourceUnitId: string): GameState => {
     // Check if the dead unit is Ikarun related to this Hianshi
     if (!event.targetId) return state;
 
     // Check if it's Ikarun (Summon or Party Member)
     // Party Member ID: 'ikarun'
     // Summon ID: 'ikarun-hianshi' (prefix + sourceId)
-    const isIkarun = event.targetId === 'ikarun' || event.targetId === `${SUMMON_ID_PREFIX}-${sourceUnitId}`;
+    const isIkarun = event.targetId === 'ikarun' || event.targetId === `${SUMMON_ID_PREFIX} -${sourceUnitId} `;
 
     if (isIkarun) {
         // Hianshi Action Advance 30%
         // Verify sourceUnitId is Hianshi
-        const hianshi = state.units.find(u => u.id === sourceUnitId);
+        const hianshi = state.registry.get(createUnitId(sourceUnitId));
         if (hianshi) {
             let newState = advanceAction(state, sourceUnitId, 0.30);
             newState.log.push({
@@ -730,7 +779,7 @@ const onUnitDeath = (event: IEvent, state: GameState, sourceUnitId: string): Gam
 };
 
 const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
-    const source = state.units.find(u => u.id === handlerId);
+    const source = state.registry.get(createUnitId(handlerId));
     if (!source) return state;
     if (!source.traces?.some(t => t.name === '凪いだ暴風')) return state;
 
@@ -739,10 +788,10 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
     const excessSpd = conditionMet ? Math.min(source.stats.spd - 200, 200) : 0;
 
     // ヒアンシー用バフの管理
-    const hianshiBuff = source.effects.find(e => e.id === `trace-calm-storm-${source.id}`);
+    const hianshiBuff = source.effects.find(e => e.id === `trace - calm - storm - ${source.id} `);
     if (conditionMet && !hianshiBuff) {
         newState = addEffect(newState, source.id, {
-            id: `trace-calm-storm-${source.id}`,
+            id: `trace - calm - storm - ${source.id} `,
             name: '凪いだ暴風 (パッシブ)',
             category: 'BUFF',
             type: 'Buff',
@@ -757,12 +806,14 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
     }
 
     // E4: ヒアンシー用会心ダメージバフの管理
-    const hianshiE4Buff = newState.units.find(u => u.id === source.id)?.effects.find(e => e.id === `e4-calm-storm-${source.id}`);
+    // effects取得方法を修正
+    const sourceUnit = newState.registry.get(createUnitId(source.id));
+    const hianshiE4Buff = sourceUnit?.effects.find(e => e.id === `e4 - calm - storm - ${source.id} `);
     if ((source.eidolonLevel || 0) >= 4) {
         if (conditionMet && !hianshiE4Buff) {
             const critDmgBonus = excessSpd * 0.02;
             newState = addEffect(newState, source.id, {
-                id: `e4-calm-storm-${source.id}`,
+                id: `e4 - calm - storm - ${source.id} `,
                 name: 'E4 凪いだ暴風強化',
                 category: 'BUFF',
                 type: 'Buff',
@@ -780,10 +831,10 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
     // イカルン用バフの管理
     const ikarun = getActiveSummon(newState, source.id, SUMMON_ID_PREFIX);
     if (ikarun) {
-        const ikarunBuff = ikarun.effects.find(e => e.id === `trace-calm-storm-ikarun-${ikarun.id}`);
+        const ikarunBuff = ikarun.effects.find(e => e.id === `trace - calm - storm - ikarun - ${ikarun.id} `);
         if (conditionMet && !ikarunBuff) {
             newState = addEffect(newState, ikarun.id, {
-                id: `trace-calm-storm-ikarun-${ikarun.id}`,
+                id: `trace - calm - storm - ikarun - ${ikarun.id} `,
                 name: '凪いだ暴風 (イカルン)',
                 category: 'BUFF',
                 type: 'Buff',
@@ -798,13 +849,13 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
         }
 
         // E4: イカルン用会心ダメージバフの管理
-        const updatedIkarun = newState.units.find(u => u.id === ikarun.id);
-        const ikarunE4Buff = updatedIkarun?.effects.find(e => e.id === `e4-calm-storm-ikarun-${ikarun.id}`);
+        const updatedIkarun = newState.registry.get(createUnitId(ikarun.id));
+        const ikarunE4Buff = updatedIkarun?.effects.find(e => e.id === `e4 - calm - storm - ikarun - ${ikarun.id} `);
         if ((source.eidolonLevel || 0) >= 4) {
             if (conditionMet && !ikarunE4Buff) {
                 const critDmgBonus = excessSpd * 0.02;
                 newState = addEffect(newState, ikarun.id, {
-                    id: `e4-calm-storm-ikarun-${ikarun.id}`,
+                    id: `e4 - calm - storm - ikarun - ${ikarun.id} `,
                     name: 'E4 凪いだ暴風強化 (イカルン)',
                     category: 'BUFF',
                     type: 'Buff',
@@ -826,7 +877,7 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
 export const hianshiHandlerFactory: import('../../simulator/engine/types').IEventHandlerFactory = (sourceUnitId, level, eidolonLevel = 0) => {
     return {
         handlerMetadata: {
-            id: `hianshi-handler-${sourceUnitId}`,
+            id: `hianshi - handler - ${sourceUnitId} `,
             subscribesTo: ['ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ACTION_COMPLETE', 'ON_DAMAGE_DEALT', 'ON_BATTLE_START', 'ON_UNIT_DEATH', 'ON_TURN_START']
         },
         handlerLogic: (event, state, handlerId) => {

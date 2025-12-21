@@ -1,5 +1,6 @@
 import { OrnamentSet } from '../../types';
 import { advanceAction } from '../../simulator/engine/utils';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const SPRIGHTLY_VONWACQ: OrnamentSet = {
   id: 'sprightly_vonwacq',
@@ -19,7 +20,7 @@ export const SPRIGHTLY_VONWACQ: OrnamentSet = {
         {
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
-            const unit = state.units.find(u => u.id === sourceUnitId);
+            const unit = state.registry.get(createUnitId(sourceUnitId));
             if (!unit) return state;
 
             // 速度120以上の場合、行動順40%加速

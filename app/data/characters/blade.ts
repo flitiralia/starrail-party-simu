@@ -1,15 +1,35 @@
 import { Character, StatKey } from '../../types/index';
-import { IEventHandlerFactory, IEvent, GameState, Unit } from '../../simulator/engine/types';
+import { IEventHandlerFactory, IEvent, GameState, Unit, DamageDealtEvent, ActionEvent, HealEvent, FollowUpAttackAction, HpConsumeEvent } from '../../simulator/engine/types';
+import { UnitId, createUnitId } from '../../simulator/engine/unitId';
+
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, appendDamageTaken, initializeCurrentActionLog, extractBuffsForLogWithAuras } from '../../simulator/engine/dispatcher';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
-import { applyHealing } from '../../simulator/engine/utils';
-import { getLeveledValue } from '../../simulator/utils/abilityLevel';
-import { calculateHeal } from '../../simulator/damage';
+import { publishEvent } from '../../simulator/engine/dispatcher';
+import { applyHealing, consumeHp } from '../../simulator/engine/utils';
+import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
+import { calculateHeal, calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
+import { recalculateUnitStats } from '../../simulator/statBuilder';
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'blade';
+
+const EFFECT_IDS = {
+    LOST_HP: 'blade-lost-hp',
+    CHARGES: 'blade-charges',
+    HELLSCAPE: 'blade-hellscape',
+    E2_CRIT: 'blade-e2-crit',
+    E4_HP_BOOST: 'blade-e4-hpboost',
+    A4_HEAL_BOOST: 'blade-a4-heal-boost',
+    A6_TALENT_DMG: 'blade-a6-talent-dmg',
+};
+
+const TRACE_IDS = {
+    A2_LIFESPAN: 'blade-trace-a2',
+    A4_ENDURANCE: 'blade-trace-a4',
+    A6_DESTRUCTION: 'blade-trace-a6',
+};
 
 // --- E3/E5パターン (非標準) ---
 // E3: 必殺技Lv+2, 天賦Lv+2
@@ -118,7 +138,7 @@ export const blade: Character = {
         spd: 97,
         critRate: 0.05,
         critDmg: 0.5,
-        aggro: 100
+        aggro: 125
     },
 
     abilities: {
@@ -154,12 +174,7 @@ export const blade: Character = {
             name: '大辟万死',
             type: 'Ultimate',
             description: 'HP50%に固定。敵単体にHP150%+失HP120%、隣接にHP60%+失HP60%ダメージ。',
-            damage: {
-                type: 'blast',
-                scaling: 'hp',
-                mainHits: [{ multiplier: 1.50, toughnessReduction: 20 }],
-                adjacentHits: [{ multiplier: 0.60, toughnessReduction: 10 }],
-            },
+            // damageはハンドラで動的に計算するため削除（失ったHP累計を参照するため）
             energyGain: ULT_EP,
             targetType: 'blast',
         },
@@ -169,15 +184,7 @@ export const blade: Character = {
             name: '倏忽の恩賜',
             type: 'Talent',
             description: 'ダメージを受ける/HP消費時にチャージ+1。5層で追加攻撃。',
-            damage: {
-                type: 'aoe',
-                scaling: 'hp',
-                hits: [
-                    { multiplier: 0.429, toughnessReduction: 3.33 },
-                    { multiplier: 0.429, toughnessReduction: 3.33 },
-                    { multiplier: 0.442, toughnessReduction: 3.34 }
-                ],
-            },
+            // damageはハンドラで動的に計算するため削除（E6: HP50%追加ダメージを実装するため）
             energyGain: TALENT_EP,
             targetType: 'all_enemies'
         },
@@ -208,19 +215,19 @@ export const blade: Character = {
 
     traces: [
         {
-            id: 'blade-trace-a2',
+            id: TRACE_IDS.A2_LIFESPAN,
             name: '無尽形寿',
             type: 'Bonus Ability',
             description: '必殺技発動時、クリアされる失ったHP累計値が50%になる。'
         },
         {
-            id: 'blade-trace-a4',
+            id: TRACE_IDS.A4_ENDURANCE,
             name: '百死耐忍',
             type: 'Bonus Ability',
             description: '回復量+20%。回復後、回復量の25%分を失ったHP累計に加算。'
         },
         {
-            id: 'blade-trace-a6',
+            id: TRACE_IDS.A6_DESTRUCTION,
             name: '壊劫滅亡',
             type: 'Bonus Ability',
             description: '天賦による追加攻撃の与ダメージ+20%、EP+15。'
@@ -302,7 +309,7 @@ export const blade: Character = {
     // デフォルト設定
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'cruising-in-the-stellar-sea',
+        lightConeId: 'the-unreachable-side',
         superimposition: 1,
         relicSetId: 'longevous_disciple',
         ornamentSetId: 'silent_ossuary',
@@ -313,10 +320,11 @@ export const blade: Character = {
             rope: 'hp_pct',
         },
         subStats: [
-            { stat: 'crit_rate', value: 0.324 },
-            { stat: 'crit_dmg', value: 0.648 },
-            { stat: 'spd', value: 12 },
-            { stat: 'effect_res', value: 0.216 },
+            { stat: 'crit_rate', value: 0.15 },
+            { stat: 'crit_dmg', value: 0.30 },
+            { stat: 'hp_pct', value: 0.15 },
+            { stat: 'atk_pct', value: 0.15 },
+            { stat: 'spd', value: 6 },
         ],
         rotationMode: 'spam_skill',
         spamSkillTriggerSp: 6,
@@ -326,52 +334,16 @@ export const blade: Character = {
 
 // --- ヘルパー関数 ---
 
-// HP消費（HPが足りない場合は1にする）
-function consumeHp(state: GameState, unitId: string, hpCostRatio: number, description: string): { state: GameState; consumed: number } {
-    const unit = state.units.find(u => u.id === unitId);
-    if (!unit) return { state, consumed: 0 };
 
-    const maxHp = unit.stats.hp;
-    const costAmount = maxHp * hpCostRatio;
-    let newHp: number;
-    let actualConsumed: number;
-
-    if (unit.hp <= costAmount) {
-        // HP不足: HP=1にする
-        actualConsumed = unit.hp - 1;
-        newHp = 1;
-    } else {
-        actualConsumed = costAmount;
-        newHp = unit.hp - costAmount;
-    }
-
-    const newState: GameState = {
-        ...state,
-        units: state.units.map(u => u.id === unitId ? { ...u, hp: newHp } : u),
-        log: [...state.log, {
-            characterName: unit.name,
-            actionTime: state.time,
-            actionType: 'HP消費',
-            skillPointsAfterAction: state.skillPoints,
-            damageDealt: 0,
-            healingDone: 0,
-            shieldApplied: 0,
-            currentEp: unit.ep,
-            details: `${description}: HP ${actualConsumed.toFixed(0)} 消費 (${(hpCostRatio * 100).toFixed(0)}%)`
-        } as any]
-    };
-
-    return { state: newState, consumed: actualConsumed };
-}
 
 // 失ったHP累計を更新
 function updateLostHp(state: GameState, unitId: string, amount: number): GameState {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return state;
 
     const maxHp = unit.stats.hp;
     const cap = maxHp * LOST_HP_CAP;
-    const effectId = `blade-lost-hp-${unitId}`;
+    const effectId = `${EFFECT_IDS.LOST_HP}-${unitId}`;
 
     const existingEffect = unit.effects.find(e => e.id === effectId);
     const currentLostHp = (existingEffect as any)?.lostHpAmount || 0;
@@ -380,12 +352,10 @@ function updateLostHp(state: GameState, unitId: string, amount: number): GameSta
     if (existingEffect) {
         // 既存エフェクトを更新
         const updatedEffect = { ...existingEffect, lostHpAmount: newLostHp, name: `失ったHP累計 (${(newLostHp / maxHp * 100).toFixed(1)}%)` } as any;
+        const newEffects = unit.effects.map(e => e.id === effectId ? updatedEffect : e);
         return {
             ...state,
-            units: state.units.map(u => u.id === unitId ? {
-                ...u,
-                effects: u.effects.map(e => e.id === effectId ? updatedEffect : e)
-            } : u)
+            registry: state.registry.update(createUnitId(unitId), u => ({ ...u, effects: newEffects }))
         };
     } else {
         // 新規エフェクト作成
@@ -406,17 +376,17 @@ function updateLostHp(state: GameState, unitId: string, amount: number): GameSta
 
 // 失ったHP累計を取得
 function getLostHp(unit: Unit): number {
-    const effect = unit.effects.find(e => e.id === `blade-lost-hp-${unit.id}`) as any;
+    const effect = unit.effects.find(e => e.id === `${EFFECT_IDS.LOST_HP}-${unit.id}`) as any;
     return effect?.lostHpAmount || 0;
 }
 
 // チャージを更新
 function updateCharges(state: GameState, unitId: string, delta: number, eidolonLevel: number): GameState {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return state;
 
     const maxCharges = eidolonLevel >= 6 ? E6_MAX_CHARGES : MAX_CHARGES;
-    const effectId = `blade-charges-${unitId}`;
+    const effectId = `${EFFECT_IDS.CHARGES}-${unitId}`;
 
     const existingEffect = unit.effects.find(e => e.id === effectId);
     const currentCharges = existingEffect?.stackCount || 0;
@@ -424,12 +394,10 @@ function updateCharges(state: GameState, unitId: string, delta: number, eidolonL
 
     if (existingEffect) {
         const updatedEffect = { ...existingEffect, stackCount: newCharges, name: `チャージ (${newCharges}/${maxCharges})` };
+        const newEffects = unit.effects.map(e => e.id === effectId ? updatedEffect : e);
         return {
             ...state,
-            units: state.units.map(u => u.id === unitId ? {
-                ...u,
-                effects: u.effects.map(e => e.id === effectId ? updatedEffect : e)
-            } : u)
+            registry: state.registry.update(createUnitId(unitId), u => ({ ...u, effects: newEffects }))
         };
     } else {
         const chargesEffect: IEffect = {
@@ -450,20 +418,96 @@ function updateCharges(state: GameState, unitId: string, delta: number, eidolonL
 
 // チャージを取得
 function getCharges(unit: Unit): number {
-    const effect = unit.effects.find(e => e.id === `blade-charges-${unit.id}`);
+    const effect = unit.effects.find(e => e.id === `${EFFECT_IDS.CHARGES}-${unit.id}`);
     return effect?.stackCount || 0;
 }
 
 // 地獄変状態かどうか
 function isInHellscape(unit: Unit): boolean {
-    return unit.effects.some(e => e.id === `blade-hellscape-${unit.id}`);
+    return unit.effects.some(e => e.id === `${EFFECT_IDS.HELLSCAPE}-${unit.id}`);
 }
+
+// HP消費時: チャージ+1
+const onHpConsumed = (event: HpConsumeEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    if (event.targetId !== sourceUnitId) return state;
+
+    let newState = updateCharges(state, sourceUnitId, 1, eidolonLevel);
+
+    // チャージ上限チェック
+    const freshBlade = newState.registry.get(createUnitId(sourceUnitId))!;
+    const maxCharges = eidolonLevel >= 6 ? E6_MAX_CHARGES : MAX_CHARGES;
+    if (getCharges(freshBlade) >= maxCharges) {
+        // 追加攻撃をトリガー
+        newState = {
+            ...newState,
+            pendingActions: [...newState.pendingActions, {
+                type: 'FOLLOW_UP_ATTACK',
+                sourceId: sourceUnitId,
+                targetId: undefined, // 全体攻撃
+                eidolonLevel
+            } as FollowUpAttackAction]
+        };
+    }
+
+    return newState;
+};
 
 // --- ハンドラー関数 ---
 
+// E4: HP50%超→50%以下になった時
+const checkE4Trigger = (state: GameState, sourceUnitId: string, prevHpRatio: number, eidolonLevel: number): GameState => {
+    if (eidolonLevel < 4) return state;
+
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
+    if (!bladeUnit) return state;
+
+    const currentHpRatio = bladeUnit.hp / bladeUnit.stats.hp;
+
+    // HP50%超から50%以下になった場合
+    if (prevHpRatio > 0.5 && currentHpRatio <= 0.5) {
+        const e4EffectId = `${EFFECT_IDS.E4_HP_BOOST}-${sourceUnitId}`;
+        const existingEffect = bladeUnit.effects.find(e => e.id === e4EffectId);
+        const currentStacks = existingEffect?.stackCount || 0;
+
+        if (currentStacks < E4_MAX_STACKS) {
+            let newState = state;
+            if (existingEffect) {
+                // スタック増加
+                const updatedEffect = { ...existingEffect, stackCount: currentStacks + 1, name: `E4 HP+20% (${currentStacks + 1}層)` };
+                const newEffects = bladeUnit.effects.map(e => e.id === e4EffectId ? updatedEffect : e);
+                newState = {
+                    ...newState,
+                    registry: newState.registry.update(createUnitId(sourceUnitId), u => ({ ...u, effects: newEffects }))
+                };
+            } else {
+                // 新規作成
+                const e4Effect: IEffect = {
+                    id: e4EffectId,
+                    name: `E4 HP+20% (1層)`,
+                    category: 'BUFF',
+                    sourceUnitId: sourceUnitId,
+                    durationType: 'PERMANENT',
+                    duration: -1,
+                    stackCount: 1,
+                    maxStacks: E4_MAX_STACKS,
+                    modifiers: [{ target: 'hp_pct' as StatKey, value: E4_HP_BOOST, type: 'add', source: 'E4' }],
+                    apply: (t, s) => s,
+                    remove: (t, s) => s
+                };
+                newState = addEffect(newState, sourceUnitId, e4Effect);
+            }
+            return newState;
+        }
+    }
+
+    return state;
+};
+
+
+
 // 戦闘開始時: 秘技
 const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     let newState = state;
@@ -472,10 +516,10 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
     newState = updateCharges(newState, sourceUnitId, 0, eidolonLevel);
 
     // A4: 百死耐忍 - 被回復量+20%（永続バフ）
-    const hasA4 = bladeUnit.traces?.some(t => t.name === '百死耐忍');
+    const hasA4 = bladeUnit.traces?.some(t => t.id === TRACE_IDS.A4_ENDURANCE);
     if (hasA4) {
         const a4HealBuff: IEffect = {
-            id: `blade-a4-heal-boost-${sourceUnitId}`,
+            id: `${EFFECT_IDS.A4_HEAL_BOOST}-${sourceUnitId}`,
             name: '百死耐忍（被回復量+20%）',
             category: 'BUFF',
             sourceUnitId: sourceUnitId,
@@ -488,27 +532,44 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
         newState = addEffect(newState, sourceUnitId, a4HealBuff);
     }
 
+    // A6: 壊劫滅亡 - 追加攻撃の与ダメージ+20%（永続バフ・ステータスで適用）
+    const hasA6 = bladeUnit.traces?.some(t => t.id === TRACE_IDS.A6_DESTRUCTION);
+    if (hasA6) {
+        const a6DmgBuff: IEffect = {
+            id: `${EFFECT_IDS.A6_TALENT_DMG}-${sourceUnitId}`,
+            name: '壊劫滅亡（天賦与ダメ+20%）',
+            category: 'BUFF',
+            sourceUnitId: sourceUnitId,
+            durationType: 'PERMANENT',
+            duration: -1,
+            modifiers: [{ target: 'fua_dmg_boost' as StatKey, value: A6_TALENT_DMG_BOOST, type: 'add', source: 'A6' }],
+            apply: (t: Unit, s: GameState) => s,
+            remove: (t: Unit, s: GameState) => s
+        };
+        newState = addEffect(newState, sourceUnitId, a6DmgBuff);
+    }
+
     // 秘技使用フラグを確認 (デフォルト true)
     const useTechnique = bladeUnit.config?.useTechnique !== false;
 
     if (useTechnique) {
         // 秘技: HP20%消費
-        const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, TECHNIQUE_HP_COST, '業途風');
+        const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, TECHNIQUE_HP_COST, '業途風');
         newState = afterConsume;
 
         // HP消費を失ったHP累計に加算
         newState = updateLostHp(newState, sourceUnitId, consumed);
 
-        // HP消費でチャージ+1
-        newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
+        // HP消費イベントによりチャージ加算されるため、ここでは直接加算しない
+        // newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
 
         // 敵全体にダメージ
-        const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
-        const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
+        const enemies = newState.registry.getAliveEnemies();
+        const freshBlade = newState.registry.get(createUnitId(sourceUnitId))!;
         const techDamage = freshBlade.stats.hp * TECHNIQUE_MULT;
 
         enemies.forEach(enemy => {
-            const freshEnemy = newState.units.find(u => u.id === enemy.id);
+            const freshEnemy = newState.registry.get(createUnitId(enemy.id));
             if (!freshEnemy) return;
 
             const result = applyUnifiedDamage(
@@ -549,7 +610,7 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     // 既に地獄変状態なら何もしない
@@ -558,22 +619,22 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
     let newState = state;
 
     // HP30%消費
-    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, SKILL_HP_COST, '地獄変');
+    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, SKILL_HP_COST, '地獄変');
     newState = afterConsume;
 
     // HP消費を失ったHP累計に加算
     newState = updateLostHp(newState, sourceUnitId, consumed);
 
-    // HP消費でチャージ+1
-    newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
+    // HP消費イベントによりチャージ加算されるため、ここでは直接加算しない
+    // newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
 
     // E5でスキルLv12
-    const skillLevel = eidolonLevel >= 5 ? 12 : 10;
+    const skillLevel = calculateAbilityLevel(eidolonLevel, 5, 'Skill');
     const dmgBoost = getLeveledValue(ABILITY_VALUES.skillDmgBoost, skillLevel);
 
     // 地獄変状態エフェクト
     const hellscapeEffect: IEffect = {
-        id: `blade-hellscape-${sourceUnitId}`,
+        id: `${EFFECT_IDS.HELLSCAPE}-${sourceUnitId}`,
         name: '地獄変',
         category: 'BUFF',
         sourceUnitId: sourceUnitId,
@@ -584,22 +645,33 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
             { target: 'all_type_dmg_boost' as StatKey, value: dmgBoost, type: 'add', source: '地獄変' },
             { target: 'aggro' as StatKey, value: 10.0, type: 'pct', source: '地獄変' } // +1000%
         ],
-        tags: ['HELLSCAPE', 'PREVENT_TURN_END', 'SKILL_SILENCE', 'ENHANCED_BASIC'], // スキル使用不可、ターン終了しない、強化通常攻撃を使用
+        tags: ['HELLSCAPE', 'SKILL_SILENCE', 'ENHANCED_BASIC'], // スキル使用不可、強化通常攻撃を使用
         apply: (t, s) => s,
         remove: (t, s) => s
     };
     newState = addEffect(newState, sourceUnitId, hellscapeEffect);
 
+    // ★ ターン終了スキップ設定（スキル発動後→強化通常攻撃1回→ターン終了）
+    // actionCount: -1 はスキル発動自体をカウントしないため（スキル後に+1で0、強化通常後に+1で1）
+    newState = {
+        ...newState,
+        currentTurnState: {
+            skipTurnEnd: true,
+            endConditions: [{ type: 'action_count', actionCount: 1 }],
+            actionCount: -1
+        }
+    };
+
     // E2: 地獄変状態で会心率+15%
     if (eidolonLevel >= 2) {
         const e2CritBuff: IEffect = {
-            id: `blade-e2-crit-${sourceUnitId}`,
+            id: `${EFFECT_IDS.E2_CRIT}-${sourceUnitId}`,
             name: 'E2 会心率 (地獄変)',
             category: 'BUFF',
             sourceUnitId: sourceUnitId,
             durationType: 'LINKED',
             duration: 0,
-            linkedEffectId: `blade-hellscape-${sourceUnitId}`,
+            linkedEffectId: `${EFFECT_IDS.HELLSCAPE}-${sourceUnitId}`,
             modifiers: [{ target: 'crit_rate' as StatKey, value: E2_CRIT_RATE_BOOST, type: 'add', source: 'E2' }],
             apply: (t, s) => s,
             remove: (t, s) => s
@@ -632,11 +704,10 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
 const onBasicAttack = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    // ダメージ計算はパイプラインで処理される
     // ここではチャージ上限チェックのみ行う
     let newState = state;
 
-    const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
+    const freshBlade = newState.registry.get(createUnitId(sourceUnitId))!;
     const maxCharges = eidolonLevel >= 6 ? E6_MAX_CHARGES : MAX_CHARGES;
     if (getCharges(freshBlade) >= maxCharges) {
         // 追加攻撃をトリガー
@@ -658,14 +729,14 @@ const onBasicAttack = (event: IEvent, state: GameState, sourceUnitId: string, ei
 const onEnhancedBasicAttack = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     let newState = state;
 
     // 1. HP10%消費
     const prevHpRatio = bladeUnit.hp / bladeUnit.stats.hp;
-    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, ENHANCED_BASIC_HP_COST, '無間剣樹');
+    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, ENHANCED_BASIC_HP_COST, '無間剣樹');
     newState = afterConsume;
 
     // E4チェック
@@ -674,37 +745,23 @@ const onEnhancedBasicAttack = (event: IEvent, state: GameState, sourceUnitId: st
     // HP消費を失ったHP累計に加算
     newState = updateLostHp(newState, sourceUnitId, consumed);
 
-    // HP消費でチャージ+1
-    newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
+    // HP消費イベントによりチャージ加算されるため、ここでは直接加算しない
+    // newState = updateCharges(newState, sourceUnitId, 1, eidolonLevel);
 
-    // チャージ上限チェック
-    const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
-    const maxCharges = eidolonLevel >= 6 ? E6_MAX_CHARGES : MAX_CHARGES;
-    if (getCharges(freshBlade) >= maxCharges) {
-        // 追加攻撃をトリガー
-        newState = {
-            ...newState,
-            pendingActions: [...newState.pendingActions, {
-                type: 'FOLLOW_UP_ATTACK',
-                sourceId: sourceUnitId,
-                targetId: undefined, // 全体攻撃
-                eidolonLevel
-            } as any]
-        };
-    }
+    // チャージ上限チェックはON_HP_CONSUMEDで行われるため削除
 
     return newState;
 };
 
 // ダメージを受けた時: チャージ+1
-const onDamageTaken = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const targetId = (event as any).targetId;
+const onDamageTaken = (event: DamageDealtEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const targetId = event.targetId;
     if (targetId !== sourceUnitId) return state;
 
     let newState = updateCharges(state, sourceUnitId, 1, eidolonLevel);
 
     // チャージ上限チェック
-    const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
+    const freshBlade = newState.registry.get(createUnitId(sourceUnitId))!;
     const maxCharges = eidolonLevel >= 6 ? E6_MAX_CHARGES : MAX_CHARGES;
     if (getCharges(freshBlade) >= maxCharges) {
         // 追加攻撃をトリガー
@@ -715,7 +772,7 @@ const onDamageTaken = (event: IEvent, state: GameState, sourceUnitId: string, ei
                 sourceId: sourceUnitId,
                 targetId: undefined,
                 eidolonLevel
-            } as any]
+            } as FollowUpAttackAction]
         };
     }
 
@@ -723,95 +780,218 @@ const onDamageTaken = (event: IEvent, state: GameState, sourceUnitId: string, ei
 };
 
 // 追加攻撃: 天賦
-const onFollowUpAttack = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     let newState = state;
 
-    // E3で天賦Lv12
-    const talentLevel = eidolonLevel >= 3 ? 12 : 10;
-    let talentMult = getLeveledValue(ABILITY_VALUES.talentMult, talentLevel);
-
     // A6: 与ダメージ+20%
-    const hasA6 = bladeUnit.traces?.some(t => t.name === '壊劫滅亡');
-    let dmgBonus = hasA6 ? A6_TALENT_DMG_BOOST : 0;
+    const hasA6 = bladeUnit.traces?.some(t => t.id === TRACE_IDS.A6_DESTRUCTION);
 
-    // E6: さらにHP50%分追加ダメージ
-    const e6Bonus = eidolonLevel >= 6 ? E6_TALENT_HP_BONUS : 0;
+    // E3で天賦Lv12
+    const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
+    const talentMult = getLeveledValue(ABILITY_VALUES.talentMult, talentLevel);
+    const maxHp = bladeUnit.stats.hp;
 
-    // 敵全体にダメージ
-    const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
-    const baseDamage = bladeUnit.stats.hp * talentMult * (1 + dmgBonus);
-    const e6ExtraDamage = bladeUnit.stats.hp * e6Bonus;
-    const totalDamage = baseDamage + e6ExtraDamage;
+    // 基礎ダメージ: HP × 倍率
+    let baseDamage = maxHp * talentMult;
+
+    // E6: HP50%分追加ダメージ
+    if (eidolonLevel >= 6) {
+        baseDamage += maxHp * E6_TALENT_HP_BONUS;
+    }
+
+    // 敵全体にダメージを適用
+    const enemies = newState.registry.getAliveEnemies();
+
+    // ★ ログ統合のためにアクションログを初期化
+    newState = initializeCurrentActionLog(newState, sourceUnitId, bladeUnit.name, '追加攻撃');
+
+    // ヒット分散（42.9% + 42.9% + 44.2% = 130%）
+    const hitMultipliers = [0.429, 0.429, 0.442];
+    let isFirstEnemy = true;
+    let totalDamage = 0;
+    const hitDetails: import('../../types/index').HitDetail[] = [];
 
     enemies.forEach(enemy => {
-        const freshEnemy = newState.units.find(u => u.id === enemy.id);
-        const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
-        if (!freshEnemy) return;
+        const currentEnemy = newState.registry.get(createUnitId(enemy.id));
+        const currentBlade = newState.registry.get(createUnitId(sourceUnitId))!;
+        if (!currentEnemy) return;
 
-        const result = applyUnifiedDamage(
-            newState,
-            freshBlade,
-            freshEnemy,
-            totalDamage,
-            {
-                damageType: '追加攻撃',
-                details: '倏忽の恩賜',
-                isKillRecoverEp: true
-            }
-        );
-        newState = result.state;
+        // 各ヒットのダメージを計算・適用
+        hitMultipliers.forEach((hitMult, hitIdx) => {
+            const hitBaseDamage = baseDamage * hitMult;
+
+            // ON_BEFORE_DAMAGE_CALCULATIONイベントを発火（A6のfua_dmg_boostを適用）
+            newState = publishEvent(newState, {
+                type: 'ON_BEFORE_DAMAGE_CALCULATION',
+                sourceId: sourceUnitId,
+                targetId: currentEnemy.id,
+                element: 'Wind',
+                subType: 'FOLLOW_UP_ATTACK'
+            });
+            const modifiers = newState.damageModifiers;
+
+            // ダメージ計算（breakdownMultipliersを取得）
+            const dmgResult = calculateNormalAdditionalDamageWithCritInfo(
+                currentBlade,
+                currentEnemy,
+                hitBaseDamage,
+                modifiers
+            );
+
+            // ダメージを適用
+            const result = applyUnifiedDamage(
+                newState,
+                currentBlade,
+                currentEnemy,
+                dmgResult.damage,
+                {
+                    damageType: '追加攻撃',
+                    details: `倏忽の恩賜 (Hit ${hitIdx + 1})`,
+                    isKillRecoverEp: isFirstEnemy && hitIdx === 0,
+                    skipLog: true // ログ統合のためスキップ
+                }
+            );
+            newState = result.state;
+            totalDamage += dmgResult.damage;
+
+            // ヒット詳細を蓄積（breakdownMultipliersを含む）
+            hitDetails.push({
+                hitIndex: hitIdx,
+                multiplier: hitMult,
+                damage: dmgResult.damage,
+                isCrit: dmgResult.isCrit,
+                targetName: currentEnemy.name,
+                breakdownMultipliers: dmgResult.breakdownMultipliers
+            });
+
+            // damageModifiersをリセット
+            newState = { ...newState, damageModifiers: {} };
+        });
+        isFirstEnemy = false;
     });
 
-    // 自己回復 HP25%（calculateHealで回復量ブーストを適用）
-    const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
-    const healAmount = calculateHeal(freshBlade, freshBlade, { scaling: 'hp', multiplier: TALENT_HEAL_MULT, flat: 0 });
-    newState = applyHealing(newState, sourceUnitId, sourceUnitId, healAmount, '倏忽の恩賜: 自己回復', true);
+    // currentActionLogにヒット情報を更新
+    if (newState.currentActionLog) {
+        newState = {
+            ...newState,
+            currentActionLog: {
+                ...newState.currentActionLog,
+                primaryDamage: {
+                    hitDetails: hitDetails,
+                    totalDamage: totalDamage
+                }
+            }
+        };
+    }
 
-    // A4: 回復量の25%を失ったHP累計に加算 -> onUnitHealedに移譲
-    // const hasA4 = bladeUnit.traces?.some(t => t.name === '百死耐忍');
-    // if (hasA4) {
-    //     const lostHpAdd = healAmount * A4_LOST_HP_ADD;
-    //     newState = updateLostHp(newState, sourceUnitId, lostHpAdd);
-    // }
+    // 自己回復 HP25%（applyHealingで計算式が記録される）
+    // skipLog: falseでcurrentActionLogに回復を記録
+    newState = applyHealing(newState, sourceUnitId, sourceUnitId, { scaling: 'hp', multiplier: TALENT_HEAL_MULT, flat: 0 }, '倏忽の恩賜: 自己回復', false);
 
     // EP回復
     let epGain = TALENT_EP;
     if (hasA6) epGain += A6_TALENT_EP;
-    newState = addEnergyToUnit(newState, sourceUnitId, epGain);
+    newState = addEnergyToUnit(newState, sourceUnitId, epGain, 0, false, {
+        sourceId: sourceUnitId,
+        publishEventFn: publishEvent
+    });
+
+    // ★ 統合ログを生成（stepFinalizeActionLogと同様のパターン）
+    const currentActionLog = newState.currentActionLog;
+    if (currentActionLog) {
+        const updatedBlade = newState.registry.get(createUnitId(sourceUnitId))!;
+        const primaryTarget = enemies[0];
+        const updatedTarget = primaryTarget ? newState.registry.get(createUnitId(primaryTarget.id)) : undefined;
+
+        // 効果収集
+        const sourceEffects = extractBuffsForLogWithAuras(updatedBlade, updatedBlade.name, newState, newState.registry.toArray());
+        const targetEffects = updatedTarget && updatedTarget.id !== updatedBlade.id
+            ? extractBuffsForLogWithAuras(updatedTarget, updatedTarget.name, newState, newState.registry.toArray())
+            : [];
+
+        // 統計集計
+        const calculateStatTotals = (effects: import('../../types/index').EffectSummary[]) => {
+            const totals: { [key: string]: number } = {};
+            effects.forEach(e => {
+                if (e.modifiers) {
+                    e.modifiers.forEach((m: { stat: string; value: number }) => {
+                        totals[m.stat] = (totals[m.stat] || 0) + m.value;
+                    });
+                }
+            });
+            return totals;
+        };
+        const statTotalsSource = calculateStatTotals(sourceEffects);
+        const statTotalsTarget = calculateStatTotals(targetEffects);
+
+        // 最終ステータス計算
+        const sourceFinalStats = recalculateUnitStats(updatedBlade, newState.registry.toArray());
+        const targetFinalStats = updatedTarget ? recalculateUnitStats(updatedTarget, newState.registry.toArray()) : {};
+
+        // 回復集計
+        const totalHealing = currentActionLog.healing.reduce((sum, e) => sum + e.amount, 0);
+
+        const logEntry = {
+            characterName: currentActionLog.primarySourceName,
+            actionTime: currentActionLog.startTime,
+            actionType: currentActionLog.primaryActionType,
+            skillPointsAfterAction: newState.skillPoints,
+
+            // 集計値
+            totalDamageDealt: currentActionLog.primaryDamage.totalDamage,
+            totalHealing,
+            totalShieldGiven: 0,
+
+            // 詳細情報
+            logDetails: {
+                primaryDamage: currentActionLog.primaryDamage.totalDamage > 0 ? currentActionLog.primaryDamage : undefined,
+                healing: currentActionLog.healing.length > 0 ? currentActionLog.healing : undefined,
+            },
+
+            // 後方互換性
+            damageDealt: currentActionLog.primaryDamage.totalDamage,
+            healingDone: totalHealing,
+            shieldApplied: 0,
+            sourceHpState: `${updatedBlade.hp.toFixed(0)}+${updatedBlade.shield.toFixed(0)}/${updatedBlade.stats.hp.toFixed(0)}`,
+            targetHpState: updatedTarget ? `${updatedTarget.hp.toFixed(0)}+${updatedTarget.shield.toFixed(0)}/${updatedTarget.stats.hp.toFixed(0)}` : '',
+            targetToughness: updatedTarget ? `${updatedTarget.toughness}/${updatedTarget.maxToughness}` : '',
+            currentEp: updatedBlade.ep,
+            activeEffects: sourceEffects,
+            sourceEffects,
+            targetEffects,
+            statTotals: { source: statTotalsSource, target: statTotalsTarget },
+            sourceFinalStats,
+            targetFinalStats,
+            sourceId: updatedBlade.id,
+            targetId: primaryTarget?.id,
+            hitDetails: currentActionLog.primaryDamage.hitDetails,
+            details: `倏忽の恩賜: ${enemies.length}体に風属性ダメージ`
+        };
+
+        newState = {
+            ...newState,
+            log: [...newState.log, logEntry as any],
+            currentActionLog: undefined
+        };
+    }
 
     // チャージをリセット
-    newState = updateCharges(newState, sourceUnitId, -getCharges(freshBlade), eidolonLevel);
-
-    // ログ（最新のEP値を取得）
-    const finalBlade = newState.units.find(u => u.id === sourceUnitId)!;
-    newState = {
-        ...newState,
-        log: [...newState.log, {
-            characterName: bladeUnit.name,
-            actionTime: newState.time,
-            actionType: '追加攻撃',
-            skillPointsAfterAction: newState.skillPoints,
-            damageDealt: totalDamage * enemies.length,
-            healingDone: healAmount,
-            shieldApplied: 0,
-            currentEp: finalBlade.ep,
-            details: `倏忽の恩賜: 敵全体にHP${(talentMult * 100).toFixed(0)}%ダメージ、HP${(TALENT_HEAL_MULT * 100).toFixed(0)}%回復`
-        } as any]
-    };
+    const freshBladeAfter = newState.registry.get(createUnitId(sourceUnitId))!;
+    newState = updateCharges(newState, sourceUnitId, -getCharges(freshBladeAfter), eidolonLevel);
 
     return newState;
 };
 
 // 必殺技使用時
-const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     let newState = state;
@@ -829,21 +1009,21 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, e
 
     newState = {
         ...newState,
-        units: newState.units.map(u => u.id === sourceUnitId ? { ...u, hp: targetHp } : u)
+        registry: newState.registry.update(createUnitId(sourceUnitId), u => ({ ...u, hp: targetHp }))
     };
 
     // E4チェック（HP変動後）
     newState = checkE4Trigger(newState, sourceUnitId, prevHpRatio, eidolonLevel);
 
     // E3で必殺技Lv12
-    const ultLevel = eidolonLevel >= 3 ? 12 : 10;
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 3, 'Ultimate');
     const hpMult = getLeveledValue(ABILITY_VALUES.ultHpMult, ultLevel);
     const lostHpMult = getLeveledValue(ABILITY_VALUES.ultLostHpMult, ultLevel);
     const adjHpMult = getLeveledValue(ABILITY_VALUES.ultAdjHpMult, ultLevel);
     const adjLostHpMult = getLeveledValue(ABILITY_VALUES.ultAdjLostHpMult, ultLevel);
 
     // 失ったHP累計を取得
-    const freshBlade = newState.units.find(u => u.id === sourceUnitId)!;
+    const freshBlade = newState.registry.get(createUnitId(sourceUnitId))!;
     const lostHp = getLostHp(freshBlade);
 
     // E1: 失HP150%分ダメージアップ
@@ -855,29 +1035,31 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, e
     const adjDamage = maxHp * adjHpMult + lostHp * adjLostHpMult;
 
     // ターゲット取得
-    const targetId = (event as any).targetId;
-    const mainTarget = newState.units.find(u => u.id === targetId);
-    if (mainTarget) {
-        const result = applyUnifiedDamage(
-            newState,
-            freshBlade,
-            mainTarget,
-            mainDamage,
-            {
-                damageType: '必殺技',
-                details: '大辟万死 (メイン)',
-                isKillRecoverEp: true
-            }
-        );
-        newState = result.state;
+    const targetId = event.targetId;
+    if (targetId) {
+        const mainTarget = newState.registry.get(createUnitId(targetId));
+        if (mainTarget) {
+            const result = applyUnifiedDamage(
+                newState,
+                freshBlade,
+                mainTarget,
+                mainDamage,
+                {
+                    damageType: '必殺技',
+                    details: '大辟万死 (メイン)',
+                    isKillRecoverEp: true
+                }
+            );
+            newState = result.state;
+        }
     }
 
     // 隣接ターゲット
-    const adjacentIds = (event as any).adjacentIds as string[] | undefined;
+    const adjacentIds = event.adjacentIds;
     if (adjacentIds) {
         adjacentIds.forEach(adjId => {
-            const adjTarget = newState.units.find(u => u.id === adjId);
-            const freshBlade2 = newState.units.find(u => u.id === sourceUnitId)!;
+            const adjTarget = newState.registry.get(createUnitId(adjId));
+            const freshBlade2 = newState.registry.get(createUnitId(sourceUnitId))!;
             if (!adjTarget) return;
 
             const result = applyUnifiedDamage(
@@ -896,7 +1078,7 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, e
     }
 
     // 失ったHP累計をリセット（A2: 50%残留）
-    const hasA2 = bladeUnit.traces?.some(t => t.name === '無尽形寿');
+    const hasA2 = bladeUnit.traces?.some(t => t.id === TRACE_IDS.A2_LIFESPAN);
     const remainRatio = hasA2 ? A2_LOST_HP_REMAIN : 0;
     const remainLostHp = lostHp * remainRatio;
 
@@ -910,70 +1092,21 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, e
     return newState;
 };
 
-// E4: HP50%超→50%以下になった時
-const checkE4Trigger = (state: GameState, sourceUnitId: string, prevHpRatio: number, eidolonLevel: number): GameState => {
-    if (eidolonLevel < 4) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
-    if (!bladeUnit) return state;
-
-    const currentHpRatio = bladeUnit.hp / bladeUnit.stats.hp;
-
-    // HP50%超から50%以下になった場合
-    if (prevHpRatio > 0.5 && currentHpRatio <= 0.5) {
-        const e4EffectId = `blade-e4-hpboost-${sourceUnitId}`;
-        const existingEffect = bladeUnit.effects.find(e => e.id === e4EffectId);
-        const currentStacks = existingEffect?.stackCount || 0;
-
-        if (currentStacks < E4_MAX_STACKS) {
-            let newState = state;
-            if (existingEffect) {
-                // スタック増加
-                const updatedEffect = { ...existingEffect, stackCount: currentStacks + 1, name: `E4 HP+20% (${currentStacks + 1}層)` };
-                newState = {
-                    ...newState,
-                    units: newState.units.map(u => u.id === sourceUnitId ? {
-                        ...u,
-                        effects: u.effects.map(e => e.id === e4EffectId ? updatedEffect : e)
-                    } : u)
-                };
-            } else {
-                // 新規作成
-                const e4Effect: IEffect = {
-                    id: e4EffectId,
-                    name: `E4 HP+20% (1層)`,
-                    category: 'BUFF',
-                    sourceUnitId: sourceUnitId,
-                    durationType: 'PERMANENT',
-                    duration: -1,
-                    stackCount: 1,
-                    maxStacks: E4_MAX_STACKS,
-                    modifiers: [{ target: 'hp_pct' as StatKey, value: E4_HP_BOOST, type: 'add', source: 'E4' }],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
-                };
-                newState = addEffect(newState, sourceUnitId, e4Effect);
-            }
-            return newState;
-        }
-    }
-
-    return state;
-};
 
 // A4: 回復を受けた時
-const onUnitHealed = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onUnitHealed = (event: HealEvent, state: GameState, sourceUnitId: string): GameState => {
     // 自分が回復を受けた場合
-    const targetId = (event as any).targetId;
+    const targetId = event.targetId;
     if (targetId !== sourceUnitId) return state;
 
-    const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+    const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!bladeUnit) return state;
 
     // A4: 回復量の25%を失ったHP累計に加算
-    const hasA4 = bladeUnit.traces?.some(t => t.name === '百死耐忍');
+    const hasA4 = bladeUnit.traces?.some(t => t.id === TRACE_IDS.A4_ENDURANCE);
     if (hasA4) {
-        const healAmount = event.healingDone || event.value || 0;
+        const healAmount = event.healingDone || 0;
         if (healAmount > 0) {
             const lostHpAdd = healAmount * A4_LOST_HP_ADD;
             return updateLostHp(state, sourceUnitId, lostHpAdd);
@@ -996,11 +1129,12 @@ export const bladeHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
                 'ON_DAMAGE_DEALT', // ダメージを受けた時（targetIdチェック）
                 'ON_FOLLOW_UP_ATTACK',
                 'ON_ULTIMATE_USED',
-                'ON_UNIT_HEALED' // A4: 回復を受けた時
+                'ON_UNIT_HEALED', // A4: 回復を受けた時
+                'ON_HP_CONSUMED'  // HP消費時
             ]
         },
-        handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
-            const bladeUnit = state.units.find(u => u.id === sourceUnitId);
+        handlerLogic: (event: IEvent, state: GameState, _handlerId: string): GameState => {
+            const bladeUnit = state.registry.get(createUnitId(sourceUnitId));
             if (!bladeUnit) return state;
 
             // 戦闘開始時: 秘技
@@ -1025,8 +1159,7 @@ export const bladeHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
 
             // ダメージを受けた時（自分がターゲット）
             if (event.type === 'ON_DAMAGE_DEALT') {
-                const targetId = (event as any).targetId;
-                if (targetId === sourceUnitId) {
+                if (event.targetId === sourceUnitId) {
                     return onDamageTaken(event, state, sourceUnitId, eidolonLevel);
                 }
             }
@@ -1043,11 +1176,17 @@ export const bladeHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
 
             // A4: 回復を受けた時
             if (event.type === 'ON_UNIT_HEALED') {
-                const targetId = (event as any).targetId;
-                if (targetId === sourceUnitId) {
+                if (event.targetId === sourceUnitId) {
                     return onUnitHealed(event, state, sourceUnitId);
                 }
             }
+
+            // HP消費時
+            if (event.type === 'ON_HP_CONSUMED') {
+                return onHpConsumed(event, state, sourceUnitId, eidolonLevel);
+            }
+
+            // A6: 追加攻撃時の与ダメージ+20%はfua_dmg_boostステータスで適用済み
 
             return state;
         }

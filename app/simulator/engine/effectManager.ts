@@ -1,4 +1,6 @@
 import { GameState, Unit, IEventHandler, IEffectEvent } from './types';
+import { UnitId, createUnitId } from './unitId';
+
 import { adjustActionValueForSpeedChange } from './actionValue';
 import { IEffect } from '../effect/types';
 import { recalculateUnitStats } from '../statBuilder';
@@ -6,11 +8,10 @@ import { publishEvent } from './dispatcher';
 import { updatePassiveBuffs } from '../effect/relicHandler';
 
 export function addEffect(state: GameState, targetId: string, effect: IEffect): GameState {
-    const targetIndex = state.units.findIndex(u => u.id === targetId);
-    if (targetIndex === -1) return state;
+    const target = state.registry.get(createUnitId(targetId));
+    if (!target) return state;
 
     // Debuff immunity check
-    const target = state.units[targetIndex];
     if (target.debuffImmune && effect.category === 'DEBUFF') {
         console.log(`[EffectManager] Debuff ${effect.name} blocked: ${target.name} is immune to debuffs`);
         return state;
@@ -19,7 +20,7 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
     let newState = { ...state };
 
     // 0. Check for duplicates (Same ID AND Same Source)
-    const existingUnit = state.units[targetIndex];
+    const existingUnit = target;
     const duplicateEffect = existingUnit.effects.find(e => e.id === effect.id && e.sourceUnitId === effect.sourceUnitId);
 
     if (duplicateEffect) {
@@ -42,15 +43,16 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
             effects: updatedEffects
         };
 
-        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.registry.toArray());
 
         if (existingUnit.stats.spd !== updatedTarget.stats.spd) {
             updatedTarget = adjustActionValueForSpeedChange(updatedTarget, existingUnit.stats.spd, updatedTarget.stats.spd);
         }
 
+        // updateUnitを使って更新
         newState = {
             ...newState,
-            units: newState.units.map((u, i) => i === targetIndex ? updatedTarget : u)
+            registry: newState.registry.update(createUnitId(targetId), u => updatedTarget)
         };
 
         // Propagate to Summons
@@ -82,7 +84,7 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
             newState.eventHandlerLogics = {
                 ...newState.eventHandlerLogics,
                 [handlerId]: (event: import('./types').IEvent, s: GameState, hId: string) => {
-                    const t = s.units.find(u => u.id === targetId);
+                    const t = s.registry.get(createUnitId(targetId));
                     if (!t) return s;
                     return effect.onEvent!(event, t, s);
                 }
@@ -91,7 +93,7 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
     }
 
     // 2. Apply effect logic
-    const currentTarget = newState.units[targetIndex];
+    const currentTarget = newState.registry.get(createUnitId(targetId))!;
     if (effect.onApply) {
         newState = effect.onApply(currentTarget, newState);
     } else if (effect.apply) {
@@ -108,15 +110,15 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
     }
 
     // 3. Add effect to unit's list AND Recalculate Stats
-    const freshTargetIndex = newState.units.findIndex(u => u.id === targetId);
-    if (freshTargetIndex !== -1) {
-        const freshTarget = newState.units[freshTargetIndex];
+    const freshTarget = newState.registry.get(createUnitId(targetId));
+    if (freshTarget) {
+        // const freshTarget = newState.units[freshTargetIndex]; // 削除
         let updatedTarget = {
             ...freshTarget,
             effects: [...freshTarget.effects, effectToAdd]
         };
 
-        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.registry.toArray());
 
         if (freshTarget.stats.spd !== updatedTarget.stats.spd) {
             updatedTarget = adjustActionValueForSpeedChange(updatedTarget, freshTarget.stats.spd, updatedTarget.stats.spd);
@@ -124,7 +126,7 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
 
         newState = {
             ...newState,
-            units: newState.units.map((u, i) => i === freshTargetIndex ? updatedTarget : u)
+            registry: newState.registry.update(createUnitId(targetId), u => updatedTarget)
         };
 
         // Propagate to Summons
@@ -147,11 +149,11 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
 }
 
 export function removeEffect(state: GameState, targetId: string, effectId: string): GameState {
-    const targetIndex = state.units.findIndex(u => u.id === targetId);
-    if (targetIndex === -1) return state;
+    const target = state.registry.get(createUnitId(targetId));
+    if (!target) return state;
 
     let newState = { ...state };
-    const target = newState.units[targetIndex];
+    // const target = newState.units[targetIndex]; // 削除
     const effect = target.effects.find(e => e.id === effectId);
 
     if (!effect) return state;
@@ -161,7 +163,7 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
     // Note: Creating a list of removals first to avoid modifying state while iterating units array logic
     const globalRemovals: { unitId: string; effectId: string }[] = [];
 
-    newState.units.forEach(u => {
+    newState.registry.toArray().forEach(u => {
         const linkedEffects = u.effects.filter(e =>
             e.durationType === 'LINKED' && e.linkedEffectId === effectId
         );
@@ -187,15 +189,15 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
     }
 
     // 3. Remove from unit's list AND Recalculate Stats
-    const freshTargetIndex = newState.units.findIndex(u => u.id === targetId);
-    if (freshTargetIndex !== -1) {
-        const freshTarget = newState.units[freshTargetIndex];
+    const freshTarget = newState.registry.get(createUnitId(targetId));
+    if (freshTarget) {
+        // const freshTarget = newState.units[freshTargetIndex]; // 削除
         let updatedTarget = {
             ...freshTarget,
             effects: freshTarget.effects.filter(e => e.id !== effectId)
         };
 
-        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.units);
+        updatedTarget.stats = recalculateUnitStats(updatedTarget, newState.registry.toArray());
 
         if (freshTarget.stats.spd !== updatedTarget.stats.spd) {
             updatedTarget = adjustActionValueForSpeedChange(updatedTarget, freshTarget.stats.spd, updatedTarget.stats.spd);
@@ -203,7 +205,7 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
 
         newState = {
             ...newState,
-            units: newState.units.map((u, i) => i === freshTargetIndex ? updatedTarget : u)
+            registry: newState.registry.update(createUnitId(targetId), u => updatedTarget)
         };
 
         // Propagate to Summons
@@ -228,18 +230,17 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
 // Helper to propagate stats to summons when owner updates
 function propagateStatsToSummons(state: GameState, ownerId: string): GameState {
     let newState = state;
-    const summons = state.units.filter(u => u.isSummon && u.ownerId === ownerId);
+    const summons = state.registry.getSummons(createUnitId(ownerId));
 
     for (const summon of summons) {
-        const summonIndex = newState.units.findIndex(u => u.id === summon.id);
-        if (summonIndex === -1) continue;
+        const currentSummon = newState.registry.get(summon.id as UnitId);
+        if (!currentSummon) continue;
 
-        const currentSummon = newState.units[summonIndex];
         let updatedSummon = { ...currentSummon };
         const oldSummonSpd = currentSummon.stats.spd;
 
-        // This will access the *already updated* owner in newState.units
-        updatedSummon.stats = recalculateUnitStats(updatedSummon, newState.units);
+        // This will access the *already updated* owner in newState.registry
+        updatedSummon.stats = recalculateUnitStats(updatedSummon, newState.registry.toArray());
 
         if (oldSummonSpd !== updatedSummon.stats.spd) {
             updatedSummon = adjustActionValueForSpeedChange(updatedSummon, oldSummonSpd, updatedSummon.stats.spd);
@@ -247,7 +248,7 @@ function propagateStatsToSummons(state: GameState, ownerId: string): GameState {
 
         newState = {
             ...newState,
-            units: newState.units.map((u, i) => i === summonIndex ? updatedSummon : u)
+            registry: newState.registry.update(summon.id as UnitId, u => updatedSummon)
         };
     }
     return newState;

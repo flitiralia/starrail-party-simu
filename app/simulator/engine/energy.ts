@@ -1,4 +1,6 @@
-import { Unit, GameState } from './types';
+import { Unit, GameState, IEvent } from './types';
+import { UnitId, createUnitId } from './unitId';
+
 
 /**
  * Calculates the actual energy gain based on Base EP and Energy Regeneration Rate (ERR).
@@ -36,13 +38,25 @@ export function addEnergy(unit: Unit, baseEp: number, flatEp: number = 0, skipER
 }
 
 /**
+ * Options for addEnergyToUnit function.
+ */
+export interface AddEnergyOptions {
+    /** ID of the unit that caused the EP recovery (for event tracking). Defaults to target unit. */
+    sourceId?: string;
+    /** Function to publish events. If provided, ON_EP_GAINED event will be fired. */
+    publishEventFn?: (state: GameState, event: IEvent) => GameState;
+}
+
+/**
  * Adds energy to a unit in a GameState, respecting the maximum energy limit.
+ * Optionally publishes ON_EP_GAINED event if publishEventFn is provided in options.
  * 
  * @param state Current game state
  * @param unitId ID of the unit to add energy to
  * @param baseEp The base amount of energy to gain (affected by ERR unless skipERR is true).
  * @param flatEp Optional flat amount of energy to gain (NOT affected by ERR). Default 0.
  * @param skipERR If true, ERR is not applied to baseEp. Default false.
+ * @param options Optional settings including sourceId and publishEventFn for event firing
  * @returns Updated game state
  */
 export function addEnergyToUnit(
@@ -50,16 +64,38 @@ export function addEnergyToUnit(
     unitId: string,
     baseEp: number,
     flatEp: number = 0,
-    skipERR: boolean = false
+    skipERR: boolean = false,
+    options?: AddEnergyOptions
 ): GameState {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return state;
 
-    const updatedUnit = addEnergy(unit, baseEp, flatEp, skipERR);
-    return {
+    const err = unit.stats.energy_regen_rate || 0;
+    const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);
+    const gain = baseGain + flatEp;
+    const oldEp = unit.ep;
+    const newEp = Math.min(unit.stats.max_ep, unit.ep + gain);
+    const actualGain = newEp - oldEp;
+
+    if (actualGain <= 0) return state;
+
+    let newState: GameState = {
         ...state,
-        units: state.units.map(u => u.id === unitId ? updatedUnit : u)
+        registry: state.registry.update(createUnitId(unitId), u => ({ ...u, ep: newEp }))
     };
+
+    // Publish ON_EP_GAINED event if publishEventFn is provided
+    if (options?.publishEventFn && actualGain > 0) {
+        newState = options.publishEventFn(newState, {
+            type: 'ON_EP_GAINED',
+            sourceId: options.sourceId || unitId,
+            targetId: unitId,
+            value: actualGain,
+            epGained: actualGain
+        });
+    }
+
+    return newState;
 }
 
 /**
@@ -76,4 +112,3 @@ export function initializeEnergy(unit: Unit, percentage: number = 0.5): Unit {
         ep: Math.min(unit.stats.max_ep, startEp)
     };
 }
-

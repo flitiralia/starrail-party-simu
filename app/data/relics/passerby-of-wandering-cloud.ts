@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
 
+
 export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
   id: 'passerby_of_wandering_cloud',
   name: '流雲無痕の過客',
@@ -23,18 +24,7 @@ export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
         {
           events: ['ON_BATTLE_START'],
           handler: (event, state, sourceUnitId) => {
-            // Ensure only one unit triggers this per team
-            const unitsWithSet = state.units.filter(u =>
-              u.relics?.some(r => r.set?.id === 'passerby_of_wandering_cloud') &&
-              (u.relics?.filter(r => r.set?.id === 'passerby_of_wandering_cloud').length || 0) >= 4
-            );
-
-            // Sort by ID to be deterministic (so only the first one triggers)
-            unitsWithSet.sort((a, b) => a.id.localeCompare(b.id));
-
-            if (unitsWithSet.length > 0 && unitsWithSet[0].id === sourceUnitId) {
-              return addSkillPoints(state, 1);
-            }
+            return addSkillPoints(state, 1);
 
             return state;
           }

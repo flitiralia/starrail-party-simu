@@ -1,46 +1,48 @@
 import { Character, StatKey } from '../../types';
-import { IEventHandlerFactory, IEventHandlerLogic, IEvent, GameState, DoTDamageEvent, Unit, IAura } from '../../simulator/engine/types';
+import { IEventHandlerFactory, GameState, IEvent, Unit, GeneralEvent, ActionEvent, DoTDamageEvent, EnemyDefeatedEvent, IAura, FollowUpAttackAction } from '../../simulator/engine/types';
+import { SimulationLogEntry } from '../../types';
+
+import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { addAura } from '../../simulator/engine/auraManager';
 import { IEffect } from '../../simulator/effect/types';
 import { recalculateUnitStats } from '../../simulator/statBuilder';
 import { createCharacterShockEffect } from '../../simulator/effect/breakEffects';
-import { calculateNormalDoTDamage } from '../../simulator/damage';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { calculateNormalDoTDamageWithBreakdown } from '../../simulator/damage';
+import { applyUnifiedDamage, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
 // 星魂対応ユーティリティ
-import { getLeveledValue } from '../../simulator/utils/abilityLevel';
+import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
+import { publishEvent } from '../../simulator/engine/dispatcher';
+
+// --- 内部型定義 ---
+interface DoTEffect extends IEffect {
+    dotType?: string; // 'Shock', 'Bleed', etc. for legacy or new system
+    damageCalculation?: 'multiplier' | 'fixed';
+    multiplier?: number;
+    baseDamage?: number;
+}
 
 // --- 定数定義 ---
-const CHARACTER_ID = 'kafka';
 
-// --- E3/E5パターン ---
-// E3: スキルLv+2, 通常Lv+1
-// E5: 必殺技Lv+2, 天賦Lv+2 → 感電倍率は必殺技の効果なのでE5でLv12
 
-// --- アビリティ値 (レベル別) ---
-const ABILITY_VALUES = {
-    // 感電倍率: E5で必殺技Lv12に上昇
-    shockMultiplier: {
-        10: 2.9,
-        12: 3.18
-    } as Record<number, number>,
-};
+const EFFECT_IDS = {
+    TALENT_CHARGES: (sourceId: string) => `kafka-talent-charges-${sourceId}`,
+    E2_AURA: (sourceId: string) => `kafka-e2-aura-${sourceId}`,
+    TORTURE_BUFF: (sourceId: string, targetId: string) => `kafka-torture-buff-${sourceId}-${targetId}`,
+    E1_DOT_VULN: (sourceId: string, targetId: string) => `kafka-e1-dotvuln-${sourceId}-${targetId}`,
+} as const;
 
-// 通常攻撃
-const BASIC_MULT = 1.0; // 50% x 2 hits
-
-// スキル
-const SKILL_MAIN_MULT = 1.6;
-const SKILL_ADJ_MULT = 0.6;
-const SKILL_DETONATE_MULT = 0.75;
+const TRACE_IDS = {
+    TORTURE: 'kafka-trace-torture',
+    PLUNDER: 'kafka-trace-plunder',
+    THORNS: 'kafka-trace-thorns',
+} as const;
 
 // 必殺技
-const ULT_DMG_MULT = 0.8;
 const ULT_DETONATE_MULT = 1.2;
 
 // 天賦
-const TALENT_MULT = 1.4; // 0.233 x 6 hits ≈ 1.4
 const TALENT_DETONATE_MULT = 0.80; // いばら
 
 // 秘技
@@ -56,6 +58,21 @@ const PLUNDER_EP_RECOVERY = 5;
 // 感電 (E6)
 const E6_SHOCK_MULT_BONUS = 1.56;
 const BASE_SHOCK_DURATION = 2;
+// E3: スキルLv+2, 通常Lv+1
+// E5: 必殺技Lv+2, 天賦Lv+2 → 感電倍率は必殺技の効果なのでE5でLv12
+
+// --- アビリティ値 (レベル別) ---
+const ABILITY_VALUES = {
+    // 感電倍率: E5で必殺技Lv12に上昇
+    shockMultiplier: {
+        10: 2.9,
+        12: 3.18
+    } as Record<number, number>,
+};
+
+// スキル
+const SKILL_DETONATE_MULT = 0.75;
+
 const E6_SHOCK_DURATION = 3;
 
 // スタック
@@ -262,20 +279,21 @@ export const kafka: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'eyes-of-the-prey',
-        superimposition: 5,
+        lightConeId: 'patience-is-all-you-need',
+        superimposition: 1,
         relicSetId: 'prisoner_in_deep_confinement',
-        ornamentSetId: 'sea_of_intoxication',
+        ornamentSetId: 'space_sealing_station',
         mainStats: {
-            body: 'effect_hit_rate',
+            body: 'atk_pct',
             feet: 'spd',
             sphere: 'lightning_dmg_boost',
-            rope: 'energy_regen_rate',
+            rope: 'atk_pct',
         },
         subStats: [
-            { stat: 'atk_pct', value: 0.432 },
-            { stat: 'effect_hit_rate', value: 0.324 },
-            { stat: 'spd', value: 12 },
+            { stat: 'atk_pct', value: 0.20 },
+            { stat: 'spd', value: 6 },
+            { stat: 'effect_hit_rate', value: 0.20 },
+            { stat: 'break_effect', value: 0.20 },
         ],
         rotationMode: 'spam_skill',
         ultStrategy: 'immediate',
@@ -289,10 +307,10 @@ function detonateDoTs(
     detonateMultiplier: number,
     sourceId: string
 ): { state: GameState; totalDamage: number } {
-    const target = state.units.find(u => u.id === targetId);
+    const target = state.registry.get(createUnitId(targetId));
     if (!target) return { state, totalDamage: 0 };
 
-    const sourceUnit = state.units.find(u => u.id === sourceId);
+    const sourceUnit = state.registry.get(createUnitId(sourceId));
     if (!sourceUnit) return { state, totalDamage: 0 };
 
     let totalDamage = 0;
@@ -301,22 +319,18 @@ function detonateDoTs(
     // 全てのDoTエフェクトを検索してダメージを合計
     target.effects.forEach(effect => {
         // DoT系のエフェクトタイプをチェック
-        // 新しいDoTシステム: type === 'DoT'
-        // 古いシステム（互換性のため）: type === 'Shock' etc.
-        if ((effect as any).type === 'DoT' ||
-            (effect as any).type === 'Shock' ||
-            (effect as any).type === 'Bleed' ||
-            (effect as any).type === 'Burn' ||
-            (effect as any).type === 'Wind Shear') {
+        const dotEffect = effect as DoTEffect;
+        const type = dotEffect.type || dotEffect.dotType; // Fallback for legacy
+
+        if (type === 'DoT' || type === 'Shock' || type === 'Bleed' || type === 'Burn' || type === 'Wind Shear') {
 
             dotCount++;
-            console.log(`[detonateDoTs] Processing DoT #${dotCount}: ${(effect as any).name || effect.id}, ID: ${effect.id}`);
+            // console.log(`[detonateDoTs] Processing DoT #${dotCount}: ${effect.name}, ID: ${effect.id}`); // Removed verbose log
 
             // DoTの基礎ダメージを取得
             let baseDamage = 0;
-            if ((effect as any).type === 'DoT') {
+            if (type === 'DoT') {
                 // 新システム: 計算タイプに応じて処理
-                const dotEffect = effect as any;
                 if (dotEffect.damageCalculation === 'multiplier') {
                     // キャラクターDoT: 倍率 × 現在のATK
                     const multiplier = dotEffect.multiplier || 0;
@@ -327,15 +341,15 @@ function detonateDoTs(
                 }
             } else {
                 // 旧システム（互換性）: baseDamageを直接使用
-                baseDamage = (effect as any).baseDamage || 0;
+                baseDamage = dotEffect.baseDamage || 0;
             }
 
-            // ★calculateNormalDoTDamageを使用（キャラクター由来の持続ダメージ）
-            const dotDamage = calculateNormalDoTDamage(sourceUnit, target, baseDamage);
+            // ★calculateNormalDoTDamageWithBreakdownを使用
+            const dotResult = calculateNormalDoTDamageWithBreakdown(sourceUnit, target, baseDamage);
+            const dotDamage = dotResult.damage;
 
             // 起爆倍率を適用
             const detonateDamage = dotDamage * detonateMultiplier;
-            console.log(`[detonateDoTs] DoT #${dotCount}: dotDamage=${dotDamage.toFixed(2)}, multiplier=${detonateMultiplier}, detonateDamage=${detonateDamage.toFixed(2)}`);
             totalDamage += detonateDamage;
 
             // ★ ターン数は減少させない
@@ -346,20 +360,47 @@ function detonateDoTs(
 
     // ★applyUnifiedDamageを使用してダメージを適用
     if (totalDamage > 0) {
+        // breakdownを後で使用するために、DoT起爆全体のbreakdownを計算
+        const overallBreakdown = calculateNormalDoTDamageWithBreakdown(
+            sourceUnit,
+            state.registry.get(createUnitId(targetId))!,
+            totalDamage / (1 + (sourceUnit.stats.lightning_dmg_boost || 0) + (sourceUnit.stats.all_type_dmg_boost || 0) + (sourceUnit.stats.dot_dmg_boost || 0))
+        );
+
         const result = applyUnifiedDamage(
             state,
             sourceUnit,
-            state.units.find(u => u.id === targetId)!,
+            state.registry.get(createUnitId(targetId))!,
             totalDamage,
             {
                 damageType: 'DoT起爆',
                 details: `DoT起爆 (${(detonateMultiplier * 100).toFixed(0)}%)`,
-                skipLog: false,  // ログを記録
-                skipStats: false  // 統計を更新
+                skipLog: true,   // ★独立ログを出さない
+                skipStats: false // 統計は更新
             }
         );
 
-        return { state: result.state, totalDamage };
+        // ★ additionalDamageとしてログに追加（breakdownMultipliers付き）
+        let newState = result.state;
+        newState = appendAdditionalDamage(newState, {
+            source: sourceUnit.name,
+            name: `DoT起爆 (${(detonateMultiplier * 100).toFixed(0)}%)`,
+            damage: totalDamage,
+            target: state.registry.get(createUnitId(targetId))!.name,
+            damageType: 'dot',
+            isCrit: false,
+            breakdownMultipliers: {
+                baseDmg: totalDamage / (overallBreakdown.breakdownMultipliers?.dmgBoostMult || 1) / (overallBreakdown.breakdownMultipliers?.defMult || 1) / (overallBreakdown.breakdownMultipliers?.resMult || 1) / (overallBreakdown.breakdownMultipliers?.vulnMult || 1) / (overallBreakdown.breakdownMultipliers?.brokenMult || 1),
+                critMult: 1.0,
+                dmgBoostMult: overallBreakdown.breakdownMultipliers?.dmgBoostMult || 1,
+                defMult: overallBreakdown.breakdownMultipliers?.defMult || 1,
+                resMult: overallBreakdown.breakdownMultipliers?.resMult || 1,
+                vulnMult: overallBreakdown.breakdownMultipliers?.vulnMult || 1,
+                brokenMult: overallBreakdown.breakdownMultipliers?.brokenMult || 1
+            }
+        });
+
+        return { state: newState, totalDamage };
     }
 
     return { state, totalDamage: 0 };
@@ -368,12 +409,12 @@ function detonateDoTs(
 // --- 分離されたハンドラー関数 ---
 
 // 1. 戦闘開始時: 秘技 + 天賦チャージ + 苛み
-const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const kafkaUnit = state.units.find(u => u.id === sourceUnitId);
+const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const kafkaUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!kafkaUnit) return state;
 
     let newState = state;
-    const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+    const enemies = newState.registry.getAliveEnemies();
 
     // 秘技使用フラグを確認 (デフォルト true)
     const useTechnique = kafkaUnit.config?.useTechnique !== false;
@@ -381,8 +422,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
     if (useTechnique) {
         // 秘技: 敵全体に感電を付与
         enemies.forEach(enemy => {
-            // E5で必殺技Lv+2 → Lv12の感電倍率を使用
-            const ultLevel = eidolonLevel >= 5 ? 12 : 10;
+            // E5で必殺技Lv+2 → calculateAbilityLevelを使用
+            const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
             let multiplier = getLeveledValue(ABILITY_VALUES.shockMultiplier, ultLevel);
             if (eidolonLevel >= 6) multiplier += E6_SHOCK_MULT_BONUS;
             const duration = eidolonLevel >= 6 ? E6_SHOCK_DURATION : BASE_SHOCK_DURATION;
@@ -393,8 +434,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 
         // 秘技ダメージ（applyUnifiedDamageを使用）
         enemies.forEach(enemy => {
-            const freshEnemy = newState.units.find(u => u.id === enemy.id);
-            const freshKafka = newState.units.find(u => u.id === sourceUnitId);
+            const freshEnemy = newState.registry.get(createUnitId(enemy.id));
+            const freshKafka = newState.registry.get(createUnitId(sourceUnitId));
             if (!freshEnemy || !freshKafka) return;
 
             const techDamage = freshKafka.stats.atk * TECHNIQUE_DMG_MULT;
@@ -415,7 +456,7 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 
     // 天賦追加攻撃チャージを作成 (これは秘技ではなく天賦なので常に発動)
     const talentCharges: IEffect = {
-        id: `kafka-talent-charges-${sourceUnitId}`,
+        id: EFFECT_IDS.TALENT_CHARGES(sourceUnitId),
         name: `追加攻撃 (${MAX_TALENT_CHARGES}回)`,
         category: 'BUFF',
         sourceUnitId: sourceUnitId,
@@ -423,15 +464,15 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
         duration: -1,
         stackCount: MAX_TALENT_CHARGES,
         maxStacks: MAX_TALENT_CHARGES,
-        onApply: (t: any, s: any) => s,
-        onRemove: (t: any, s: any) => s,
-        apply: (t: any, s: any) => s,
-        remove: (t: any, s: any) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s,
+        apply: (t: Unit, s: GameState) => s,
+        remove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, talentCharges);
 
     // 苛み: 戦闘開始時に効果命中75%以上の味方にATKバフ (これも秘技ではなく軌跡なので常に発動)
-    if (kafkaUnit.traces?.some(t => t.name === '苛み')) {
+    if (kafkaUnit.traces?.some(t => t.id === TRACE_IDS.TORTURE)) {
         newState = applyTortureBuffs(newState, sourceUnitId);
     }
 
@@ -439,9 +480,9 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
     // カフカがフィールド上にいる間のみ有効、死亡時に自動削除される
     if (eidolonLevel >= 2) {
         const e2Aura: IAura = {
-            id: `kafka-e2-aura-${sourceUnitId}`,
+            id: EFFECT_IDS.E2_AURA(sourceUnitId),
             name: '狂想者の嗚咽 (DoT+33%)',
-            sourceUnitId: sourceUnitId,
+            sourceUnitId: createUnitId(sourceUnitId),
             target: 'all_allies',
             modifiers: [{
                 target: 'dot_dmg_boost' as StatKey,
@@ -457,30 +498,35 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 };
 
 // 2. スタック増加ヘルパー関数
+// 2. スタック増加ヘルパー関数
 const increaseTalentCharges = (state: GameState, sourceUnitId: string): GameState => {
-    const currentKafka = state.units.find(u => u.id === sourceUnitId);
+    const currentKafka = state.registry.get(createUnitId(sourceUnitId));
     if (!currentKafka) return state;
 
-    const talentCharges = currentKafka.effects.find(e => e.id === `kafka-talent-charges-${sourceUnitId}`);
+    const talentCharges = currentKafka.effects.find(e => e.id === EFFECT_IDS.TALENT_CHARGES(sourceUnitId));
     if (!talentCharges) return state;
 
     const newStackCount = Math.min((talentCharges.stackCount || 0) + 1, MAX_TALENT_CHARGES);
     const updatedEffect = { ...talentCharges, stackCount: newStackCount, name: `追加攻撃 (${newStackCount}回)` };
-    const updatedKafka = { ...currentKafka, effects: currentKafka.effects.map(e => e.id === talentCharges.id ? updatedEffect : e) };
 
-    return { ...state, units: state.units.map(u => u.id === sourceUnitId ? updatedKafka : u) };
+    // updateUnitでエフェクトを更新
+    const updatedEffects = currentKafka.effects.map(e => e.id === talentCharges.id ? updatedEffect : e);
+    return {
+        ...state,
+        registry: state.registry.update(createUnitId(sourceUnitId), u => ({ ...u, effects: updatedEffects }))
+    };
 };
 
 // 2.5 苛みバフ適用ヘルパー関数（動的更新対応）
 const applyTortureBuffs = (state: GameState, sourceUnitId: string): GameState => {
     let newState = state;
-    const allies = newState.units.filter(u => !u.isEnemy && u.hp > 0);
+    const allies = newState.registry.getAliveAllies();
 
     allies.forEach(ally => {
         // 最新のステータスを計算して効果命中判定に使用
-        const currentStats = recalculateUnitStats(ally, newState.units);
+        const currentStats = recalculateUnitStats(ally, newState.registry.toArray());
         const effectHit = currentStats.effect_hit_rate || 0;
-        const buffId = `kafka-torture-buff-${sourceUnitId}-${ally.id}`;
+        const buffId = EFFECT_IDS.TORTURE_BUFF(sourceUnitId, ally.id);
         const hasBuff = ally.effects.some(e => e.id === buffId);
 
         if (effectHit >= 0.75 && !hasBuff) {
@@ -507,7 +553,7 @@ const applyTortureBuffs = (state: GameState, sourceUnitId: string): GameState =>
 };
 
 // 2.6 ターン終了時: 天賦スタック+1回復
-const onTurnEnd = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onTurnEnd = (event: GeneralEvent, state: GameState, sourceUnitId: string): GameState => {
     // カフカのターン終了時のみ
     if (event.sourceId !== sourceUnitId) return state;
 
@@ -516,8 +562,8 @@ const onTurnEnd = (event: IEvent, state: GameState, sourceUnitId: string): GameS
 
 // 3. 感電付与ヘルパー関数
 const applyShockToEnemy = (state: GameState, source: Unit, target: Unit, eidolonLevel: number): GameState => {
-    // E5で必殺技Lv+2 → Lv12の感電倍率を使用
-    const ultLevel = eidolonLevel >= 5 ? 12 : 10;
+    // E5で必殺技Lv+2 → calculateAbilityLevelを使用
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
     let multiplier = getLeveledValue(ABILITY_VALUES.shockMultiplier, ultLevel);
     if (eidolonLevel >= 6) multiplier += E6_SHOCK_MULT_BONUS;
     const duration = eidolonLevel >= 6 ? E6_SHOCK_DURATION : BASE_SHOCK_DURATION;
@@ -527,18 +573,18 @@ const applyShockToEnemy = (state: GameState, source: Unit, target: Unit, eidolon
 };
 
 // 4. スキル使用時: スタック+1、DoT起爆（メイン75%、隣接50%）
-const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
     let newState = increaseTalentCharges(state, sourceUnitId);
 
     // メインターゲットDoT起爆（75%）
-    const targetId = (event as any).targetId;
+    const targetId = event.targetId;
     if (targetId) {
         const { state: afterDetonate } = detonateDoTs(newState, targetId, SKILL_DETONATE_MULT, sourceUnitId);
         newState = afterDetonate;
     }
 
     // 隣接ターゲットDoT起爆（50%）
-    const adjacentIds = (event as any).adjacentIds as string[] | undefined;
+    const adjacentIds = event.adjacentIds;
     if (adjacentIds && adjacentIds.length > 0) {
         adjacentIds.forEach(adjId => {
             const { state: afterAdjDetonate } = detonateDoTs(newState, adjId, SKILL_ADJ_DETONATE_MULT, sourceUnitId);
@@ -550,26 +596,26 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string): Gam
 };
 
 // 5. 必殺技使用時: 感電付与、DoT起爆、いばら
-const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const kafkaUnit = state.units.find(u => u.id === sourceUnitId);
+const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const kafkaUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!kafkaUnit) return state;
 
     let newState = state;
-    const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+    const enemies = newState.registry.getAliveEnemies();
 
     // 1. 敵全体に感電を付与
     enemies.forEach(enemy => {
         newState = applyShockToEnemy(newState, kafkaUnit, enemy, eidolonLevel);
     });
 
-    // 2. 敵全体に120%起爆
+    // 2. 敵全体にDoT起爆（120%）
     enemies.forEach(enemy => {
         const { state: afterDetonate } = detonateDoTs(newState, enemy.id, ULT_DETONATE_MULT, sourceUnitId);
         newState = afterDetonate;
     });
 
-    // いばら: 天賦回数を+1
-    if (kafkaUnit.traces?.some(t => t.name === 'いばら')) {
+    // 3. いばら: 天賦回数を+1
+    if (kafkaUnit.traces?.some(t => t.id === TRACE_IDS.THORNS)) {
         newState = increaseTalentCharges(newState, sourceUnitId);
     }
 
@@ -577,38 +623,42 @@ const onUltimateUsed = (event: IEvent, state: GameState, sourceUnitId: string, e
 };
 
 // 6. ダメージ発生時: 味方攻撃時に天賦追加攻撃をトリガー
-const onDamageDealt = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const sourceUnit = state.units.find(u => u.id === event.sourceId);
+const onDamageDealt = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
+    const sourceUnit = state.registry.get(createUnitId(event.sourceId));
     if (!sourceUnit || sourceUnit.isEnemy || event.sourceId === sourceUnitId) return state;
 
-    const currentKafka = state.units.find(u => u.id === sourceUnitId);
+    const currentKafka = state.registry.get(createUnitId(sourceUnitId));
     if (!currentKafka) return state;
 
-    const talentCharges = currentKafka.effects.find(e => e.id === `kafka-talent-charges-${sourceUnitId}`);
+    const talentCharges = currentKafka.effects.find(e => e.id === EFFECT_IDS.TALENT_CHARGES(sourceUnitId));
     if (!talentCharges || (talentCharges.stackCount || 0) <= 0) return state;
 
-    const targetId = (event as any).targetId;
+    const targetId = event.targetId;
     if (!targetId) return state;
 
     // スタック数を減らす
     const newStackCount = (talentCharges.stackCount || 0) - 1;
     const updatedEffect = { ...talentCharges, stackCount: newStackCount, name: `追加攻撃 (${newStackCount}回)` };
-    const updatedKafka = { ...currentKafka, effects: currentKafka.effects.map(e => e.id === talentCharges.id ? updatedEffect : e) };
+    const updatedEffects = currentKafka.effects.map(e => e.id === talentCharges.id ? updatedEffect : e);
+
+    const afterUpdateState = {
+        ...state,
+        registry: state.registry.update(createUnitId(sourceUnitId), u => ({ ...u, effects: updatedEffects }))
+    };
 
     return {
-        ...state,
-        units: state.units.map(u => u.id === sourceUnitId ? updatedKafka : u),
-        pendingActions: [...state.pendingActions, { type: 'FOLLOW_UP_ATTACK', sourceId: sourceUnitId, targetId, eidolonLevel } as any]
+        ...afterUpdateState,
+        pendingActions: [...afterUpdateState.pendingActions, { type: 'FOLLOW_UP_ATTACK', sourceId: sourceUnitId, targetId, eidolonLevel: currentKafka.eidolonLevel || 0 } as FollowUpAttackAction]
     };
 };
 
 // 7. 追加攻撃後: 感電付与、E1デバフ、いばらDoT起爆
-const onFollowUpAttack = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    const targetId = (event as any).targetId;
+const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const targetId = event.targetId;
     if (!targetId) return state;
 
-    const target = state.units.find(u => u.id === targetId);
-    const currentKafka = state.units.find(u => u.id === sourceUnitId);
+    const target = state.registry.get(createUnitId(targetId));
+    const currentKafka = state.registry.get(createUnitId(sourceUnitId));
     if (!target || !currentKafka) return state;
 
     let newState = state;
@@ -619,7 +669,7 @@ const onFollowUpAttack = (event: IEvent, state: GameState, sourceUnitId: string,
     // E1: 受DoT+30%
     if (eidolonLevel >= 1) {
         const dotVulnDebuff: IEffect = {
-            id: `kafka-e1-dotvuln-${sourceUnitId}-${targetId}`,
+            id: EFFECT_IDS.E1_DOT_VULN(sourceUnitId, targetId),
             name: '受DoT+30%',
             category: 'DEBUFF',
             sourceUnitId: sourceUnitId,
@@ -633,7 +683,7 @@ const onFollowUpAttack = (event: IEvent, state: GameState, sourceUnitId: string,
     }
 
     // いばら: DoT起爆80%
-    if (currentKafka.traces?.some(t => t.name === 'いばら')) {
+    if (currentKafka.traces?.some(t => t.id === TRACE_IDS.THORNS)) {
         const { state: afterDetonate } = detonateDoTs(newState, targetId, TALENT_DETONATE_MULT, sourceUnitId);
         newState = afterDetonate;
     }
@@ -642,43 +692,45 @@ const onFollowUpAttack = (event: IEvent, state: GameState, sourceUnitId: string,
 };
 
 // 8. E4: 感電ダメージ発生時のEP回復
-const onDotDamage = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+const onDotDamage = (event: DoTDamageEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     if (eidolonLevel < 4) return state;
 
-    const dotEvent = event as DoTDamageEvent;
-    if (dotEvent.sourceId !== sourceUnitId || dotEvent.dotType !== 'Shock') return state;
+    if (event.sourceId !== sourceUnitId || event.dotType !== 'Shock') return state;
 
-    const currentKafka = state.units.find(u => u.id === sourceUnitId);
+    const currentKafka = state.registry.get(createUnitId(sourceUnitId));
     if (!currentKafka) return state;
 
-    return addEnergyToUnit(state, sourceUnitId, 2);
+    return addEnergyToUnit(state, sourceUnitId, 2, 0, false, {
+        sourceId: sourceUnitId,
+        publishEventFn: publishEvent
+    });
 };
 
 // 9. 略奪: 感電状態の敵撃破時EP+5
-const onEnemyDefeated = (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
-    const currentKafka = state.units.find(u => u.id === sourceUnitId);
+const onEnemyDefeated = (event: EnemyDefeatedEvent, state: GameState, sourceUnitId: string): GameState => {
+    const currentKafka = state.registry.get(createUnitId(sourceUnitId));
     if (!currentKafka) return state;
 
     // 略奪軌跡を持っているか確認
-    if (!currentKafka.traces?.some(t => t.name === '略奪')) return state;
-
-    // 撃破された敵が感電状態だったか確認
-    const defeatedEnemyId = (event as any).targetId;
-    if (!defeatedEnemyId) return state;
+    if (!currentKafka.traces?.some(t => t.id === TRACE_IDS.PLUNDER)) return state;
 
     // 撃破された敵のエフェクトから感電状態を確認
-    const defeatedEnemy = (event as any).defeatedEnemy as Unit | undefined;
+    const defeatedEnemy = event.defeatedEnemy;
     if (!defeatedEnemy) return state;
 
-    const hadShock = defeatedEnemy.effects.some(e =>
-        e.name?.includes('感電') ||
-        (e as any).type === 'Shock' ||
-        ((e as any).type === 'DoT' && (e as any).dotType === 'Shock')
-    );
+    const hadShock = defeatedEnemy.effects.some(e => {
+        const eff = e as DoTEffect;
+        return eff.name?.includes('感電') ||
+            eff.type === 'Shock' ||
+            (eff.type === 'DoT' && eff.dotType === 'Shock');
+    });
 
     if (hadShock) {
-        const newState = addEnergyToUnit(state, sourceUnitId, PLUNDER_EP_RECOVERY);
-        const updatedKafka = newState.units.find(u => u.id === sourceUnitId)!;
+        const newState = addEnergyToUnit(state, sourceUnitId, PLUNDER_EP_RECOVERY, 0, false, {
+            sourceId: sourceUnitId,
+            publishEventFn: publishEvent
+        });
+        const updatedKafka = newState.registry.get(createUnitId(sourceUnitId))!;
         return {
             ...newState,
             log: [...newState.log, {
@@ -688,7 +740,7 @@ const onEnemyDefeated = (event: IEvent, state: GameState, sourceUnitId: string):
                 skillPointsAfterAction: state.skillPoints,
                 currentEp: updatedKafka.ep,
                 details: `略奪: 感電敵撃破によりEP+${PLUNDER_EP_RECOVERY}`
-            } as any]
+            } as SimulationLogEntry]
         };
     }
 
@@ -712,15 +764,15 @@ export const kafkaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
                 'ON_EFFECT_REMOVED'   // 苛み: 効果命中バフ解除時の動的更新
             ]
         },
-        handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
-            const kafkaUnit = state.units.find(u => u.id === sourceUnitId);
+        handlerLogic: (event: IEvent, state: GameState, _handlerId: string): GameState => {
+            const kafkaUnit = state.registry.get(createUnitId(sourceUnitId));
             if (!kafkaUnit) return state;
 
-            let newState = state;
+            const newState = state;
 
             // 戦闘開始時: 秘技 + 天賦エフェクト + 苛み
             if (event.type === 'ON_BATTLE_START') {
-                return onBattleStart(event, newState, sourceUnitId, eidolonLevel);
+                return onBattleStart(event as GeneralEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             // カフカの通常攻撃後: スタック回復はターン終了時に行うので何もしない
@@ -731,64 +783,43 @@ export const kafkaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
 
             // カフカのスキル使用時: DoT起爆（スタック回復はターン終了時）
             if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
-                return onSkillUsed(event, newState, sourceUnitId);
+                return onSkillUsed(event as ActionEvent, newState, sourceUnitId);
             }
 
             // カフカのターン終了時: 天賦スタック+1回復
             if (event.type === 'ON_TURN_END') {
-                return onTurnEnd(event, newState, sourceUnitId);
+                return onTurnEnd(event as GeneralEvent, newState, sourceUnitId);
             }
 
             // 必殺技使用時: 感電付与 + DoT起爆 + いばら
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId === sourceUnitId) {
-                return onUltimateUsed(event, newState, sourceUnitId, eidolonLevel);
+                return onUltimateUsed(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             // 味方が敵に攻撃した時: 天賦追加攻撃トリガー
             if (event.type === 'ON_ATTACK' && event.sourceId !== sourceUnitId) {
-                const sourceUnit = newState.units.find(u => u.id === event.sourceId);
-                const targetUnit = event.targetId ? newState.units.find(u => u.id === event.targetId) : undefined;
-
-                // 発動条件: ソースが味方で、ターゲットが敵
-                if (sourceUnit && !sourceUnit.isEnemy && targetUnit?.isEnemy) {
-                    const currentKafka = newState.units.find(u => u.id === sourceUnitId);
-                    if (!currentKafka) return newState;
-
-                    const talentCharges = currentKafka.effects.find(e => e.id === `kafka-talent-charges-${sourceUnitId}`);
-                    if (!talentCharges || (talentCharges.stackCount || 0) <= 0) return newState;
-
-                    // スタック数を減らす
-                    const newStackCount = (talentCharges.stackCount || 0) - 1;
-                    const updatedEffect = { ...talentCharges, stackCount: newStackCount, name: `追加攻撃 (${newStackCount}回)` };
-                    const updatedKafka = { ...currentKafka, effects: currentKafka.effects.map(e => e.id === talentCharges.id ? updatedEffect : e) };
-
-                    return {
-                        ...newState,
-                        units: newState.units.map(u => u.id === sourceUnitId ? updatedKafka : u),
-                        pendingActions: [...newState.pendingActions, { type: 'FOLLOW_UP_ATTACK', sourceId: sourceUnitId, targetId: event.targetId, eidolonLevel } as any]
-                    };
-                }
+                return onDamageDealt(event as ActionEvent, newState, sourceUnitId);
             }
 
             // 追加攻撃実行後: 感電付与、E1デバフ、DoT起爆
             if (event.type === 'ON_FOLLOW_UP_ATTACK' && event.sourceId === sourceUnitId) {
-                return onFollowUpAttack(event, newState, sourceUnitId, eidolonLevel);
+                return onFollowUpAttack(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             // E4: 感電ダメージ発生時のEP回復
             if (event.type === 'ON_DOT_DAMAGE') {
-                return onDotDamage(event, newState, sourceUnitId, eidolonLevel);
+                return onDotDamage(event as DoTDamageEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             // 略奪: 感電敵撃破時EP+5
             if (event.type === 'ON_ENEMY_DEFEATED') {
-                return onEnemyDefeated(event, newState, sourceUnitId);
+                return onEnemyDefeated(event as EnemyDefeatedEvent, newState, sourceUnitId);
             }
 
             // 苛み: 効果命中バフ付与/解除時に動的更新
             if (event.type === 'ON_EFFECT_APPLIED' || event.type === 'ON_EFFECT_REMOVED') {
-                const currentKafka = newState.units.find(u => u.id === sourceUnitId);
-                if (currentKafka?.traces?.some(t => t.name === '苛み')) {
+                const currentKafka = newState.registry.get(createUnitId(sourceUnitId));
+                if (currentKafka?.traces?.some(t => t.id === TRACE_IDS.TORTURE)) {
                     return applyTortureBuffs(newState, sourceUnitId);
                 }
             }

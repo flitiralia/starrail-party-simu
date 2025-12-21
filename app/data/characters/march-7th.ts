@@ -1,6 +1,12 @@
 import { Character, Element, Path, StatKey } from '../../types/index';
 import { weAreTheWildfire } from '../light-cones/we-are-wildfire';
 import { IEventHandlerFactory, GameState, IEvent, Unit } from '../../simulator/engine/types';
+import { createUnitId } from '../../simulator/engine/unitId';
+
+import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
+import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { applyShield } from '../../simulator/engine/utils';
+import { IEffect } from '../../simulator/effect/types';
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'march-7th';
@@ -231,13 +237,27 @@ export const march7th: Character = {
     },
   },
 
+  defaultConfig: {
+    eidolonLevel: 6,
+    lightConeId: 'day-one-of-my-new-life',
+    superimposition: 5,
+    relicSetId: 'knight_of_purity_palace',
+    ornamentSetId: 'belobog_of_the_architects',
+    mainStats: {
+      body: 'effect_hit_rate',
+      feet: 'spd',
+      sphere: 'def_pct',
+      rope: 'def_pct',
+    },
+    subStats: [
+      { stat: 'def_pct', value: 0.20 },
+      { stat: 'spd', value: 10 },
+      { stat: 'effect_hit_rate', value: 0.15 },
+      { stat: 'effect_res', value: 0.15 },
+    ],
+  },
 };
 
-import { calculateNormalAdditionalDamage } from '../../simulator/damage';
-import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { ShieldEffect, BreakStatusEffect, IEffect } from '../../simulator/effect/types';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
-import { applyShield } from '../../simulator/engine/utils';
 
 // --- 分離されたハンドラー関数 ---
 
@@ -262,20 +282,19 @@ const createCounterChargesEffect = (sourceUnitId: string, eidolonLevel: number):
 
 // 1. 戦闘開始時: E2バリア + カウンター初期化 + 秘技（凍結）
 const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-  const marchUnit = state.units.find(u => u.id === sourceUnitId);
+  const marchUnit = state.registry.get(createUnitId(sourceUnitId));
   if (!marchUnit) return state;
 
   let newState = state;
 
   // E2: 最も低いHP割合の味方にバリア
   if (eidolonLevel >= 2) {
-    const allies = newState.units.filter(u => !u.isEnemy && u.hp > 0);
+    const allies = newState.registry.getAliveAllies();
     if (allies.length > 0) {
       const lowestHpAlly = allies.reduce((lowest, current) =>
         (current.hp / current.stats.hp) < (lowest.hp / lowest.stats.hp) ? current : lowest
       );
-      const shieldValue = marchUnit.stats.def * E2_SHIELD_PCT + E2_SHIELD_FLAT;
-      newState = applyShield(newState, sourceUnitId, lowestHpAlly.id, shieldValue, 3, 'TURN_END_BASED', 'バリア (E2)');
+      newState = applyShield(newState, sourceUnitId, lowestHpAlly.id, { scaling: 'def', multiplier: E2_SHIELD_PCT, flat: E2_SHIELD_FLAT }, 3, 'TURN_END_BASED', 'バリア (E2)');
     }
   }
 
@@ -287,7 +306,7 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 
   if (useTechnique) {
     // 秘技: ランダムな敵を凍結
-    const enemies = newState.units.filter(u => u.isEnemy && u.hp > 0);
+    const enemies = newState.registry.getAliveEnemies();
     if (enemies.length > 0) {
       const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
       const ehr = marchUnit.stats.effect_hit_rate || 0;
@@ -322,26 +341,29 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
 
 // 2. ターン開始時: E6回復 + 秘技凍結付加ダメージ + カウンター更新
 const onTurnStart = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-  const marchUnit = state.units.find(u => u.id === sourceUnitId);
+  const marchUnit = state.registry.get(createUnitId(sourceUnitId));
   if (!marchUnit) return state;
 
   let newState = state;
-  const activeUnit = newState.units.find(u => u.id === event.sourceId);
+  const activeUnit = newState.registry.get(createUnitId(event.sourceId));
   if (!activeUnit) return newState;
 
   // E6: バリアを持つ味方を回復
   if (eidolonLevel >= 6 && !activeUnit.isEnemy && activeUnit.hp > 0 && activeUnit.shield > 0) {
-    const hasMarchShield = activeUnit.effects.some(e => e.sourceUnitId === sourceUnitId && (e as any).type === 'Shield');
+    const hasMarchShield = activeUnit.effects.some((e: IEffect) => e.sourceUnitId === sourceUnitId && (e as any).type === 'Shield');
     if (hasMarchShield) {
       const healAmount = activeUnit.stats.hp * E6_HEAL_PCT + E6_HEAL_FLAT;
       const newHp = Math.min(activeUnit.hp + healAmount, activeUnit.stats.hp);
-      newState = { ...newState, units: newState.units.map(u => u.id === activeUnit.id ? { ...u, hp: newHp } : u) };
+      newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(activeUnit.id), u => ({ ...u, hp: newHp }))
+      };
     }
   }
 
   // 秘技凍結の付加ダメージ
   if (activeUnit.isEnemy) {
-    const techFreeze = activeUnit.effects.find(e => e.id === `freeze-${activeUnit.id}` && e.sourceUnitId === sourceUnitId);
+    const techFreeze = activeUnit.effects.find((e: IEffect) => e.id === `freeze-${activeUnit.id}` && e.sourceUnitId === sourceUnitId);
     if (techFreeze) {
       const baseDamage = marchUnit.stats.atk * TECHNIQUE_DMG_MULT;
       const result = applyUnifiedDamage(newState, marchUnit, activeUnit, baseDamage, { damageType: '付加ダメージ' });
@@ -363,11 +385,13 @@ const onTurnStart = (event: IEvent, state: GameState, sourceUnitId: string, eido
 
 // 3. ダメージ発生時: カウンター発動
 const onDamageDealt = (event: IEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-  const marchUnit = state.units.find(u => u.id === sourceUnitId);
+  const marchUnit = state.registry.get(createUnitId(sourceUnitId));
   if (!marchUnit || marchUnit.hp <= 0) return state;
 
-  const targetUnit = state.units.find(u => u.id === event.targetId);
-  const sourceUnit = state.units.find(u => u.id === event.sourceId);
+  if (!('targetId' in event)) return state;
+  if (!event.targetId) return state;
+  const targetUnit = state.registry.get(createUnitId(event.targetId));
+  const sourceUnit = state.registry.get(createUnitId(event.sourceId));
 
   if (!targetUnit || !sourceUnit) return state;
   if (targetUnit.isEnemy) return state;  // ターゲットは味方でなければならない
@@ -375,17 +399,17 @@ const onDamageDealt = (event: IEvent, state: GameState, sourceUnitId: string, ei
   if (targetUnit.shield <= 0) return state; // バリアを持っていなければならない
 
   // カウンターエフェクトを確認
-  const counterEffect = marchUnit.effects.find(e => e.id === `march-counter-charges-${sourceUnitId}`);
+  const counterEffect = marchUnit.effects.find((e: IEffect) => e.id === `march-counter-charges-${sourceUnitId}`);
   if (!counterEffect || (counterEffect.stackCount || 0) <= 0) return state;
 
   // スタック数を減らしてカウンター発動
   const newStackCount = (counterEffect.stackCount || 0) - 1;
   const updatedEffect = { ...counterEffect, stackCount: newStackCount, name: `カウンター (${newStackCount}回)` };
-  const updatedMarch = { ...marchUnit, effects: marchUnit.effects.map(e => e.id === counterEffect.id ? updatedEffect : e) };
+  const updatedMarch = { ...marchUnit, effects: marchUnit.effects.map((e: IEffect) => e.id === counterEffect.id ? updatedEffect : e) };
 
   return {
     ...state,
-    units: state.units.map(u => u.id === sourceUnitId ? updatedMarch : u),
+    registry: state.registry.update(createUnitId(sourceUnitId), () => updatedMarch),
     pendingActions: [...state.pendingActions, { type: 'FOLLOW_UP_ATTACK', sourceId: sourceUnitId, targetId: sourceUnit.id, eidolonLevel } as any]
   };
 };
@@ -402,7 +426,7 @@ export const march7thHandlerFactory: IEventHandlerFactory = (sourceUnitId, level
       ],
     },
     handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
-      const marchUnit = state.units.find(u => u.id === sourceUnitId);
+      const marchUnit = state.registry.get(createUnitId(sourceUnitId));
       if (!marchUnit) return state;
 
       // 戦闘開始時: E2バリア + カウンター初期化 + 秘技

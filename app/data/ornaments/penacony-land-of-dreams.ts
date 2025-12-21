@@ -1,4 +1,7 @@
 import { OrnamentSet } from '../../types';
+import { Unit, GameState } from '../../simulator/engine/types';
+import { addEffect } from '../../simulator/engine/effectManager';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 夢の地ピノコニー
@@ -23,8 +26,9 @@ export const PENACONY_LAND_OF_DREAMS: OrnamentSet = {
                     value: 0.10,
                     target: 'all_allies',
                     condition: (stats, state, unitId) => {
+                        if (!state?.registry) return false;
                         // 装備者の属性を取得
-                        const owner = state.units.find(u => u.id === unitId);
+                        const owner = state.registry.get(createUnitId(unitId));
                         if (!owner) return false;
 
                         // この条件は各味方に対して評価される
@@ -41,15 +45,13 @@ export const PENACONY_LAND_OF_DREAMS: OrnamentSet = {
                     // 戦闘開始時に同属性の味方にバフ付与
                     events: ['ON_BATTLE_START'],
                     handler: (event, state, sourceUnitId) => {
-                        const owner = state.units.find(u => u.id === sourceUnitId);
+                        const owner = state.registry.get(createUnitId(sourceUnitId));
                         if (!owner) return state;
 
-                        const { addEffect } = require('../../simulator/engine/effectManager');
                         let newState = state;
 
                         // 同属性の味方にバフ付与
-                        const sameElementAllies = state.units.filter(u =>
-                            !u.isEnemy &&
+                        const sameElementAllies = state.registry.getAliveAllies().filter((u: Unit) =>
                             u.element === owner.element
                         );
 
@@ -67,8 +69,8 @@ export const PENACONY_LAND_OF_DREAMS: OrnamentSet = {
                                     type: 'add' as const,
                                     value: 0.10
                                 }],
-                                apply: (t: any, s: any) => s,
-                                remove: (t: any, s: any) => s
+                                apply: (t: Unit, s: GameState) => s,
+                                remove: (t: Unit, s: GameState) => s
                             };
                             newState = addEffect(newState, ally.id, buff);
                         }

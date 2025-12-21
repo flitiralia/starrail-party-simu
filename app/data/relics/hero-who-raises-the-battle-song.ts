@@ -1,6 +1,8 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
+import { Unit } from '../../simulator/engine/types';
 
 /**
  * 凱歌を揚げる英雄
@@ -33,8 +35,10 @@ export const HERO_WHO_RAISES_THE_BATTLE_SONG: RelicSet = {
                     value: 0.06,
                     target: 'self',
                     condition: (stats, state, unitId) => {
+                        // stateまたはregistryがない場合は条件を満たさない
+                        if (!state?.registry) return false;
                         // 精霊が存在するかチェック（linkedUnitIdで判定）
-                        return state.units.some(u =>
+                        return state.registry.toArray().some((u: Unit) =>
                             u.linkedUnitId === unitId &&
                             u.isSummon === true
                         );
@@ -44,10 +48,10 @@ export const HERO_WHO_RAISES_THE_BATTLE_SONG: RelicSet = {
             eventHandlers: [
                 {
                     // 精霊が攻撃した時、オーナーと精霊に会心ダメージバフ
-                    events: ['ON_DAMAGE_DEALT'],
+                    events: ['ON_ATTACK'], // 攻撃を行った後
                     handler: (event, state, sourceUnitId) => {
                         // 装備者の精霊かどうかをチェック
-                        const attacker = state.units.find(u => u.id === event.sourceId);
+                        const attacker = state.registry.get(createUnitId(event.sourceId));
                         if (!attacker) return state;
 
                         // 攻撃者が精霊で、オーナーがこの遺物の装備者かチェック

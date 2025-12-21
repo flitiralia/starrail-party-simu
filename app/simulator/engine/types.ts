@@ -1,6 +1,9 @@
-import { Character, Enemy, FinalStats, Modifier, SimulationLogEntry, Element, IUnitData, IAbility, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, HitDetail, EquipmentEffectEntry, StatKey } from '../../types/index';
+import { Character, Enemy, FinalStats, Modifier, SimulationLogEntry, Element, IUnitData, IAbility, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, HitDetail, EquipmentEffectEntry, StatKey, CooldownResetType, EventType } from '../../types/index';
 import { IEffect } from '../effect/types';
-import { DamageCalculationModifiers } from '../damage'; // 新しい型をインポート
+export type { EventType } from '../../types/index';
+import { DamageCalculationModifiers } from '../damage';
+import { UnitId } from './unitId';
+import { UnitRegistry } from './unitRegistry';
 
 /**
  * オーラインターフェース
@@ -10,7 +13,7 @@ import { DamageCalculationModifiers } from '../damage'; // 新しい型をイン
 export interface IAura {
     id: string;
     name: string;
-    sourceUnitId: string;
+    sourceUnitId: UnitId;
     target: 'all_allies' | 'all_enemies' | 'self' | 'other_allies';
     modifiers: {
         target: StatKey;
@@ -36,21 +39,23 @@ export interface CharacterConfig {
  * It holds their current state, which changes throughout the simulation.
  */
 export interface Unit {
-    id: string;
+    id: UnitId;
     name: string;
     isEnemy: boolean;
     element: Element;
     level: number;
-    abilities: IUnitData['abilities']; // IUnitData の abilities を参照
-    equippedLightCone?: Character['equippedLightCone']; // Added for access in handlers
-    eidolonLevel?: number; // 星魂レベル (0-6)
+    abilities: IUnitData['abilities'];
+    equippedLightCone?: Character['equippedLightCone'];
+    eidolonLevel?: number;
     relics?: Character['relics'];
     ornaments?: Character['ornaments'];
     traces?: Character['traces'];
+    path?: import('../../types/index').Path;
 
     // The full, calculated stats of the unit at the start of combat.
     stats: FinalStats;
 
+    // Reading file first is safer.
     // Base stats (for calculating percentage buffs dynamically)
     baseStats: FinalStats;
 
@@ -59,7 +64,7 @@ export interface Unit {
     ep: number;
     shield: number;
     toughness: number;
-    maxToughness: number; // Maximum toughness
+    maxToughness: number;
     weaknesses: Set<Element>;
 
     // List of active modifiers (buffs/debuffs) on this unit.
@@ -68,9 +73,14 @@ export interface Unit {
     // List of active effects (from light cones, relics, etc.) on this unit.
     effects: IEffect[];
 
+    // Light Cone Event Handler State (cooldowns, activation limits)
+    lightConeState?: Record<string, {
+        cooldown: number;              // Remaining cooldown turns
+        activations: number;           // Activations in current reset cycle
+    }>;
+
     // Current position on the timeline
     actionValue: number;
-    actionPoint: number; // 0-10000 gauge
 
     // Rotation and strategy state
     config?: CharacterConfig;
@@ -79,10 +89,27 @@ export interface Unit {
 
     // Summon related
     isSummon?: boolean;
-    ownerId?: string; // ID of the unit that summoned this unit
-    linkedUnitId?: string; // ID of the unit this summon is linked to (e.g., 'Comrade')
-    untargetable?: boolean; // If true, cannot be targeted by single-target/blast abilities
-    debuffImmune?: boolean; // If true, immune to all debuffs (e.g., Ikarun)
+    ownerId?: UnitId;
+    linkedUnitId?: UnitId;
+    untargetable?: boolean;
+    debuffImmune?: boolean;
+}
+
+// ターン終了スキップの終了条件タイプ
+export type TurnEndConditionType = 'action_count' | 'sp_threshold';
+
+// ターン終了の終了条件
+export interface TurnEndCondition {
+    type: TurnEndConditionType;
+    actionCount?: number;      // type === 'action_count' の場合: 指定回数アクション後に終了
+    spThreshold?: number;      // type === 'sp_threshold' の場合: SPが閾値を下回ったら終了
+}
+
+// ターン中の一時状態（ターン終了時に自動クリア）
+export interface CurrentTurnState {
+    skipTurnEnd: boolean;
+    endConditions: TurnEndCondition[];
+    actionCount: number; // 現在のアクション回数
 }
 
 /**
@@ -90,18 +117,18 @@ export interface Unit {
  * This object is intended to be passed around and updated by pure functions.
  */
 export interface GameState {
-    units: Unit[];
+    /** ユニット中央管理レジストリ */
+    readonly registry: UnitRegistry<Unit>;
+
     skillPoints: number;
-    maxSkillPoints: number; // Default 5, expandable
-    time: number; // Current simulation time, can be used for buff durations etc.
-    currentTurnOwnerId?: string; // 現在ターン中のユニットID（バフ減少スキップ判定用）
+    maxSkillPoints: number;
+    time: number;
+    currentTurnOwnerId?: UnitId;
     log: SimulationLogEntry[];
     eventHandlers: IEventHandler[];
-    eventHandlerLogics: Record<string, IEventHandlerLogic>; // ハンドラIDからロジック関数を引くためのマップ
-    // dynamicEffects: IEffect[]; // 将来的に動的な効果を管理するための場所
+    eventHandlerLogics: Record<string, IEventHandlerLogic>;
 
     // ダメージ計算前イベントでハンドラが一時的に設定する修飾子
-    // ダメージ計算後にリセットされる必要がある
     damageModifiers: DamageCalculationModifiers;
 
     // ハンドラがターンごとにクールダウンを追跡するためのマップ
@@ -110,21 +137,23 @@ export interface GameState {
     // クールダウンのメタデータ（リセットタイミング制御用）
     cooldownMetadata: Record<string, CooldownMetadata>;
 
-    // List of pending actions (e.g. Follow-up attacks) to be executed immediately after current action
-    // List of pending actions (e.g. Follow-up attacks) to be executed immediately after current action
+    // 保留アクション（追加攻撃など）
     pendingActions: Action[];
 
-    // Timeline management
+    // タイムライン管理
     actionQueue: ActionQueueEntry[];
 
-    // Battle Result Summary
+    // 戦闘結果
     result: BattleResult;
 
     // 現在アクションのログ蓄積用
     currentActionLog?: CurrentActionLog;
 
-    // オーラ（ソースユニットがフィールド上にいる間のみ有効な永続効果）
+    // オーラ
     auras: IAura[];
+
+    // ターン中の一時状態（ターン終了時に自動クリア）
+    currentTurnState?: CurrentTurnState;
 }
 
 /**
@@ -178,9 +207,26 @@ export interface DamageOptions {
     skipStats?: boolean; // 統計更新をスキップするか (まとめて更新する場合など)
     events?: {
         type: EventType;
-        payload?: any;
+        payload?: unknown;
     }[];
     details?: string; // ログ用の詳細メッセージ
+
+    // 付加ダメージのログ自動追加用
+    additionalDamageEntry?: {
+        source: string;        // ダメージ源（キャラクター名）
+        name: string;          // ダメージ名
+        damageType?: 'additional' | 'break' | 'break_additional' | 'super_break' | 'dot';
+        isCrit?: boolean;      // 会心したか
+        breakdownMultipliers?: {
+            baseDmg: number;
+            critMult: number;
+            dmgBoostMult: number;
+            defMult: number;
+            resMult: number;
+            vulnMult: number;
+            brokenMult: number;
+        };
+    };
 }
 
 export interface DamageResult {
@@ -198,53 +244,128 @@ export interface ActionQueueEntry {
 
 // --- Event/Action Handling Interfaces (For DIP and OCP) ---
 
-export type EventType =
-    | 'ON_DAMAGE_DEALT'
-    | 'ON_TURN_START'
-    | 'ON_TURN_END'         // ターン終了時
-    | 'ON_ULTIMATE_USED'
-    | 'ON_SKILL_USED'
-    | 'ON_UNIT_HEALED'
-    | 'ON_BATTLE_START'
-    | 'ON_BEFORE_DAMAGE_CALCULATION' // 防御無視などの動的効果介入用
-    | 'ON_WEAKNESS_BREAK' // 弱点撃破時
-    | 'ON_WEAKNESS_BREAK_RECOVERY_ATTEMPT' // 弱点撃破回復試行時（残梅用）
-    | 'ON_BASIC_ATTACK'
-    | 'ON_ENHANCED_BASIC_ATTACK' // 強化通常攻撃（刃の無間剣樹等）
-    | 'ON_FOLLOW_UP_ATTACK'
-    | 'ON_ATTACK'           // 全ての攻撃（通常攻撃、スキル、必殺技、追加攻撃）に反応
-    | 'ON_DEBUFF_APPLIED'
-    | 'ON_DOT_DAMAGE' // 持続ダメージ発生時
-    | 'ON_ACTION_COMPLETE'  // Fired after all damage calculation is done
-    | 'ON_EFFECT_APPLIED'   // エフェクト付与時
-    | 'ON_EFFECT_REMOVED'   // エフェクト解除時
-    | 'ON_ENEMY_DEFEATED'   // 敵撃破時
-    | 'ON_ENEMY_SPAWNED'    // 敵生成時
-    | 'ON_UNIT_DEATH'       // ユニット死亡/退場時
-    | 'ON_SP_CHANGE';       // SP増減時
 
-export interface IEvent {
-    type: EventType;
+
+export interface BaseEvent {
     sourceId: string;
-    targetId?: string;
-    value?: number; // Damage amount, healing amount, etc.
-    healingDone?: number; // 回復量（ON_UNIT_HEALED用）
-    subType?: string; // e.g. 'Basic', 'Skill', 'Ultimate', 'FollowUp', 'DoT'
-    targetCount?: number; // Added for Tribbie's Ultimate logic
-    defeatedEnemy?: Unit; // 倒された敵の情報（ON_ENEMY_DEFEATED用）
-    element?: import('@/app/types').Element; // 攻撃の属性（ON_BEFORE_DAMAGE_CALCULATION用）
-    // 将来的な拡張のために、より詳細な情報を持たせることも可能
-    // e.g. damageType: 'basic' | 'skill' | 'dot'
 }
+
+export interface GeneralEvent extends BaseEvent {
+    type: 'ON_BATTLE_START' | 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ENEMY_SPAWNED' | 'ON_UNIT_DEATH';
+    targetId?: string;
+    value?: number;
+}
+
+export interface ActionEvent extends BaseEvent {
+    type: 'ON_SKILL_USED' | 'ON_ULTIMATE_USED' | 'ON_BASIC_ATTACK' | 'ON_ENHANCED_BASIC_ATTACK' | 'ON_FOLLOW_UP_ATTACK' | 'ON_ATTACK' | 'ON_WEAKNESS_BREAK' | 'ON_WEAKNESS_BREAK_RECOVERY_ATTEMPT' | 'ON_ACTION_COMPLETE';
+    targetId?: string;
+    targetType?: 'single_enemy' | 'all_enemies' | 'ally' | 'all_allies' | 'self' | 'blast' | 'bounce';
+    subType?: string;
+    targetCount?: number;
+    adjacentIds?: string[];
+    value?: number; // General value field for damage/healing/etc
+}
+
+export interface DamageDealtEvent extends BaseEvent {
+    type: 'ON_DAMAGE_DEALT';
+    targetId: string;
+    value: number; // Damage amount
+    damageType?: string;
+    isCrit?: boolean;
+    hitDetails?: import('../../types/index').HitDetail[];
+    // Extended properties for logic
+    previousHpRatio?: number;
+    currentHpRatio?: number;
+    actionType?: string; // Used to identify source action type (e.g. 'FOLLOW_UP_ATTACK')
+}
+
+export interface HealEvent extends BaseEvent {
+    type: 'ON_UNIT_HEALED';
+    targetId: string;
+    healingDone: number;
+    value?: number; // Alias/general field
+}
+
+export interface EpGainEvent extends BaseEvent {
+    type: 'ON_EP_GAINED';
+    targetId: string;
+    epGained: number;
+    value?: number; // Alias/general field
+}
+
+export interface EffectEvent extends BaseEvent {
+    type: 'ON_EFFECT_APPLIED' | 'ON_EFFECT_REMOVED' | 'ON_DEBUFF_APPLIED';
+    targetId: string;
+    effect: IEffect;
+}
+
+export interface DoTDamageEvent extends BaseEvent {
+    type: 'ON_DOT_DAMAGE';
+    targetId: string;
+    dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear';
+    damage: number;
+    effectId: string;
+}
+
+export interface SpGainEvent extends BaseEvent {
+    type: 'ON_SP_GAINED';
+    value: number; // Amount gained
+}
+
+export interface SpConsumeEvent extends BaseEvent {
+    type: 'ON_SP_CONSUMED';
+    value: number; // Amount consumed
+}
+
+export interface BeforeActionEvent extends BaseEvent {
+    type: 'ON_BEFORE_ACTION' | 'ON_BEFORE_ATTACK' | 'ON_BEFORE_HIT' | 'ON_AFTER_HIT';
+    targetId?: string;
+    actionType?: string;
+}
+
+export interface HpConsumeEvent extends BaseEvent {
+    type: 'ON_HP_CONSUMED';
+    targetId: string; // HPを消費したユニット
+    sourceId: string; // 消費させたユニット（自身または味方）
+    amount: number;
+    sourceType?: string; // 消費の原因 (例: 'Skill', 'Technique')
+}
+
+export interface BeforeDamageCalcEvent extends BaseEvent {
+    type: 'ON_BEFORE_DAMAGE_CALCULATION';
+    targetId?: string;
+    abilityId?: string;
+    element?: import('../../types/index').Element;
+    value?: number;
+    subType?: string;
+}
+
+export interface EnemyDefeatedEvent extends BaseEvent {
+    type: 'ON_ENEMY_DEFEATED';
+    defeatedEnemy: Unit;
+    targetId?: string; // ID of defeated enemy
+}
+
+export type IEvent =
+    | GeneralEvent
+    | ActionEvent
+    | DamageDealtEvent
+    | HealEvent
+    | EpGainEvent
+    | SpGainEvent
+    | SpConsumeEvent
+    | EffectEvent
+    | DoTDamageEvent
+    | BeforeActionEvent
+    | BeforeDamageCalcEvent
+    | EnemyDefeatedEvent
+    | HpConsumeEvent;
 
 /**
  * エフェクト付与/解除イベント用のインターフェース
+ * @deprecated Use IEvent directly (it's now a union including EffectEvent)
  */
-export interface IEffectEvent extends IEvent {
-    type: 'ON_EFFECT_APPLIED' | 'ON_EFFECT_REMOVED';
-    targetId: string;        // エフェクトが付与/解除されたユニット
-    effect: IEffect;         // 付与/解除されたエフェクト
-}
+export type IEffectEvent = EffectEvent;
 
 /**
  * イベントハンドラインターフェース。シミュレーション中のライフサイクルイベントを捕捉する。
@@ -277,18 +398,7 @@ export interface IEventHandler {
 
 // --- Action Definitions ---
 
-export interface DoTDamageEvent extends IEvent {
-    type: 'ON_DOT_DAMAGE';
-    sourceId: string;    // DoTを付与したユニット
-    targetId: string;    // DoTを受けたユニット
-    dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear';
-    damage: number;      // 実際に与えたダメージ
-    effectId: string;    // DoTエフェクトのID
-}
-
-export type GameEvent =
-    | IEvent // Catch-all for now, or define specific event types
-    | DoTDamageEvent; // Add the new specific event type here
+export type GameEvent = IEvent; // Alias for simplicity
 
 export interface BasicAttackAction {
     type: 'BASIC_ATTACK';
@@ -335,7 +445,7 @@ export interface ActionAdvanceAction {
 export interface FollowUpAttackAction {
     type: 'FOLLOW_UP_ATTACK';
     sourceId: string;
-    targetId: string;
+    targetId?: string;
     // FuA specific properties
 }
 

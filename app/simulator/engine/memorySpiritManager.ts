@@ -10,6 +10,7 @@ import { GameState, Unit } from './types';
 import { createSummon, getActiveSummon, insertSummonAfterOwner, removeSummon } from './summonManager';
 import { addEffect, removeEffect } from './effectManager';
 import { IEffect } from '../effect/types';
+import { UnitId, createUnitId } from './unitId';
 
 // ============================================================
 // 型定義
@@ -93,7 +94,7 @@ export function summonOrRefreshSpirit(
 
         return {
             state: newState,
-            spirit: newState.units.find(u => u.id === existingSpirit.id)!,
+            spirit: newState.registry.get(createUnitId(existingSpirit.id))!,
             isNew: false
         };
     }
@@ -135,7 +136,7 @@ export function summonOrRefreshSpirit(
 
     return {
         state: newState,
-        spirit: newState.units.find(u => u.id === spirit.id)!,
+        spirit: newState.registry.get(createUnitId(spirit.id))!,
         isNew: true
     };
 }
@@ -143,12 +144,13 @@ export function summonOrRefreshSpirit(
 /**
  * 精霊の持続時間をリフレッシュする
  */
+
 export function refreshSpiritDuration(
     state: GameState,
     spiritId: string,
     duration: number
 ): GameState {
-    const spirit = state.units.find(u => u.id === spiritId);
+    const spirit = state.registry.get(createUnitId(spiritId));
     if (!spirit) return state;
 
     // 既存の持続時間エフェクトを更新
@@ -158,11 +160,10 @@ export function refreshSpiritDuration(
         const updatedEffects = spirit.effects.map(e =>
             e.id === durationEffect.id ? updatedEffect : e
         );
+        // return updateUnit(state, createUnitId(spiritId), { effects: updatedEffects });
         return {
             ...state,
-            units: state.units.map(u =>
-                u.id === spiritId ? { ...u, effects: updatedEffects } : u
-            )
+            registry: state.registry.update(createUnitId(spiritId), u => ({ ...u, effects: updatedEffects }))
         };
     }
 
@@ -177,7 +178,7 @@ export function reduceSpiritDuration(
     state: GameState,
     spiritId: string
 ): GameState {
-    const spirit = state.units.find(u => u.id === spiritId);
+    const spirit = state.registry.get(createUnitId(spiritId));
     if (!spirit) return state;
 
     const durationEffect = spirit.effects.find(e => e.id.startsWith('spirit-duration-'));

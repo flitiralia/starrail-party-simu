@@ -1,6 +1,8 @@
 import { RelicSet } from '../../types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
+import { Unit } from '../../simulator/engine/types';
 
 /**
  * 天地再創の救世主
@@ -33,7 +35,7 @@ export const SAVIOR_WHO_RECREATES_HEAVEN_AND_EARTH: RelicSet = {
                         if (event.sourceId !== sourceUnitId) return state;
 
                         // 精霊がフィールドにいるかチェック
-                        const spirit = state.units.find(u =>
+                        const spirit = state.registry.toArray().find((u: Unit) =>
                             u.linkedUnitId === sourceUnitId &&
                             u.isSummon === true
                         );
@@ -46,7 +48,7 @@ export const SAVIOR_WHO_RECREATES_HEAVEN_AND_EARTH: RelicSet = {
                         newState = removeEffect(newState, sourceUnitId, 'savior-hp-boost');
                         newState = removeEffect(newState, spirit.id, 'savior-hp-boost-spirit');
                         // 味方全体の与ダメージバフも削除
-                        for (const unit of newState.units.filter(u => !u.isEnemy)) {
+                        for (const unit of newState.registry.getAliveAllies()) {
                             newState = removeEffect(newState, unit.id, 'savior-dmg-boost');
                         }
 
@@ -81,7 +83,7 @@ export const SAVIOR_WHO_RECREATES_HEAVEN_AND_EARTH: RelicSet = {
                         newState = addEffect(newState, spirit.id, spiritHpBuff);
 
                         // 味方全体に与ダメージ+15%
-                        const allies = newState.units.filter(u => !u.isEnemy);
+                        const allies = newState.registry.getAliveAllies();
                         for (const ally of allies) {
                             const dmgBuff: IEffect = {
                                 id: 'savior-dmg-boost',

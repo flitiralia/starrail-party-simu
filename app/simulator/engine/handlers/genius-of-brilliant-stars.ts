@@ -1,5 +1,6 @@
 import { GameState, IEvent, IEventHandler, IEventHandlerLogic, IEventHandlerFactory, Unit } from '../types';
 import { Element } from '@/app/types';
+import { createUnitId } from '../unitId';
 
 /**
  * 天才の閃光 (Genius of Brilliant Stars) 4セット効果ハンドラ。
@@ -13,12 +14,19 @@ export const handleGeniusOfBrilliantStarsLogic: IEventHandlerLogic = (event, sta
     }
 
     // イベントソースがキャラクターであり、かつそのキャラクターの属性が「量子」である場合にのみ発動
-    const sourceUnit = state.units.find(u => u.id === event.sourceId);
+    const sourceUnit = state.registry.get(createUnitId(event.sourceId));
     if (!sourceUnit || sourceUnit.element !== 'Quantum') {
         return state;
     }
 
-    const targetUnit = state.units.find(u => u.id === event.targetId);
+    if (!event.targetId) {
+        return state;
+    }
+
+    const targetUnit = state.registry.get(createUnitId(event.targetId));
+    if (!targetUnit) {
+        return state;
+    }
     if (!targetUnit) {
         return state;
     }

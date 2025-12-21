@@ -9,6 +9,9 @@ import { hianshiHandlerFactory } from '../../data/characters/hianshi';
 import { bladeHandlerFactory } from '../../data/characters/blade';
 import { ruanMeiHandlerFactory } from '../../data/characters/ruan-mei';
 import { sundayHandlerFactory } from '../../data/characters/sunday';
+import { trailblazerRemembranceHandlerFactory } from '../../data/characters/trailblazer-remembrance';
+import { trailblazerHarmonyHandlerFactory } from '../../data/characters/trailblazer-harmony';
+import { hertaHandlerFactory } from '../../data/characters/herta';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -58,4 +61,7 @@ registry.registerCharacter('hianshi', hianshiHandlerFactory);
 registry.registerCharacter('blade', bladeHandlerFactory);
 registry.registerCharacter('ruan-mei', ruanMeiHandlerFactory);
 registry.registerCharacter('sunday', sundayHandlerFactory);
+registry.registerCharacter('trailblazer-remembrance', trailblazerRemembranceHandlerFactory);
+registry.registerCharacter('trailblazer-harmony', trailblazerHarmonyHandlerFactory);
+registry.registerCharacter('herta', hertaHandlerFactory);
 

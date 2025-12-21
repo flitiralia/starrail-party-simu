@@ -1,5 +1,6 @@
-import { ILightConeData } from '@/app/types';
-import { addEnergy } from '@/app/simulator/engine/energy';
+import { ILightConeData, CooldownResetType } from '@/app/types';
+import { addEnergyToUnit } from '@/app/simulator/engine/energy';
+import { publishEvent } from '@/app/simulator/engine/dispatcher';
 
 export const memoriesOfThePast: ILightConeData = {
   id: 'memories-of-the-past',
@@ -28,8 +29,10 @@ export const memoriesOfThePast: ILightConeData = {
     {
       id: 'ep_regen_on_attack',
       name: '古い写真（EP回復）',
-      events: ['ON_DAMAGE_DEALT'], // ダメージを与えたとき（攻撃のみ、回復・バフスキルは除外）
-      // cooldownResetType: 'wearer_turn' (デフォルト) - 1ターンに1回
+      events: ['ON_ATTACK'], // 攻撃を行った後
+      cooldownResetType: CooldownResetType.WEARER_TURN,
+      cooldownTurns: 1,      // 1ターンに
+      maxActivations: 1,     // 1回まで
       handler: (event, state, unit, superimposition) => {
         // 所持者が攻撃を行ったときのみ反応
         if (event.sourceId !== unit.id) return state;
@@ -38,18 +41,15 @@ export const memoriesOfThePast: ILightConeData = {
         const epValue = [4, 5, 6, 7, 8][superimposition - 1];
 
         // EP回復
-        const unitIndex = state.units.findIndex(u => u.id === unit.id);
-        if (unitIndex === -1) return state;
-
-        const updatedUnit = addEnergy(state.units[unitIndex], epValue);
-        const newUnits = [...state.units];
-        newUnits[unitIndex] = updatedUnit;
+        const newState = addEnergyToUnit(state, unit.id, epValue, 0, false, {
+          sourceId: unit.id,
+          publishEventFn: publishEvent
+        });
 
         // ログ
         return {
-          ...state,
-          units: newUnits,
-          log: [...state.log, {
+          ...newState,
+          log: [...newState.log, {
             actionType: 'EP回復',
             sourceId: unit.id,
             characterName: unit.name,

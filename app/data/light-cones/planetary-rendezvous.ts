@@ -1,4 +1,5 @@
 import { ILightConeData } from '@/app/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const planetaryRendezvous: ILightConeData = {
   id: 'planetary-rendezvous',
@@ -22,13 +23,14 @@ export const planetaryRendezvous: ILightConeData = {
       events: ['ON_BEFORE_DAMAGE_CALCULATION'],
       handler: (event, state, unit, superimposition) => {
         // 攻撃者を取得
-        const attacker = state.units.find(u => u.id === event.sourceId);
+        const attacker = state.registry.get(createUnitId(event.sourceId));
         if (!attacker) return state;
 
         // 味方キャラかチェック
         if (attacker.isEnemy) return state;
 
         // 攻撃の属性を取得
+        if (!('element' in event)) return state;
         const attackElement = event.element;
         if (!attackElement) return state;
 

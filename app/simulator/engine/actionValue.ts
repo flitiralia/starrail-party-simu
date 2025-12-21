@@ -1,5 +1,7 @@
 
 import { GameState, Unit, ActionQueueEntry } from './types';
+import { UnitId, createUnitId } from './unitId';
+
 
 /**
  * Constants for Action Value calculations
@@ -16,6 +18,14 @@ export function calculateActionValue(speed: number): number {
 }
 
 /**
+ * Calculates the base AV for a unit (used for percentage-based calculations).
+ * Formula: Base AV = 10000 / SPD
+ */
+export function calculateBaseAV(speed: number): number {
+    return BASE_ACTION_VALUE / Math.max(1, speed);
+}
+
+/**
  * Initializes the Action Queue based on current unit speeds.
  * Should be called at the start of battle or wave.
  */
@@ -27,14 +37,11 @@ export function initializeActionQueue(units: Unit[]): ActionQueueEntry[] {
 }
 
 /**
- * Updates the Action Queue after a unit takes an action or AV changes.
- * This is a simplified version; real HSR logic involves "current AV" and "base AV".
- * For this simulator, we'll track "remaining AV" for each unit.
+ * Updates the Action Queue to sync with unit states.
+ * This ensures that changes to Unit AV are reflected in the queue.
  */
 export function updateActionQueue(state: GameState): GameState {
-    // Sync Action Queue with Unit states
-    // This ensures that changes to Unit AV (e.g. from turn end) are reflected in the queue
-    const newQueue = state.units
+    const newQueue = state.registry.toArray()
         .filter(u => u.hp > 0) // Filter out dead units
         .map(unit => ({
             unitId: unit.id,
@@ -42,13 +49,120 @@ export function updateActionQueue(state: GameState): GameState {
         }))
         .sort((a, b) => a.actionValue - b.actionValue);
 
-
-
-
     return {
         ...state,
         actionQueue: newQueue
     };
+}
+
+// ============================================================================
+// 一元化されたAV管理関数
+// ============================================================================
+
+/**
+ * Sets a unit's Action Value directly.
+ * This is the core function that all other AV modifications should use.
+ * @param state Current game state
+ * @param unitId ID of the unit to update
+ * @param newAV New Action Value
+ * @param syncQueue Whether to sync the action queue (default: true)
+ */
+export function setUnitActionValue(
+    state: GameState,
+    unitId: UnitId | string,
+    newAV: number,
+    syncQueue: boolean = true
+): GameState {
+    const id = typeof unitId === 'string' ? createUnitId(unitId) : unitId;
+    const unit = state.registry.get(id);
+    if (!unit) return state;
+
+    let newState = {
+        ...state,
+        registry: state.registry.update(id, u => ({ ...u, actionValue: newAV }))
+    };
+
+    if (syncQueue) {
+        newState = updateActionQueue(newState);
+    }
+
+    return newState;
+}
+
+/**
+ * Advances a unit's action (reduces AV).
+ * @param state Current game state
+ * @param unitId ID of the unit to advance
+ * @param value Amount to advance (0.0 to 1.0 for percent, or flat value if type is 'fixed')
+ * @param type Type of advance ('percent' of Base AV, or 'fixed' value)
+ */
+export function advanceUnitAction(
+    state: GameState,
+    unitId: UnitId | string,
+    value: number,
+    type: 'percent' | 'fixed' = 'percent'
+): GameState {
+    const id = typeof unitId === 'string' ? createUnitId(unitId) : unitId;
+    const unit = state.registry.get(id);
+    if (!unit) return state;
+
+    let reduction: number;
+    if (type === 'percent') {
+        const baseAV = calculateBaseAV(unit.stats.spd);
+        reduction = baseAV * value;
+    } else {
+        reduction = value;
+    }
+
+    const newAV = Math.max(0, unit.actionValue - reduction);
+    return setUnitActionValue(state, id, newAV);
+}
+
+/**
+ * Delays a unit's action (increases AV).
+ * @param state Current game state
+ * @param unitId ID of the unit to delay
+ * @param value Amount to delay (0.0 to 1.0 for percent, or flat value if type is 'fixed')
+ * @param type Type of delay ('percent' of Base AV, or 'fixed' value)
+ */
+export function delayUnitAction(
+    state: GameState,
+    unitId: UnitId | string,
+    value: number,
+    type: 'percent' | 'fixed' = 'percent'
+): GameState {
+    const id = typeof unitId === 'string' ? createUnitId(unitId) : unitId;
+    const unit = state.registry.get(id);
+    if (!unit) return state;
+
+    let delay: number;
+    if (type === 'percent') {
+        const baseAV = calculateBaseAV(unit.stats.spd);
+        delay = baseAV * value;
+    } else {
+        delay = value;
+    }
+
+    const newAV = unit.actionValue + delay;
+    return setUnitActionValue(state, id, newAV);
+}
+
+/**
+ * Resets a unit's Action Value to its base value (for turn end).
+ * Formula: New AV = 10000 / SPD
+ * @param state Current game state
+ * @param unitId ID of the unit to reset
+ */
+export function resetUnitActionValue(
+    state: GameState,
+    unitId: UnitId | string
+): GameState {
+    const id = typeof unitId === 'string' ? createUnitId(unitId) : unitId;
+    const unit = state.registry.get(id);
+    if (!unit) return state;
+
+    const baseAV = calculateActionValue(unit.stats.spd);
+    return setUnitActionValue(state, id, baseAV);
 }
 
 /**
@@ -56,54 +170,44 @@ export function updateActionQueue(state: GameState): GameState {
  * Reduces the AV of all units by the given amount.
  */
 export function advanceTimeline(state: GameState, amount: number): GameState {
-
     const newQueue = state.actionQueue.map(entry => ({
         ...entry,
         actionValue: Math.max(0, entry.actionValue - amount)
     }));
 
-    // Update unit states as well (optional, but good for consistency)
-    const newUnits = state.units.map(unit => {
-        const entry = newQueue.find(e => e.unitId === unit.id);
-        if (entry) {
-            // Update Action Point as well to keep it in sync with AV
-            // AP increases as AV decreases (time passes)
-            const apGain = amount * unit.stats.spd;
-            const newAp = (unit.actionPoint || 0) + apGain;
-
-            return {
-                ...unit,
-                actionValue: entry.actionValue,
-                actionPoint: newAp
-            };
+    // Update unit states as well
+    const newRegistry = state.registry.updateWhere(
+        () => true, // All units
+        unit => {
+            const entry = newQueue.find(e => e.unitId === unit.id);
+            if (entry) {
+                return {
+                    ...unit,
+                    actionValue: entry.actionValue
+                };
+            }
+            return unit;
         }
-        return unit;
-    });
+    );
 
     return {
         ...state,
-        units: newUnits,
+        registry: newRegistry,
         actionQueue: newQueue,
         time: state.time + amount
     };
 }
 
-// NOTE: actionAdvance は utils.ts の advanceAction に統一されました
-
 /**
  * Adds a specific amount to a unit's Action Value.
- * Used primarily at turn end to reset for the next turn.
- * Formula: New AV = Current AV + Amount
+ * @deprecated Use setUnitActionValue or delayUnitAction instead.
  */
 export function addActionValue(state: GameState, unitId: string, amount: number): GameState {
-    const newUnits = state.units.map(u => {
-        if (u.id === unitId) {
-            return { ...u, actionValue: (u.actionValue || 0) + amount };
-        }
-        return u;
-    });
+    const unit = state.registry.get(createUnitId(unitId));
+    if (!unit) return state;
 
-    return updateActionQueue({ ...state, units: newUnits });
+    const newAV = (unit.actionValue || 0) + amount;
+    return setUnitActionValue(state, unitId, newAV);
 }
 
 /**
@@ -121,19 +225,5 @@ export function adjustActionValueForSpeedChange(
     }
 
     const newAV = unit.actionValue * (oldSpeed / newSpeed);
-    return { ...unit, actionValue: newAV };
-}
-
-/**
- * Recalculates Action Value from Action Point and Speed.
- * Formula: AV = (10000 - AP) / Speed
- * Used when AP is modified (e.g., delay effects).
- */
-export function recalculateActionValueFromActionPoint(
-    unit: Unit,
-    actionPoint?: number
-): Unit {
-    const ap = actionPoint ?? unit.actionPoint ?? 0;
-    const newAV = Math.max(0, (BASE_ACTION_VALUE - ap) / unit.stats.spd);
     return { ...unit, actionValue: newAV };
 }

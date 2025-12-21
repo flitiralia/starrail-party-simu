@@ -1,6 +1,7 @@
 import { OrnamentSet } from '../../types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 天国@配信ルーム
@@ -25,7 +26,7 @@ export const HEAVEN_AT_STREAMING_ROOM: OrnamentSet = {
                     // SP消費を追跡
                     events: ['ON_SKILL_USED'],
                     handler: (event, state, sourceUnitId) => {
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // SP消費追跡用のカウンターを更新

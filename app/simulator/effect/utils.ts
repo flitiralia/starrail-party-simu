@@ -14,7 +14,9 @@ export function isBreakStatusEffect(effect: IEffect): effect is BreakStatusEffec
 
 export function isCrowdControlEffect(effect: IEffect): boolean {
     if (isBreakStatusEffect(effect)) {
-        return ['Freeze', 'Entanglement', 'Imprisonment'].includes(effect.statusType);
+        // Only Freeze causes turn skip
+        // Entanglement and Imprisonment only cause action delay, not turn skip
+        return effect.statusType === 'Freeze';
     }
     return false;
 }

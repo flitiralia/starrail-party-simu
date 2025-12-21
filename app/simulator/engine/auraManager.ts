@@ -3,6 +3,7 @@
 
 import { GameState, IAura } from './types';
 import { StatKey } from '../../types';
+import { UnitId, createUnitId } from './unitId'; // Import added
 
 /**
  * オーラを登録する
@@ -69,14 +70,14 @@ export function getAuraModifiersForUnit(
     state: GameState,
     unitId: string
 ): { target: StatKey; value: number; type: 'add' | 'pct'; source: string }[] {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return [];
 
     const modifiers: { target: StatKey; value: number; type: 'add' | 'pct'; source: string }[] = [];
 
     for (const aura of state.auras) {
         // ソースユニットが生存しているか確認
-        const source = state.units.find(u => u.id === aura.sourceUnitId);
+        const source = state.registry.get(createUnitId(aura.sourceUnitId));
         if (!source || source.hp <= 0) continue;
 
         // ターゲット判定
@@ -114,14 +115,14 @@ export function getAurasForLog(
     state: GameState,
     unitId: string
 ): { name: string; modifiers: { stat: string; value: number }[] }[] {
-    const unit = state.units.find(u => u.id === unitId);
+    const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return [];
 
     const result: { name: string; modifiers: { stat: string; value: number }[] }[] = [];
 
     for (const aura of state.auras) {
         // ソースユニットが生存しているか確認
-        const source = state.units.find(u => u.id === aura.sourceUnitId);
+        const source = state.registry.get(createUnitId(aura.sourceUnitId));
         if (!source || source.hp <= 0) continue;
 
         // ターゲット判定

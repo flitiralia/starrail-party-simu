@@ -64,7 +64,7 @@ export const FIRESMITH_OF_LAVA_FORGING: RelicSet = {
                 },
                 {
                     // 攻撃後にバフ消費（必殺技以外）
-                    events: ['ON_DAMAGE_DEALT'],
+                    events: ['ON_ATTACK'], // 攻撃を行った後
                     handler: (event, state, sourceUnitId) => {
                         if (event.sourceId !== sourceUnitId) return state;
 

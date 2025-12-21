@@ -1,6 +1,7 @@
 import { OrnamentSet } from '../../types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 天体階差機関
@@ -24,7 +25,7 @@ export const CELESTIAL_DIFFERENTIATOR: OrnamentSet = {
                 {
                     events: ['ON_BATTLE_START'],
                     handler: (event, state, sourceUnitId) => {
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // 会心ダメージ120%以上かチェック
@@ -52,11 +53,11 @@ export const CELESTIAL_DIFFERENTIATOR: OrnamentSet = {
                 },
                 {
                     // 初回攻撃後にバフ削除
-                    events: ['ON_DAMAGE_DEALT'],
+                    events: ['ON_ATTACK'], // 攻撃を行った後
                     handler: (event, state, sourceUnitId) => {
                         if (event.sourceId !== sourceUnitId) return state;
 
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // バフが存在する場合のみ削除

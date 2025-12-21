@@ -2,7 +2,7 @@ import { GameState, Unit, IEvent } from "../engine/types";
 import { StatKey } from "../../types";
 
 // 効果のカテゴリ
-export type EffectCategory = 'BUFF' | 'DEBUFF' | 'STATUS';
+export type EffectCategory = 'BUFF' | 'DEBUFF' | 'STATUS' | 'OTHER';
 
 // 効果の持続時間タイプ
 export type DurationType =
@@ -56,8 +56,11 @@ export interface IEffect {
   modifiers?: import('../../types/stats').Modifier[];
 
   // Legacy support (to be deprecated or integrated)
-  apply: (target: Unit, state: GameState, event?: any) => GameState;
-  remove: (target: Unit, state: GameState, event?: any) => GameState;
+  apply: (target: Unit, state: GameState, event?: IEvent) => GameState;
+  remove: (target: Unit, state: GameState, event?: IEvent) => GameState;
+
+  // 汎用データストア（カスタム実装用）
+  miscData?: Record<string, any>;
 
   // 汎用タグ (例: 'SKIP_TOUGHNESS_RECOVERY')
   tags?: string[];

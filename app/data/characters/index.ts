@@ -9,6 +9,12 @@ export { Hianshi, hianshiHandlerFactory } from './hianshi';
 export { blade, bladeHandlerFactory } from './blade';
 export { ruanMei, ruanMeiHandlerFactory } from './ruan-mei';
 export { sunday, sundayHandlerFactory } from './sunday';
+export { trailblazerRemembrance, trailblazerRemembranceHandlerFactory } from './trailblazer-remembrance';
+export { trailblazerHarmony, trailblazerHarmonyHandlerFactory } from './trailblazer-harmony';
+export { herta, hertaHandlerFactory } from './herta';
+export { acheron, acheronHandlerFactory } from './acheron';
+export { aglaea, aglaeaHandlerFactory } from './aglaea';
+export { anaxa, anaxaHandlerFactory } from './anaxa';
 // Export all characters for easy access
 import { march7th } from './march-7th';
 import { tribbie } from './tribbie';
@@ -20,5 +26,11 @@ import { Hianshi } from './hianshi';
 import { blade } from './blade';
 import { ruanMei } from './ruan-mei';
 import { sunday } from './sunday';
+import { trailblazerRemembrance } from './trailblazer-remembrance';
+import { trailblazerHarmony } from './trailblazer-harmony';
+import { herta } from './herta';
+import { acheron } from './acheron';
+import { aglaea } from './aglaea';
+import { anaxa } from './anaxa';
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday];
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa];

@@ -1,14 +1,37 @@
-import { Character, Element, Path, StatKey } from '../../types/index';
-import { IEventHandlerFactory, GameState, IEvent, Unit } from '../../simulator/engine/types';
+import { Character, StatKey, SimulationLogEntry } from '../../types/index';
+import { IEventHandlerFactory, GameState, IEvent, Unit, GeneralEvent, ActionEvent, BeforeDamageCalcEvent } from '../../simulator/engine/types';
 import { IEffect } from '../../simulator/effect/types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { advanceAction, cleanse } from '../../simulator/engine/utils';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
+import { publishEvent } from '../../simulator/engine/dispatcher';
 import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
-import { getLeveledValue } from '../../simulator/utils/abilityLevel';
+import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
+import { UnitId, createUnitId } from '../../simulator/engine/unitId';
+
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'sunday';
+
+const EFFECT_IDS = {
+    BLESSED: 'sunday-blessed-one',
+    SKILL_BOOST: 'sunday-skill-dmg-boost',
+    TALENT_CRIT: 'sunday-talent-crit',
+    E1_DEF_IGNORE: 'sunday-e1-def-ignore',
+    TECH_DMG_BOOST: 'sunday-technique-dmg-boost',
+    TECH_READY: 'sunday-technique-ready',
+    E2_USED: 'sunday-e2-used',
+};
+
+const TRACE_IDS = {
+    A2: 'sunday-trace-a2',
+    A4: 'sunday-trace-a4',
+    A6: 'sunday-trace-a6',
+};
+
+const TAGS = {
+    BLESSED: 'SUNDAY_BLESSED',
+};
 
 // --- E3/E5パターン (標準) ---
 // E3: 必殺技Lv+2, 通常Lv+1
@@ -151,19 +174,19 @@ export const sunday: Character = {
     },
     traces: [
         {
-            id: 'sunday-trace-a2',
+            id: TRACE_IDS.A2,
             name: '主日の渇望',
             type: 'Bonus Ability',
             description: '必殺技で回復するEPが40未満の場合、40まで引き上げる。',
         },
         {
-            id: 'sunday-trace-a4',
+            id: TRACE_IDS.A4,
             name: '崇高なる浄化',
             type: 'Bonus Ability',
             description: '戦闘開始時、サンデーのEPを25回復する。',
         },
         {
-            id: 'sunday-trace-a6',
+            id: TRACE_IDS.A6,
             name: '掌上の安息',
             type: 'Bonus Ability',
             description: 'スキル発動時、ターゲットのデバフを1つ解除する。',
@@ -230,19 +253,21 @@ export const sunday: Character = {
         },
     },
     defaultConfig: {
-        lightConeId: 'but-the-battle-is-not-over',
+        lightConeId: 'a-grounded-ascent',
         superimposition: 1,
-        relicSetId: 'messenger_traversing_hackerspace',
-        ornamentSetId: 'lushaka_the_sunken_seas',
+        relicSetId: 'priest_who_walks_the_path_of_suffering',
+        ornamentSetId: 'lusaka_by_the_sunken_sea',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',
-            sphere: 'hp_pct',
+            sphere: 'def_pct',
             rope: 'energy_regen_rate',
         },
         subStats: [
             { stat: 'crit_dmg', value: 0.80 },
             { stat: 'spd', value: 20 },
+            { stat: 'effect_res', value: 0.20 },
+            { stat: 'def_pct', value: 0.20 },
         ],
         rotationMode: 'spam_skill',
         ultStrategy: 'immediate',
@@ -265,7 +290,7 @@ function createBlessedOneEffect(
     eidolonLevel: number
 ): IEffect {
     // E3で必殺技Lv+2 → Lv12の値を使用
-    const ultLevel = eidolonLevel >= 3 ? 12 : 10;
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 3, 'Ultimate');
     const critDmgMult = getLeveledValue(ABILITY_VALUES.ultCritDmgMult, ultLevel);
     const critDmgFlat = getLeveledValue(ABILITY_VALUES.ultCritDmgFlat, ultLevel);
 
@@ -276,13 +301,13 @@ function createBlessedOneEffect(
     const e2DmgBoost = eidolonLevel >= 2 ? E2_BLESSED_DMG_BOOST : 0;
 
     return {
-        id: `sunday-blessed-one-${sourceId}-${targetId}`,
+        id: `${EFFECT_IDS.BLESSED}-${sourceId}-${targetId}`,
         name: '祝福されし者',
         category: 'BUFF',
         sourceUnitId: sourceId,
         durationType: 'PERMANENT', // 手動で減少させるためPERMANENT
         duration: duration,
-        tags: ['SUNDAY_BLESSED'], // サンデーのターン開始時に減少させるためのタグ
+        tags: [TAGS.BLESSED], // サンデーのターン開始時に減少させるためのタグ
         onApply: (target, state) => {
             const modifiers = [
                 {
@@ -302,13 +327,19 @@ function createBlessedOneEffect(
                 });
             }
             const newModifiers = [...target.modifiers, ...modifiers];
-            return { ...state, units: state.units.map(u => u.id === target.id ? { ...u, modifiers: newModifiers } : u) };
+            return {
+                ...state,
+                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
+            };
         },
         onRemove: (target, state) => {
             const newModifiers = target.modifiers.filter(m =>
                 m.source !== '祝福されし者' && m.source !== '祝福されし者 (E2)'
             );
-            return { ...state, units: state.units.map(u => u.id === target.id ? { ...u, modifiers: newModifiers } : u) };
+            return {
+                ...state,
+                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
+            };
         },
         apply: (t, s) => s,
         remove: (t, s) => s,
@@ -326,13 +357,13 @@ function createSkillDmgBoostEffect(
     eidolonLevel: number
 ): IEffect {
     // E5でスキルLv+2 → Lv12の値を使用
-    const skillLevel = eidolonLevel >= 5 ? 12 : 10;
+    const skillLevel = calculateAbilityLevel(eidolonLevel, 5, 'Skill');
     const baseDmgBoost = getLeveledValue(ABILITY_VALUES.skillDmgBoost, skillLevel);
     const summonBonus = hasSummon ? getLeveledValue(ABILITY_VALUES.skillSummonBonus, skillLevel) : 0;
     const totalDmgBoost = baseDmgBoost + summonBonus;
 
     return {
-        id: `sunday-skill-dmg-boost-${sourceId}-${targetId}`,
+        id: `${EFFECT_IDS.SKILL_BOOST}-${sourceId}-${targetId}`,
         name: '紙と式典の賜物',
         category: 'BUFF',
         sourceUnitId: sourceId,
@@ -361,7 +392,7 @@ function createTalentCritRateEffect(
     existingStacks: number = 0
 ): IEffect {
     // E5で天賦Lv+2 → Lv12の値を使用
-    const talentLevel = eidolonLevel >= 5 ? 12 : 10;
+    const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
     const critRateBoost = getLeveledValue(ABILITY_VALUES.talentCritRate, talentLevel);
 
     // E6: 最大3層まで累積可能
@@ -372,7 +403,7 @@ function createTalentCritRateEffect(
     const actualDuration = eidolonLevel >= 6 ? duration + E6_TALENT_DURATION_BONUS : duration;
 
     return {
-        id: `sunday-talent-crit-${sourceId}-${targetId}`,
+        id: `${EFFECT_IDS.TALENT_CRIT}-${sourceId}-${targetId}`,
         name: '肉体の告解',
         category: 'BUFF',
         sourceUnitId: sourceId,
@@ -404,7 +435,7 @@ function createE1DefIgnoreEffect(
     const defIgnoreValue = isSummon ? E1_SUMMON_DEF_IGNORE : E1_CHARACTER_DEF_IGNORE;
 
     return {
-        id: `sunday-e1-def-ignore-${sourceId}-${targetId}`,
+        id: `${EFFECT_IDS.E1_DEF_IGNORE}-${sourceId}-${targetId}`,
         name: '千年の静寂の果て',
         category: 'BUFF',
         sourceUnitId: sourceId,
@@ -418,11 +449,17 @@ function createE1DefIgnoreEffect(
                 type: 'add' as const,
                 value: defIgnoreValue,
             }];
-            return { ...state, units: state.units.map(u => u.id === target.id ? { ...u, modifiers: newModifiers } : u) };
+            return {
+                ...state,
+                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
+            };
         },
         onRemove: (target, state) => {
             const newModifiers = target.modifiers.filter(m => m.source !== '千年の静寂の果て');
-            return { ...state, units: state.units.map(u => u.id === target.id ? { ...u, modifiers: newModifiers } : u) };
+            return {
+                ...state,
+                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
+            };
         },
         apply: (t, s) => s,
         remove: (t, s) => s,
@@ -438,7 +475,7 @@ function createTechniqueDmgBoostEffect(
     duration: number
 ): IEffect {
     return {
-        id: `sunday-technique-dmg-boost-${sourceId}-${targetId}`,
+        id: `${EFFECT_IDS.TECH_DMG_BOOST}-${sourceId}-${targetId}`,
         name: '栄光の秘儀',
         category: 'BUFF',
         sourceUnitId: sourceId,
@@ -460,12 +497,350 @@ function createTechniqueDmgBoostEffect(
 // ハンドラーファクトリ
 // ===============================
 
-export const sundayHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: number, eidolonLevel: number = 0) => {
-    // 状態管理用のフラグ
-    let techniqueUsed = false; // 秘技フラグ
-    let firstUltUsed = false;  // E2: 初回必殺技フラグ
-    let lastBlessedTargetId: string | null = null; // 最後に必殺技を使用したターゲット
+const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: string): GameState => {
+    console.log('[Sunday Handler] ON_BATTLE_START event received');
+    const unit = state.registry.get(createUnitId(sourceUnitId));
+    if (!unit) return state;
 
+    let newState = state;
+
+    // 秘技使用フラグを確認
+    const useTechnique = unit.config?.useTechnique !== false;
+    if (useTechnique) {
+        // 秘技準備完了マーカーを付与
+        newState = addEffect(newState, sourceUnitId, {
+            id: `${EFFECT_IDS.TECH_READY}-${sourceUnitId}`,
+            name: 'Technique Ready',
+            category: 'STATUS',
+            sourceUnitId: sourceUnitId,
+            durationType: 'PERMANENT',
+            duration: -1,
+            apply: (t, s) => s,
+            remove: (t, s) => s,
+        });
+    }
+
+    // A4 軌跡: 戦闘開始時にEP+25
+    const traceA4 = unit.traces?.find(t => t.id === TRACE_IDS.A4);
+    if (traceA4) {
+        newState = addEnergyToUnit(newState, sourceUnitId, 0, TRACE_A4_START_EP, false, {
+            sourceId: sourceUnitId,
+            publishEventFn: publishEvent
+        });
+
+        // ログ記録
+        newState = {
+            ...newState,
+            log: [...newState.log, {
+                characterName: unit.name,
+                actionTime: newState.time,
+                actionType: '軌跡',
+                skillPointsAfterAction: newState.skillPoints,
+                damageDealt: 0,
+                healingDone: 0,
+                shieldApplied: 0,
+                currentEp: (newState.registry.get(createUnitId(sourceUnitId))?.ep || 0),
+                details: '崇高なる浄化: EP+25'
+            } as SimulationLogEntry]
+        };
+    }
+
+    console.log('[Sunday Handler] Battle start effects applied');
+    return newState;
+};
+
+const onTurnStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    let newState = state;
+
+    // E4: ターン開始時EP+8
+    if (eidolonLevel >= 4) {
+        newState = addEnergyToUnit(newState, sourceUnitId, 0, E4_TURN_START_EP, false, {
+            sourceId: sourceUnitId,
+            publishEventFn: publishEvent
+        });
+    }
+
+    // 「祝福されし者」の持続時間を減少（サンデーのターン開始時に減少）
+    // 全ユニットの「祝福されし者」バフをチェック
+    newState.registry.toArray().forEach((u: Unit) => {
+        const blessedEffect = u.effects.find(e =>
+            e.tags?.includes(TAGS.BLESSED) && e.sourceUnitId === sourceUnitId
+        );
+        if (blessedEffect && typeof blessedEffect.duration === 'number' && blessedEffect.duration > 0) {
+            const newDuration = blessedEffect.duration - 1;
+            if (newDuration <= 0) {
+                // 持続時間が0になったら削除
+                newState = removeEffect(newState, u.id, blessedEffect.id);
+            } else {
+                // 持続時間を更新
+                const updatedEffect = { ...blessedEffect, duration: newDuration };
+                newState = {
+                    ...newState,
+                    registry: newState.registry.update(u.id, unit => ({
+                        ...unit,
+                        effects: unit.effects.map(e =>
+                            e.id === blessedEffect.id ? updatedEffect : e
+                        )
+                    }))
+                };
+            }
+        }
+    });
+
+    return newState;
+};
+
+const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const unit = state.registry.get(createUnitId(sourceUnitId));
+    if (!unit) return state;
+
+    let newState = state;
+
+    // ターゲットはイベントから取得、なければconfig.skillTargetIdを使用
+    let targetId = event.targetId;
+    if (!targetId) {
+        targetId = unit.config?.skillTargetId;
+    }
+    if (!targetId) {
+        console.log('[Sunday Handler] No skill target specified');
+        return newState;
+    }
+
+    const target = newState.registry.get(createUnitId(targetId));
+    if (!target || target.isEnemy) return newState;
+
+    console.log(`[Sunday Handler] Skill used on ${target.name}`);
+
+    // 1. ターゲットが召喚物を持っているかチェック
+    const summons = newState.registry.toArray().filter((u: Unit) =>
+        u.isSummon &&
+        (u.ownerId === targetId || u.linkedUnitId === targetId) &&
+        u.hp > 0
+    );
+    const hasSummon = summons.length > 0;
+
+    // 2. 与ダメージアップバフを付与
+    const skillBuff = createSkillDmgBoostEffect(
+        sourceUnitId,
+        targetId,
+        hasSummon,
+        SKILL_DURATION,
+        eidolonLevel
+    );
+    newState = addEffect(newState, targetId, skillBuff);
+
+    // 召喚物にも与ダメージバフを付与
+    summons.forEach(summon => {
+        const summonBuff = createSkillDmgBoostEffect(
+            sourceUnitId,
+            summon.id,
+            true,
+            SKILL_DURATION,
+            eidolonLevel
+        );
+        newState = addEffect(newState, summon.id, summonBuff);
+    });
+
+    // 3. 天賦: 会心率アップを付与
+    const existingTalentEffect = target.effects.find(e =>
+        e.id === `${EFFECT_IDS.TALENT_CRIT}-${sourceUnitId}-${targetId}`
+    );
+    const existingStacks = existingTalentEffect?.stackCount || 0;
+    const talentBuff = createTalentCritRateEffect(
+        sourceUnitId,
+        targetId,
+        TALENT_CRIT_DURATION,
+        eidolonLevel,
+        existingStacks
+    );
+    newState = addEffect(newState, targetId, talentBuff);
+
+    // 4. E1: 防御無視バフを付与
+    if (eidolonLevel >= 1) {
+        const e1Buff = createE1DefIgnoreEffect(sourceUnitId, targetId, false, E1_DURATION);
+        newState = addEffect(newState, targetId, e1Buff);
+
+        // 召喚物にも防御無視を付与（40%）
+        summons.forEach(summon => {
+            const summonE1Buff = createE1DefIgnoreEffect(sourceUnitId, summon.id, true, E1_DURATION);
+            newState = addEffect(newState, summon.id, summonE1Buff);
+        });
+    }
+
+    // 5. 秘技: 初回スキル時に与ダメージ+50%
+    const techniqueReadyFunc = unit.effects.find(e => e.id === `${EFFECT_IDS.TECH_READY}-${sourceUnitId}`);
+    if (techniqueReadyFunc) {
+        const techBuff = createTechniqueDmgBoostEffect(sourceUnitId, targetId, TECHNIQUE_DURATION);
+        newState = addEffect(newState, targetId, techBuff);
+        // マーカー削除
+        newState = removeEffect(newState, sourceUnitId, techniqueReadyFunc.id);
+    }
+
+    // 6. A6 軌跡: デバフを1つ解除
+    const traceA6 = unit.traces?.find(t => t.id === TRACE_IDS.A6);
+    if (traceA6) {
+        newState = cleanse(newState, targetId, 1);
+    }
+
+    // 7. 「祝福されし者」状態の味方ならSP+1
+    const freshTarget = newState.registry.get(createUnitId(targetId));
+    const hasBlessed = freshTarget?.effects.some(e => e.tags?.includes(TAGS.BLESSED));
+    if (hasBlessed) {
+        newState = addSkillPoints(newState, 1);
+    }
+
+    // 8. 即時行動（調和キャラ以外）
+    const isHarmony = freshTarget?.path === 'Harmony';
+
+    if (!isHarmony) {
+        newState = advanceAction(newState, targetId, SKILL_ADVANCE_PERCENT, 'percent');
+
+        // 召喚物も即時行動
+        summons.forEach(summon => {
+            newState = advanceAction(newState, summon.id, SKILL_ADVANCE_PERCENT, 'percent');
+        });
+    }
+
+    return newState;
+};
+
+const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    const unit = state.registry.get(createUnitId(sourceUnitId));
+    if (!unit) return state;
+
+    let newState = state;
+
+    // ターゲットはイベントから取得、なければskillTargetIdを使用
+    let targetId = event.targetId;
+    if (!targetId) {
+        targetId = unit.config?.skillTargetId;
+    }
+    if (!targetId) {
+        console.log('[Sunday Handler] No ultimate target specified');
+        return newState;
+    }
+
+    const targetUnit = newState.registry.get(createUnitId(targetId));
+    if (!targetUnit || targetUnit.isEnemy) return newState;
+
+    console.log(`[Sunday Handler] Ultimate used on ${targetUnit.name}`);
+    // 1. EP回復（最大EP×20%、ERR非適用）
+    let epRecovery = targetUnit.stats.max_ep * ULT_EP_RECOVERY_PERCENT;
+
+    // A2 軌跡: EP回復が40未満なら40まで引き上げ
+    const traceA2 = unit.traces?.find(t => t.id === TRACE_IDS.A2);
+    if (traceA2 && epRecovery < TRACE_A2_MIN_EP) {
+        epRecovery = TRACE_A2_MIN_EP;
+    }
+
+    newState = addEnergyToUnit(newState, targetId, 0, epRecovery, false, {
+        sourceId: sourceUnitId,
+        publishEventFn: publishEvent
+    });
+
+    // 2. 「祝福されし者」を付与
+    const freshSunday = newState.registry.get(createUnitId(sourceUnitId));
+    if (freshSunday) {
+        const blessedEffect = createBlessedOneEffect(
+            sourceUnitId,
+            targetId,
+            { crit_dmg: freshSunday.stats.crit_dmg },
+            ULT_BLESSED_DURATION,
+            eidolonLevel
+        );
+        newState = addEffect(newState, targetId, blessedEffect);
+
+        // 召喚物にも「祝福されし者」を付与
+        const summons = newState.registry.toArray().filter((u: Unit) =>
+            u.isSummon &&
+            (u.ownerId === targetId || u.linkedUnitId === targetId) &&
+            u.hp > 0
+        );
+        summons.forEach(summon => {
+            const summonBlessed = createBlessedOneEffect(
+                sourceUnitId,
+                summon.id,
+                { crit_dmg: freshSunday.stats.crit_dmg },
+                ULT_BLESSED_DURATION,
+                eidolonLevel
+            );
+            newState = addEffect(newState, summon.id, summonBlessed);
+        });
+    }
+
+    // 3. E2: 初回必殺技後SP+2
+    if (eidolonLevel >= 2) {
+        const e2Marker = unit.effects.find(e => e.id === `${EFFECT_IDS.E2_USED}-${sourceUnitId}`);
+        if (!e2Marker) {
+            newState = addSkillPoints(newState, E2_FIRST_ULT_SP);
+            newState = addEffect(newState, sourceUnitId, {
+                id: `${EFFECT_IDS.E2_USED}-${sourceUnitId}`,
+                name: 'E2 Used',
+                category: 'STATUS',
+                sourceUnitId: sourceUnitId,
+                durationType: 'PERMANENT',
+                duration: -1,
+                apply: (t, s) => s,
+                remove: (t, s) => s,
+            });
+        }
+    }
+
+    // 4. E6: 必殺技発動時にも天賦効果を付与
+    if (eidolonLevel >= 6) {
+        const existingTalentEffect = targetUnit.effects.find(e =>
+            e.id === `${EFFECT_IDS.TALENT_CRIT}-${sourceUnitId}-${targetId}`
+        );
+        const existingStacks = existingTalentEffect?.stackCount || 0;
+        const talentBuff = createTalentCritRateEffect(
+            sourceUnitId,
+            targetId,
+            TALENT_CRIT_DURATION,
+            eidolonLevel,
+            existingStacks
+        );
+        newState = addEffect(newState, targetId, talentBuff);
+    }
+
+    return newState;
+};
+
+const onBeforeDamageCalculation = (event: BeforeDamageCalcEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
+    let newState = state;
+    if (eidolonLevel >= 6) {
+        const attackerId = event.sourceId;
+        if (!attackerId) return newState;
+
+        const attacker = newState.registry.get(createUnitId(attackerId));
+        if (!attacker || attacker.isEnemy) return newState;
+
+        // 天賦バフを持っているかチェック
+        const hasTalentBuff = attacker.effects.some(e =>
+            e.id === `${EFFECT_IDS.TALENT_CRIT}-${sourceUnitId}-${attackerId}`
+        );
+
+        if (hasTalentBuff) {
+            // 会心率が100%を超えている場合、超過分を会心ダメージに変換
+            const critRate = attacker.stats.crit_rate;
+            if (critRate > 1.0) {
+                const excessCritRate = critRate - 1.0;
+                const bonusCritDmg = excessCritRate * 100 * E6_CRIT_TO_CRIT_DMG_RATIO;
+
+                // damageModifiersに追加（critDmgを使用）
+                newState = {
+                    ...newState,
+                    damageModifiers: {
+                        ...newState.damageModifiers,
+                        critDmg: (newState.damageModifiers?.critDmg || 0) + bonusCritDmg
+                    }
+                };
+            }
+        }
+    }
+    return newState;
+};
+
+export const sundayHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: number, eidolonLevel: number = 0) => {
     return {
         handlerMetadata: {
             id: `sunday-handler-${sourceUnitId}`,
@@ -477,342 +852,24 @@ export const sundayHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 'ON_BEFORE_DAMAGE_CALCULATION',
             ],
         },
-        handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
-            const unit = state.units.find(u => u.id === sourceUnitId);
-            if (!unit) return state;
-
-            let newState = state;
-
-            // =========================================
-            // 戦闘開始時の処理
-            // =========================================
+        handlerLogic: (event: IEvent, state: GameState, _handlerId: string): GameState => {
             if (event.type === 'ON_BATTLE_START') {
-                console.log('[Sunday Handler] ON_BATTLE_START event received');
-
-                // 秘技使用フラグを確認
-                const useTechnique = unit.config?.useTechnique !== false;
-                if (useTechnique) {
-                    techniqueUsed = true;
-                }
-
-                // A4 軌跡: 戦闘開始時にEP+25
-                const traceA4 = unit.traces?.find(t => t.id === 'sunday-trace-a4');
-                if (traceA4) {
-                    newState = addEnergyToUnit(newState, sourceUnitId, 0, TRACE_A4_START_EP);
-
-                    // ログ記録
-                    newState = {
-                        ...newState,
-                        log: [...newState.log, {
-                            characterName: unit.name,
-                            actionTime: newState.time,
-                            actionType: '軌跡',
-                            skillPointsAfterAction: newState.skillPoints,
-                            damageDealt: 0,
-                            healingDone: 0,
-                            shieldApplied: 0,
-                            currentEp: (newState.units.find(u => u.id === sourceUnitId)?.ep || 0),
-                            details: '崇高なる浄化: EP+25'
-                        } as any]
-                    };
-                }
-
-                console.log('[Sunday Handler] Battle start effects applied');
-                return newState;
+                return onBattleStart(event, state, sourceUnitId);
             }
-
-            // =========================================
-            // ターン開始時の処理
-            // =========================================
             if (event.type === 'ON_TURN_START' && event.sourceId === sourceUnitId) {
-                // E4: ターン開始時EP+8
-                if (eidolonLevel >= 4) {
-                    newState = addEnergyToUnit(newState, sourceUnitId, 0, E4_TURN_START_EP);
-                }
-
-                // 「祝福されし者」の持続時間を減少（サンデーのターン開始時に減少）
-                // 全ユニットの「祝福されし者」バフをチェック
-                newState.units.forEach(u => {
-                    const blessedEffect = u.effects.find(e =>
-                        e.tags?.includes('SUNDAY_BLESSED') && e.sourceUnitId === sourceUnitId
-                    );
-                    if (blessedEffect && typeof blessedEffect.duration === 'number' && blessedEffect.duration > 0) {
-                        const newDuration = blessedEffect.duration - 1;
-                        if (newDuration <= 0) {
-                            // 持続時間が0になったら削除
-                            newState = removeEffect(newState, u.id, blessedEffect.id);
-                        } else {
-                            // 持続時間を更新
-                            const updatedEffect = { ...blessedEffect, duration: newDuration };
-                            newState = {
-                                ...newState,
-                                units: newState.units.map(unit => {
-                                    if (unit.id === u.id) {
-                                        return {
-                                            ...unit,
-                                            effects: unit.effects.map(e =>
-                                                e.id === blessedEffect.id ? updatedEffect : e
-                                            )
-                                        };
-                                    }
-                                    return unit;
-                                })
-                            };
-                        }
-                    }
-                });
-
-                return newState;
+                return onTurnStart(event, state, sourceUnitId, eidolonLevel);
             }
-
-            // =========================================
-            // スキル使用時の処理
-            // =========================================
             if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
-                // ターゲットはイベントから取得、なければconfig.skillTargetIdを使用
-                let targetId = event.targetId;
-                if (!targetId) {
-                    targetId = unit.config?.skillTargetId;
-                }
-                if (!targetId) {
-                    console.log('[Sunday Handler] No skill target specified');
-                    return newState;
-                }
-
-                const target = newState.units.find(u => u.id === targetId);
-                if (!target || target.isEnemy) return newState;
-
-                console.log(`[Sunday Handler] Skill used on ${target.name}`);
-
-                // 1. ターゲットが召喚物を持っているかチェック
-                // ownerId（所有者）またはlinkedUnitId（リンク先、例：龍霊の同袍）がターゲットの召喚物を検索
-                // 仕様: 龍霊は linkedUnitId（同袍）にスキルを発動すると行動順短縮を受ける
-                const summons = newState.units.filter(u =>
-                    u.isSummon &&
-                    (u.ownerId === targetId || u.linkedUnitId === targetId) &&
-                    u.hp > 0
-                );
-                const hasSummon = summons.length > 0;
-
-                // 2. 与ダメージアップバフを付与
-                const skillBuff = createSkillDmgBoostEffect(
-                    sourceUnitId,
-                    targetId,
-                    hasSummon,
-                    SKILL_DURATION,
-                    eidolonLevel
-                );
-                newState = addEffect(newState, targetId, skillBuff);
-
-                // 召喚物にも与ダメージバフを付与
-                summons.forEach(summon => {
-                    const summonBuff = createSkillDmgBoostEffect(
-                        sourceUnitId,
-                        summon.id,
-                        true,
-                        SKILL_DURATION,
-                        eidolonLevel
-                    );
-                    newState = addEffect(newState, summon.id, summonBuff);
-                });
-
-                // 3. 天賦: 会心率アップを付与
-                const existingTalentEffect = target.effects.find(e =>
-                    e.id === `sunday-talent-crit-${sourceUnitId}-${targetId}`
-                );
-                const existingStacks = existingTalentEffect?.stackCount || 0;
-                const talentBuff = createTalentCritRateEffect(
-                    sourceUnitId,
-                    targetId,
-                    TALENT_CRIT_DURATION,
-                    eidolonLevel,
-                    existingStacks
-                );
-                newState = addEffect(newState, targetId, talentBuff);
-
-                // 4. E1: 防御無視バフを付与
-                if (eidolonLevel >= 1) {
-                    const e1Buff = createE1DefIgnoreEffect(sourceUnitId, targetId, false, E1_DURATION);
-                    newState = addEffect(newState, targetId, e1Buff);
-
-                    // 召喚物にも防御無視を付与（40%）
-                    summons.forEach(summon => {
-                        const summonE1Buff = createE1DefIgnoreEffect(sourceUnitId, summon.id, true, E1_DURATION);
-                        newState = addEffect(newState, summon.id, summonE1Buff);
-                    });
-                }
-
-                // 5. 秘技: 初回スキル時に与ダメージ+50%
-                if (techniqueUsed) {
-                    const techBuff = createTechniqueDmgBoostEffect(sourceUnitId, targetId, TECHNIQUE_DURATION);
-                    newState = addEffect(newState, targetId, techBuff);
-                    techniqueUsed = false; // 使用済みにする
-                }
-
-                // 6. A6 軌跡: デバフを1つ解除
-                const traceA6 = unit.traces?.find(t => t.id === 'sunday-trace-a6');
-                if (traceA6) {
-                    newState = cleanse(newState, targetId, 1);
-                }
-
-                // 7. 「祝福されし者」状態の味方ならSP+1
-                const freshTarget = newState.units.find(u => u.id === targetId);
-                const hasBlessed = freshTarget?.effects.some(e => e.tags?.includes('SUNDAY_BLESSED'));
-                if (hasBlessed) {
-                    newState = addSkillPoints(newState, 1);
-                }
-
-                // 8. 即時行動（調和キャラ以外）
-                // NOTE: Unit型にpathプロパティがないため、サンデー自身（調和キャラ）へのスキル使用をチェック
-                // 将来的にはCharacterデータへの参照を追加する必要があるかもしれません
-                // 現時点では、ターゲットIDがサンデー自身かどうかでチェック
-                // また、ルアン・メェイやトリビーなど他の調和キャラもターゲットになる可能性があるため
-                // ここではunitのIDに'harmony'が含まれるか、または知られている調和キャラIDをチェック
-                const harmonyCharacterIds = ['sunday', 'ruan-mei', 'tribbie', 'bronya', 'asta', 'tingyun', 'hanya', 'yukong'];
-                const targetCharacterId = targetId.split('-instance')[0]; // 'sunday-instance-1' -> 'sunday'
-                const isHarmony = harmonyCharacterIds.some(id => targetCharacterId.includes(id));
-
-                if (!isHarmony) {
-                    // 味方キャラクターを即座に行動させる（100%短縮）
-                    newState = advanceAction(newState, targetId, SKILL_ADVANCE_PERCENT, 'percent');
-
-                    // 記憶の精霊も即時行動（存在する場合）
-                    // TODO: 記憶の精霊のサポートは別途必要
-
-                    // 召喚物も即時行動
-                    summons.forEach(summon => {
-                        newState = advanceAction(newState, summon.id, SKILL_ADVANCE_PERCENT, 'percent');
-                    });
-                }
-
-                return newState;
+                return onSkillUsed(event as ActionEvent, state, sourceUnitId, eidolonLevel);
             }
-
-            // =========================================
-            // 必殺技使用時の処理
-            // =========================================
             if (event.type === 'ON_ULTIMATE_USED' && event.sourceId === sourceUnitId) {
-                // ターゲットはイベントから取得、なければskillTargetIdを使用（必殺技も同じターゲットを使用）
-                let targetId = event.targetId;
-                if (!targetId) {
-                    targetId = unit.config?.skillTargetId;
-                }
-                if (!targetId) {
-                    console.log('[Sunday Handler] No ultimate target specified');
-                    return newState;
-                }
-
-                const targetUnit = newState.units.find(u => u.id === targetId);
-                if (!targetUnit || targetUnit.isEnemy) return newState;
-
-                console.log(`[Sunday Handler] Ultimate used on ${targetUnit.name}`);
-                // 1. EP回復（最大EP×20%、ERR非適用）
-                let epRecovery = targetUnit.stats.max_ep * ULT_EP_RECOVERY_PERCENT;
-
-                // A2 軌跡: EP回復が40未満なら40まで引き上げ
-                const traceA2 = unit.traces?.find(t => t.id === 'sunday-trace-a2');
-                if (traceA2 && epRecovery < TRACE_A2_MIN_EP) {
-                    epRecovery = TRACE_A2_MIN_EP;
-                }
-
-                newState = addEnergyToUnit(newState, targetId, 0, epRecovery);
-
-                // 2. 「祝福されし者」を付与
-                const freshSunday = newState.units.find(u => u.id === sourceUnitId);
-                if (freshSunday) {
-                    const blessedEffect = createBlessedOneEffect(
-                        sourceUnitId,
-                        targetId,
-                        { crit_dmg: freshSunday.stats.crit_dmg },
-                        ULT_BLESSED_DURATION,
-                        eidolonLevel
-                    );
-                    newState = addEffect(newState, targetId, blessedEffect);
-
-                    // 召喚物にも「祝福されし者」を付与
-                    // ownerId または linkedUnitId がターゲットの召喚物を検索
-                    const summons = newState.units.filter(u =>
-                        u.isSummon &&
-                        (u.ownerId === targetId || u.linkedUnitId === targetId) &&
-                        u.hp > 0
-                    );
-                    summons.forEach(summon => {
-                        const summonBlessed = createBlessedOneEffect(
-                            sourceUnitId,
-                            summon.id,
-                            { crit_dmg: freshSunday.stats.crit_dmg },
-                            ULT_BLESSED_DURATION,
-                            eidolonLevel
-                        );
-                        newState = addEffect(newState, summon.id, summonBlessed);
-                    });
-                }
-
-                // 3. E2: 初回必殺技後SP+2
-                if (eidolonLevel >= 2 && !firstUltUsed) {
-                    newState = addSkillPoints(newState, E2_FIRST_ULT_SP);
-                    firstUltUsed = true;
-                }
-
-                // 4. E6: 必殺技発動時にも天賦効果を付与
-                if (eidolonLevel >= 6) {
-                    const existingTalentEffect = targetUnit.effects.find(e =>
-                        e.id === `sunday-talent-crit-${sourceUnitId}-${targetId}`
-                    );
-                    const existingStacks = existingTalentEffect?.stackCount || 0;
-                    const talentBuff = createTalentCritRateEffect(
-                        sourceUnitId,
-                        targetId,
-                        TALENT_CRIT_DURATION,
-                        eidolonLevel,
-                        existingStacks
-                    );
-                    newState = addEffect(newState, targetId, talentBuff);
-                }
-
-                // 最後にスキルを使用したターゲットを記録
-                lastBlessedTargetId = targetId;
-
-                return newState;
+                return onUltimateUsed(event as ActionEvent, state, sourceUnitId, eidolonLevel);
+            }
+            if (event.type === 'ON_BEFORE_DAMAGE_CALCULATION') {
+                return onBeforeDamageCalculation(event as BeforeDamageCalcEvent, state, sourceUnitId, eidolonLevel);
             }
 
-            // =========================================
-            // ダメージ計算前の処理（E6: 会心率超過→会心ダメージ変換）
-            // =========================================
-            if (event.type === 'ON_BEFORE_DAMAGE_CALCULATION' && eidolonLevel >= 6) {
-                const attackerId = event.sourceId;
-                if (!attackerId) return newState;
-
-                const attacker = newState.units.find(u => u.id === attackerId);
-                if (!attacker || attacker.isEnemy) return newState;
-
-                // 天賦バフを持っているかチェック
-                const hasTalentBuff = attacker.effects.some(e =>
-                    e.id === `sunday-talent-crit-${sourceUnitId}-${attackerId}`
-                );
-
-                if (hasTalentBuff) {
-                    // 会心率が100%を超えている場合、超過分を会心ダメージに変換
-                    const critRate = attacker.stats.crit_rate;
-                    if (critRate > 1.0) {
-                        const excessCritRate = critRate - 1.0;
-                        const bonusCritDmg = excessCritRate * 100 * E6_CRIT_TO_CRIT_DMG_RATIO;
-
-                        // damageModifiersに追加（critDmgを使用）
-                        newState = {
-                            ...newState,
-                            damageModifiers: {
-                                ...newState.damageModifiers,
-                                critDmg: (newState.damageModifiers?.critDmg || 0) + bonusCritDmg
-                            }
-                        };
-                    }
-                }
-
-                return newState;
-            }
-
-            return newState;
+            return state;
         }
     };
 };

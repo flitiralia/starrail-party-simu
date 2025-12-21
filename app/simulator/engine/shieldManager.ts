@@ -1,5 +1,7 @@
 import { GameState, Unit } from './types';
 import { addEffect, removeEffect } from './effectManager';
+import { UnitId, createUnitId } from './unitId';
+
 
 /**
  * Parameters for applying a stackable shield.
@@ -26,7 +28,7 @@ export function applyStackableShield(state: GameState, params: StackableShieldPa
     const { source, targetId, addedValue, cap, shieldName } = params;
     const duration = params.duration || 3;
 
-    const target = state.units.find(u => u.id === targetId);
+    const target = state.registry.get(createUnitId(targetId));
     if (!target) return state;
 
     let newState = state;
@@ -56,16 +58,22 @@ export function applyStackableShield(state: GameState, params: StackableShieldPa
         skipFirstTurnDecrement: true,
         value: finalValue, // Custom property for stacking
         onApply: (t: Unit, s: GameState) => {
-            const u = s.units.find(unit => unit.id === t.id);
+            const u = s.registry.get(createUnitId(t.id));
             if (u) {
-                return { ...s, units: s.units.map(unit => unit.id === u.id ? { ...u, shield: (u.shield || 0) + finalValue } : unit) };
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(u.id), unit => ({ ...unit, shield: (unit.shield || 0) + finalValue }))
+                };
             }
             return s;
         },
         onRemove: (t: Unit, s: GameState) => {
-            const u = s.units.find(unit => unit.id === t.id);
+            const u = s.registry.get(createUnitId(t.id));
             if (u) {
-                return { ...s, units: s.units.map(unit => unit.id === u.id ? { ...u, shield: Math.max(0, (u.shield || 0) - finalValue) } : unit) };
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(u.id), unit => ({ ...unit, shield: Math.max(0, (unit.shield || 0) - finalValue) }))
+                };
             }
             return s;
         },

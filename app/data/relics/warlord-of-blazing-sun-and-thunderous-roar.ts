@@ -1,6 +1,7 @@
 import { RelicSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 export const WARLORD_OF_BLAZING_SUN_AND_THUNDEROUS_ROAR: RelicSet = {
   id: 'warlord_of_blazing_sun_and_thunderous_roar',
@@ -27,8 +28,8 @@ export const WARLORD_OF_BLAZING_SUN_AND_THUNDEROUS_ROAR: RelicSet = {
           value: 0.15,
           target: 'other_allies', // 自分以外（自分は慈雨バフの効果として適用）
           condition: (stats, state, unitId) => {
-            if (!state || !state.units) return false;
-            const unit = state.units.find(u => u.id === unitId);
+            if (!state?.registry) return false;
+            const unit = state.registry.get(createUnitId(unitId));
             return unit ? unit.effects.some(e => e.id === 'warlord-rain') : false;
           },
           evaluationTiming: 'dynamic'

@@ -1,4 +1,7 @@
 import { OrnamentSet } from '../../types';
+import { Unit, GameState } from '../../simulator/engine/types';
+import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 夢を紡ぐ妖精の楽園
@@ -17,8 +20,9 @@ export const FAIRY_TALE_THEATER_OF_NIGHT: OrnamentSet = {
                     value: 0, // 動的計算
                     target: 'self',
                     condition: (stats, state, unitId) => {
+                        if (!state?.registry) return false;
                         // 味方数をカウント（敵以外、精霊は含まない場合あり）
-                        const allyCount = state.units.filter(u => !u.isEnemy && !u.isSummon).length;
+                        const allyCount = state.registry.getAliveAllies().filter((u: Unit) => !u.isSummon).length;
                         return allyCount !== 4;
                     },
                     evaluationTiming: 'dynamic'
@@ -28,13 +32,11 @@ export const FAIRY_TALE_THEATER_OF_NIGHT: OrnamentSet = {
                 {
                     events: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_UNIT_DEATH'],
                     handler: (event, state, sourceUnitId) => {
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
-                        const { addEffect, removeEffect } = require('../../simulator/engine/effectManager');
-
                         // 味方数をカウント（召喚物除く）
-                        const allyCount = state.units.filter(u => !u.isEnemy && !u.isSummon && u.hp > 0).length;
+                        const allyCount = state.registry.getAliveAllies().filter((u: Unit) => !u.isSummon).length;
 
                         let dmgBoost = 0;
                         if (allyCount > 4) {
@@ -63,13 +65,13 @@ export const FAIRY_TALE_THEATER_OF_NIGHT: OrnamentSet = {
                                     type: 'add' as const,
                                     value: dmgBoost
                                 }],
-                                apply: (t: any, s: any) => s,
-                                remove: (t: any, s: any) => s
+                                apply: (t: Unit, s: GameState) => s,
+                                remove: (t: Unit, s: GameState) => s
                             };
                             newState = addEffect(newState, sourceUnitId, buff);
 
                             // 精霊にも適用
-                            const spirit = newState.units.find((u: any) =>
+                            const spirit = newState.registry.toArray().find((u: Unit) =>
                                 u.linkedUnitId === sourceUnitId && u.isSummon
                             );
                             if (spirit) {

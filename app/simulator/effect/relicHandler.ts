@@ -1,6 +1,9 @@
 import { GameState, Unit, IEventHandler, IEventHandlerLogic } from '../engine/types';
 import { RelicEffect, PassiveRelicEffect, EventRelicEffect, IRelicData, IOrnamentData } from '../../types/relic';
 import { recalculateUnitStats } from '../statBuilder';
+import { UnitRegistry } from '../engine/unitRegistry';
+
+import { createUnitId } from '../engine/unitId';
 
 /**
  * ユニットが装備しているすべての遺物・オーナメントの効果を収集する
@@ -77,24 +80,23 @@ function getAllRelicEffects(unit: Unit): { effect: RelicEffect, sourceRelicId: s
  */
 export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 'turn_start' = 'battle_start'): GameState {
     let newState = { ...state };
+    let currentUnits = newState.registry.toArray();
 
     // DEBUG: Log effects for each unit at start
     console.log('[updatePassiveBuffs] Units at start:');
-    newState.units.forEach(u => {
+    currentUnits.forEach(u => {
         console.log(`  - ${u.name}: ${u.effects.length} effects`, u.effects.map(e => e.name));
     });
 
     // Step 1: Remove all existing passive relic modifiers to start fresh
-    const unitsWithCleanModifiers = newState.units.map(u => ({
+    const unitsWithCleanModifiers = currentUnits.map(u => ({
         ...u,
         modifiers: u.modifiers.filter(m => !m.source.startsWith('relic-passive-') && !m.source.startsWith('ornament-passive-'))
     }));
 
-    newState = { ...newState, units: unitsWithCleanModifiers };
-
     // Step 2: Apply active buffs
     // We need intermediate state to accumulate buffs
-    let workingUnits = [...newState.units];
+    let workingUnits = [...unitsWithCleanModifiers];
 
     // Pass 1: Unconditional Buffs
     workingUnits.forEach(sourceUnit => {
@@ -148,7 +150,10 @@ export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 't
     // Recalculate stats after unconditional buffs
     const unitStatsMap = new Map<string, any>();
     workingUnits.forEach(u => {
-        unitStatsMap.set(u.id, recalculateUnitStats(u));
+        // Need to temporarily update unit in registry for recalculateUnitStats to work properly if it uses registry
+        // But here we are just calculating stats for local unit object, assuming recalculateUnitStats supports it.
+        // Actually recalculateUnitStats takes (Unit, units_array) usually.
+        unitStatsMap.set(u.id, recalculateUnitStats(u, workingUnits));
     });
 
     // Pass 2: Conditional Buffs
@@ -170,7 +175,12 @@ export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 't
                 console.log(`[RelicHandler] Checking condition for ${sourceRelicId} on ${sourceUnit.id}`);
                 console.log(`[RelicHandler] Stats Effect Res: ${stats.effect_res}`);
             }
-            const conditionMet = passiveEffect.condition(stats, newState, sourceUnit.id);
+
+            // Note: condition function might expect state with correct units.
+            // We should ideally construct a temporary state with workingUnits.
+            const tempState = { ...newState, registry: UnitRegistry.fromArray(workingUnits) };
+            const conditionMet = passiveEffect.condition(stats, tempState, sourceUnit.id);
+
             if (passiveEffect.stat === 'crit_dmg') {
                 console.log(`[RelicHandler] Condition Met: ${conditionMet}`);
             }
@@ -224,7 +234,7 @@ export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 't
         console.log(`  - ${u.name}: ${u.effects.length} effects`, u.effects.map(e => e.name));
     });
 
-    return { ...newState, units: workingUnits };
+    return { ...newState, registry: UnitRegistry.fromArray(workingUnits) };
 }
 
 /**
@@ -234,7 +244,7 @@ export function updatePassiveBuffs(state: GameState, timing: 'battle_start' | 't
 export function registerRelicEventHandlers(state: GameState): GameState {
     let newState = { ...state };
 
-    state.units.forEach(unit => {
+    state.registry.toArray().forEach(unit => {
         const relicEffects = getAllRelicEffects(unit);
 
         for (const { effect, sourceRelicId } of relicEffects) {

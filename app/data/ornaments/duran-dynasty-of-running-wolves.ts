@@ -1,6 +1,7 @@
 import { OrnamentSet } from '../../types';
 import { addEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
+import { createUnitId } from '../../simulator/engine/unitId';
 
 /**
  * 奔狼の都藍王朝
@@ -18,10 +19,10 @@ export const DURAN_DYNASTY_OF_RUNNING_WOLVES: OrnamentSet = {
                     events: ['ON_FOLLOW_UP_ATTACK'],
                     handler: (event, state, sourceUnitId) => {
                         // 味方の追加攻撃であればスタック獲得
-                        const attacker = state.units.find(u => u.id === event.sourceId);
+                        const attacker = state.registry.get(createUnitId(event.sourceId));
                         if (!attacker || attacker.isEnemy) return state;
 
-                        const unit = state.units.find(u => u.id === sourceUnitId);
+                        const unit = state.registry.get(createUnitId(sourceUnitId));
                         if (!unit) return state;
 
                         // 現在のスタック数を確認
@@ -52,7 +53,7 @@ export const DURAN_DYNASTY_OF_RUNNING_WOLVES: OrnamentSet = {
                         let newState = addEffect(state, sourceUnitId, stackBuff);
 
                         // 5層に達したら会心ダメージ+25%
-                        const updatedUnit = newState.units.find(u => u.id === sourceUnitId);
+                        const updatedUnit = newState.registry.get(createUnitId(sourceUnitId));
                         const updatedStacks = updatedUnit?.effects.find(e => e.id === 'duran-merit-stack')?.stackCount || 0;
 
                         if (updatedStacks === 5 && currentStacks < 5) {

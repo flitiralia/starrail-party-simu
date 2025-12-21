@@ -69,7 +69,9 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
         const statValue = effect.effectValue[superimposition - 1] || 0;
         const targetStatKey = effect.targetStat;
 
-        if (STAT_KEYS.includes(targetStatKey)) {
+        if (effect.type === 'base') {
+          stats.base[targetStatKey] += statValue;
+        } else if (STAT_KEYS.includes(targetStatKey)) {
           if (targetStatKey.endsWith('_pct')) {
             stats.pct[targetStatKey] += statValue;
           } else {
@@ -402,7 +404,9 @@ export function recalculateUnitStats(unit: import('./engine/types').Unit, allUni
   // 4. Modifiers (Buffs/Debuffs)
   for (const mod of unit.modifiers) {
     console.log(`[StatBuilder] Applying modifier: ${mod.target} += ${mod.value} (${mod.type}) from ${mod.source}`);
-    if (mod.type === 'pct') {
+    if (mod.type === 'base') {
+      stats.base[mod.target] += mod.value;
+    } else if (mod.type === 'pct') {
       stats.pct[mod.target] += mod.value;
     } else {
       stats.add[mod.target] += mod.value;
@@ -435,7 +439,9 @@ export function recalculateUnitStats(unit: import('./engine/types').Unit, allUni
         // Use target stat name to determine bucket, not mod.type
         // Stats ending in _pct (like hp_pct, atk_pct) go into pct bucket
         // Flat stats (like hp, atk, spd) go into add bucket
-        if (mod.target.endsWith('_pct')) {
+        if (mod.type === 'base') {
+          stats.base[mod.target] += effectiveValue;
+        } else if (mod.target.endsWith('_pct')) {
           stats.pct[mod.target] += effectiveValue;
         } else {
           stats.add[mod.target] += effectiveValue;
