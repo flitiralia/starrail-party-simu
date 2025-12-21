@@ -26,6 +26,8 @@ export function calculateEnergyGain(baseEp: number, err: number): number {
  * @returns The updated unit with new EP.
  */
 export function addEnergy(unit: Unit, baseEp: number, flatEp: number = 0, skipERR: boolean = false): Unit {
+    if (unit.disableEnergyRecovery) return unit;
+
     const err = unit.stats.energy_regen_rate || 0;
     const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);
     const gain = baseGain + flatEp;
@@ -69,6 +71,8 @@ export function addEnergyToUnit(
 ): GameState {
     const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return state;
+
+    if (unit.disableEnergyRecovery) return state;
 
     const err = unit.stats.energy_regen_rate || 0;
     const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);

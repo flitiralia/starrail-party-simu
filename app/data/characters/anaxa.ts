@@ -243,7 +243,7 @@ export const anaxa: Character = {
         }
     },
     defaultConfig: {
-        lightConeId: 'life-should-be-cremated', // 生命、焼滅すべし
+        lightConeId: 'life-should-be-burned', // 生命、焼滅すべし
         superimposition: 1,
         relicSetId: 'genius_of_bright_stars',       // 星の如く輝く天才
         ornamentSetId: 'stellar_arena',             // 星々の競技場

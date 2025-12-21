@@ -32,7 +32,8 @@ const MAX_SHISOU_DANWA_STACKS = 3;  // A2: 3層まで蓄積可能
 // エフェクトID
 const EFFECT_IDS = {
     /** 残夢スタック */
-    ZANMU_STACKS: (sourceId: string) => `acheron-zanmu-${sourceId}`,
+    // 残夢 (Zanmu) システム - EPとして扱うため削除
+    // ZANMU_STACKS: (sourceId: string) => `acheron-zanmu-${sourceId}`,
     /** 集真赤デバフ */
     SHISHINAKA: (sourceId: string, targetId: string) => `acheron-shishinaka-${sourceId}-${targetId}`,
     /** 必殺技中の全耐性ダウン */
@@ -133,7 +134,8 @@ export const acheron: Character = {
     path: 'Nihility',
     element: 'Lightning',
     rarity: 5,
-    maxEnergy: 0,  // EP不使用（残夢システム）
+    maxEnergy: 9,  // EPを使用（残夢システム）
+    disableEnergyRecovery: true, // 通常のEP回復を無効化
 
     baseStats: {
         hp: 1125,
@@ -330,8 +332,7 @@ export const acheron: Character = {
 const getZanmuStacks = (state: GameState, sourceUnitId: string): number => {
     const unit = state.registry.get(createUnitId(sourceUnitId));
     if (!unit) return 0;
-    const effect = unit.effects.find(e => e.id === EFFECT_IDS.ZANMU_STACKS(sourceUnitId));
-    return effect?.stackCount || 0;
+    return unit.ep;
 };
 
 /**
@@ -341,40 +342,12 @@ const setZanmuStacks = (state: GameState, sourceUnitId: string, stacks: number):
     const unit = state.registry.get(createUnitId(sourceUnitId));
     if (!unit) return state;
 
-    const effectId = EFFECT_IDS.ZANMU_STACKS(sourceUnitId);
     const clampedStacks = Math.min(Math.max(0, stacks), MAX_ZANMU_STACKS);
 
-    // 既存エフェクトを検索
-    const existingEffect = unit.effects.find(e => e.id === effectId);
-
-    if (existingEffect) {
-        // 更新
-        const updatedEffect = {
-            ...existingEffect,
-            stackCount: clampedStacks,
-            name: `残夢 (${clampedStacks}/${MAX_ZANMU_STACKS})`
-        };
-        const updatedEffects = unit.effects.map(e => e.id === effectId ? updatedEffect : e);
-        return {
-            ...state,
-            registry: state.registry.update(createUnitId(sourceUnitId), u => ({ ...u, effects: updatedEffects }))
-        };
-    } else {
-        // 新規作成
-        const zanmuEffect: IEffect = {
-            id: effectId,
-            name: `残夢 (${clampedStacks}/${MAX_ZANMU_STACKS})`,
-            category: 'BUFF',
-            sourceUnitId: sourceUnitId,
-            durationType: 'PERMANENT',
-            duration: -1,
-            stackCount: clampedStacks,
-            maxStacks: MAX_ZANMU_STACKS,
-            apply: (t, s) => s,
-            remove: (t, s) => s
-        };
-        return addEffect(state, sourceUnitId, zanmuEffect);
-    }
+    return {
+        ...state,
+        registry: state.registry.update(createUnitId(sourceUnitId), u => ({ ...u, ep: clampedStacks }))
+    };
 };
 
 /**
@@ -576,7 +549,9 @@ const countNihilityAllies = (state: GameState, sourceUnitId: string): number => 
  * 必殺技発動可能かチェック
  */
 const canUseUltimate = (state: GameState, sourceUnitId: string): boolean => {
-    return getZanmuStacks(state, sourceUnitId) >= MAX_ZANMU_STACKS;
+    const unit = state.registry.get(createUnitId(sourceUnitId));
+    if (!unit) return false;
+    return unit.ep >= unit.stats.max_ep;
 };
 
 // =============================================================================

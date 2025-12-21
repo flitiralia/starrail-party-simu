@@ -62,6 +62,7 @@ export interface Unit {
     // Dynamic state values
     hp: number;
     ep: number;
+    disableEnergyRecovery?: boolean;
     shield: number;
     toughness: number;
     maxToughness: number;

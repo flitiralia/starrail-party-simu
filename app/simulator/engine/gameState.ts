@@ -161,6 +161,7 @@ export function createInitialGameState(
       relics: char.relics,
       ornaments: char.ornaments,
       traces: char.traces,
+      disableEnergyRecovery: char.disableEnergyRecovery,
     };
 
     // Initialize Energy (50% start)

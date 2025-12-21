@@ -284,6 +284,8 @@ export interface Character extends IUnitData {
   path: Path;
   rarity: 4 | 5; // キャラクターのレアリティ
   maxEnergy: number;
+  // If true, this character ignores standard energy recovery (e.g. Acheron)
+  disableEnergyRecovery?: boolean;
 
   // 軌跡（追加能力とステータスボーナス）
   traces: Trace[];

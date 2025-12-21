@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createInitialGameState } from '../engine/gameState';
 import { dispatch, publishEvent } from '../engine/dispatcher';
 import { aglaea, aglaeaHandlerFactory } from '../../data/characters';
+import { weavingTimeIntoGold } from '../../data/light-cones';
+import { ILightConeData } from '../../types';
 import { Character, Enemy, PartyConfig } from '../../types';
 import { GameState, Unit } from '../engine/types';
 import { createUnitId } from '../engine/unitId';
@@ -38,6 +40,11 @@ describe('Aglaea Scenario Test', () => {
             {
                 ...aglaea,
                 id: AGLAEA_ID,
+                equippedLightCone: {
+                    lightCone: weavingTimeIntoGold,
+                    level: 80,
+                    superimposition: 1
+                }
             },
         ];
 

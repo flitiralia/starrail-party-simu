@@ -272,7 +272,7 @@ export const aglaea: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'time-woven-into-gold',
+        lightConeId: 'weaving-time-into-gold',
         superimposition: 1,
         relicSetId: 'hero_who_raises_the_battle_song',
         ornamentSetId: 'omphalos_eternal_grounds',
