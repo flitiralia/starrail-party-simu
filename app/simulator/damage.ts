@@ -144,14 +144,15 @@ export function calculateToughnessBrokenMultiplier(target: Unit): number {
   return target.toughness > 0 ? 0.9 : 1.0;
 }
 
-function calculateResMultiplier(source: Unit, target: Unit): number {
+function calculateResMultiplier(source: Unit, target: Unit, modifiers: DamageCalculationModifiers = {}): number {
   const resKey = elementToResMap[source.element];
   const baseRes = target.stats[resKey] || 0;
 
   const resPenKey = elementToResPenMap[source.element];
   const elementalResPen = source.stats[resPenKey] || 0;
   const allTypeResPen = source.stats.all_type_res_pen || 0;
-  const totalResPen = elementalResPen + allTypeResPen;
+  const dynamicResReduction = modifiers.resReduction || 0;
+  const totalResPen = elementalResPen + allTypeResPen + dynamicResReduction;
 
   return 1.0 - (baseRes - totalResPen);
 }
@@ -199,6 +200,7 @@ export interface DamageCalculationModifiers {
   baseDmgAdd?: number; // 基礎ダメージ加算（「これがウチだよ！」等）
   fuaDmg?: number; // 動的追加攻撃ダメバフ
   ultDmg?: number; // 動的必殺技ダメバフ
+  resReduction?: number; // 動的耐性ダウン（ブラック・スワンE1等）
 }
 
 export interface DamageResultWithCritInfo {

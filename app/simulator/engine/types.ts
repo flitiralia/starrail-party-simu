@@ -329,7 +329,7 @@ export interface EffectEvent extends BaseEvent {
 export interface DoTDamageEvent extends BaseEvent {
     type: 'ON_DOT_DAMAGE';
     targetId: string;
-    dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear';
+    dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear' | 'Arcana';
     damage: number;
     effectId: string;
 }

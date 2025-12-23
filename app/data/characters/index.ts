@@ -17,6 +17,7 @@ export { aglaea, aglaeaHandlerFactory } from './aglaea';
 export { anaxa, anaxaHandlerFactory } from './anaxa';
 export { argenti, argentiHandlerFactory } from './argenti';
 export { aventurine, aventurineHandlerFactory } from './aventurine';
+export { blackSwan, blackSwanHandlerFactory } from './black-swan';
 // Export all characters for easy access
 import { march7th } from './march-7th';
 import { tribbie } from './tribbie';
@@ -36,5 +37,6 @@ import { aglaea } from './aglaea';
 import { anaxa } from './anaxa';
 import { argenti } from './argenti';
 import { aventurine } from './aventurine';
+import { blackSwan } from './black-swan';
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine];
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan];

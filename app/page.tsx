@@ -196,6 +196,10 @@ export default function Home() {
     } else if (activeCharacterIndex !== null && activeCharacterIndex > index) {
       setActiveCharacterIndex(activeCharacterIndex - 1);
     }
+
+    // キャラクター削除時はシミュレーション結果をクリア
+    setBattleResult(null);
+    setSimulationLog([]);
   };
 
   const handleCharacterSelect = (index: number, charId: string) => {
@@ -308,6 +312,10 @@ export default function Home() {
       eidolonLevel: updatedEidolonLevel,
     };
     setPartyMembers(newMembers);
+
+    // キャラクター変更時はシミュレーション結果をクリア
+    setBattleResult(null);
+    setSimulationLog([]);
   };
 
   // メインステータスの値を取得するヘルパー関数

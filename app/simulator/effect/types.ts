@@ -76,7 +76,7 @@ export interface IStatEffect extends IEffect {
 // 持続ダメージ効果
 export interface DoTEffect extends IEffect {
   type: 'DoT';
-  dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear';
+  dotType: 'Bleed' | 'Burn' | 'Shock' | 'WindShear' | 'Arcana';
   damageCalculation: 'multiplier' | 'fixed'; // 計算方式
   multiplier?: number;  // damageCalculation === 'multiplier'の場合: ATK × multiplier
   baseDamage?: number;  // damageCalculation === 'fixed'の場合: 固定ダメージ値
