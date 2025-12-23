@@ -733,11 +733,11 @@ function stepPayCost(context: ActionContext): ActionContext {
     newState = addSkillPoints(newState, -cost, source.id);
   } else if (action.type === 'ULTIMATE') {
     // 必殺技: EP消費
-    const strategy = updatedSource.config?.ultStrategy;
-    if (strategy === 'argenti_90') {
+    const epOption = updatedSource.config?.ultEpOption;
+    if (epOption === 'argenti_90') {
       // アルジェンティ90EP版: 90EP消費
       updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - 90) };
-    } else if (strategy === 'argenti_180') {
+    } else if (epOption === 'argenti_180') {
       // アルジェンティ180EP版: 180EP消費
       updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - 180) };
     } else {

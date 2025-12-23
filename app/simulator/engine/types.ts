@@ -22,7 +22,10 @@ export interface IAura {
         source: string;
     }[];
 }
-export type UltimateStrategy = 'immediate' | 'cooldown' | 'argenti_90' | 'argenti_180';
+export type UltimateStrategy = 'immediate' | 'cooldown';
+
+// アルジェンティ等の可変EPコストキャラ用
+export type UltEpOption = 'argenti_90' | 'argenti_180';
 
 export interface CharacterConfig {
     rotation: string[];
@@ -31,6 +34,7 @@ export interface CharacterConfig {
     skillTargetId?: string;
     ultStrategy: UltimateStrategy;
     ultCooldown: number;
+    ultEpOption?: UltEpOption; // 可変EPコストキャラ用
     useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
 }
 

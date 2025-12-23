@@ -242,11 +242,15 @@ function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
 
                 if (strategy === 'immediate' && char.ep >= char.stats.max_ep) {
                     shouldTrigger = true;
-                } else if (strategy === 'argenti_90' && char.ep >= 90) {
+                } else if (strategy === 'immediate' && char.config.ultEpOption === 'argenti_90' && char.ep >= 90) {
+                    // アルジェンティ90EP: 即時発動モード
                     shouldTrigger = true;
-                } else if (strategy === 'argenti_180' && char.ep >= 180) {
+                } else if (strategy === 'immediate' && char.config.ultEpOption === 'argenti_180' && char.ep >= 180) {
+                    // アルジェンティ180EP: 即時発動モード
                     shouldTrigger = true;
                 }
+                // クールダウンモードでも同様にultEpOptionを考慮
+                // （クールダウンはultCooldownで制御されるため、ここではimmediateのみ）
 
                 if (shouldTrigger) {
                     const ultAction: Action = { type: 'ULTIMATE', sourceId: char.id };

@@ -27,16 +27,17 @@
 6. [汎用関数 (概要)](#汎用関数-概要)
 7. [ハンドラー作成クイックスタート](#ハンドラー作成クイックスタート)
 8. [ターゲットタイプ判定](#ターゲットタイプ判定)
-9. [リファクタリング基準 (v2.0)](#9-リファクタリング基準-v20)
-10. [特殊メカニズムの実装パターン](#10-特殊メカニズムの実装パターン)
-11. [`Character`型の詳細構造](#11-character型の詳細構造)
-12. [`IAbility`と`DamageLogic`の詳細](#12-iabilityとdamagelogicの詳細)
-13. [`Trace`と`Eidolon`の詳細](#13-traceとeidolonの詳細)
-14. [召喚獣/精霊の実装パターン](#14-召喚獣精霊の実装パターン)
-15. [追撃（Follow-up Attack）の実装パターン](#15-追撃follow-up-attackの実装パターン)
-16. [DoT/状態異常の実装パターン](#16-dot状態異常の実装パターン)
-17. [強化通常攻撃の実装パターン](#17-強化通常攻撃の実装パターン)
-18. [代表実装例へのリンク集](#18-代表実装例へのリンク集)
+9. [ヘイト値 (Aggro) の管理](#9-ヘイト値-aggro-の管理)
+10. [リファクタリング基準 (v2.0)](#10-リファクタリング基準-v20)
+11. [特殊メカニズムの実装パターン](#11-特殊メカニズムの実装パターン)
+12. [`Character`型の詳細構造](#12-character型の詳細構造)
+13. [`IAbility`と`DamageLogic`の詳細](#13-iabilityとdamagelogicの詳細)
+14. [`Trace`と`Eidolon`の詳細](#14-traceとeidolonの詳細)
+15. [召喚獣/精霊の実装パターン](#15-召喚獣精霊の実装パターン)
+16. [追撃（Follow-up Attack）の実装パターン](#16-追撃follow-up-attackの実装パターン)
+17. [DoT/状態異常の実装パターン](#17-dot状態異常の実装パターン)
+18. [強化通常攻撃の実装パターン](#18-強化通常攻撃の実装パターン)
+19. [代表実装例へのリンク集](#19-代表実装例へのリンク集)
 
 ---
 
@@ -369,15 +370,19 @@ const result = applyUnifiedDamage(
         breakdownMultipliers: dmgCalcResult.breakdownMultipliers
     }
 );
+newState = result.state;
 
-// 3. 統合ログにヒットを追加（必殺技など複数ヒットの場合）
-newState = appendPrimaryHit(result.state, {
-    hitIndex: 0,
-    multiplier: SKILL_MULTIPLIER,
+// 3. 追加ダメージをログに記録する場合（オプション）
+import { appendAdditionalDamage } from '../../simulator/engine/dispatcher';
+
+newState = appendAdditionalDamage(newState, {
+    source: source.name,
+    name: 'スキル名',
     damage: result.totalDamage,
+    target: target.name,
+    damageType: 'skill',
     isCrit: result.isCrit || false,
-    targetName: `${target.name} - スキル名`,
-    breakdownMultipliers: result.breakdownMultipliers  // ★必須
+    breakdownMultipliers: result.breakdownMultipliers
 });
 ```
 
@@ -456,7 +461,7 @@ const targetId = actionEvent.targetId!;
 
 ---
 
-## 8. ヘイト値 (Aggro) の管理
+## 9. ヘイト値 (Aggro) の管理
 
 キャラクターの狙われやすさを表す `aggro` ステータスの仕様です。
 
@@ -485,7 +490,7 @@ modifiers: [{ target: 'aggro', value: -0.5, type: 'pct', source: '隠身' }]
 
 ---
 
-## 9. リファクタリング基準 (v2.0)
+## 10. リファクタリング基準 (v2.0)
 
 2024年12月のリファクタリングにおいて確立された、コード品質と保守性を高めるための実装標準です。
 新規キャラクター実装および既存コード修正時は、以下の基準に準拠してください。
@@ -588,9 +593,9 @@ if (effect && isMyCustomEffect(effect)) {
 
 ---
 
-## 10. 特殊メカニズムの実装パターン
+## 11. 特殊メカニズムの実装パターン
 
-### 10.1 EP不使用必殺技（黄泉パターン）
+### 11.1 EP不使用必殺技（黄泉パターン）
 
 黄泉のようにEPではなく独自のスタックシステムで必殺技を発動するキャラクターの実装パターンです。
 
@@ -653,7 +658,7 @@ if (event.type === 'ON_EFFECT_APPLIED') {
 
 ---
 
-## 11. `Character`型の詳細構造
+## 12. `Character`型の詳細構造
 
 キャラクターを定義する `Character` インターフェースの各プロパティです。
 
@@ -694,7 +699,7 @@ baseStats: {
 
 ---
 
-## 12. `IAbility`と`DamageLogic`の詳細
+## 13. `IAbility`と`DamageLogic`の詳細
 
 ### IAbility インターフェース
 
@@ -772,7 +777,7 @@ damage: {
 
 ---
 
-## 13. `Trace`と`Eidolon`の詳細
+## 14. `Trace`と`Eidolon`の詳細
 
 ### Trace（軌跡）
 
@@ -828,7 +833,7 @@ eidolons: {
 
 ---
 
-## 14. 召喚獣/精霊の実装パターン
+## 15. 召喚獣/精霊の実装パターン
 
 記憶の運命キャラクター（アグライア等）の精霊実装には `memorySpiritManager.ts` を使用します。
 
@@ -871,11 +876,11 @@ const existingSpirit = getActiveSpirit(state, ownerId, 'raftra');
 newState = removeSpirit(state, ownerId, 'raftra');
 ```
 
-> **参照実装:** [aglaea.ts](file:///c:/soft/starrail_party_calc/app/data/characters/aglaea.ts)
+> **参照実装:** [aglaea.ts](./aglaea.ts)
 
 ---
 
-## 15. 追撃（Follow-up Attack）の実装パターン
+## 16. 追撃（Follow-up Attack）の実装パターン
 
 ### 追撃のトリガー
 
@@ -929,11 +934,11 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
 };
 ```
 
-> **参照実装:** [herta.ts](file:///c:/soft/starrail_party_calc/app/data/characters/herta.ts), [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts)
+> **参照実装:** [herta.ts](./herta.ts), [blade.ts](./blade.ts)
 
 ---
 
-## 16. DoT/状態異常の実装パターン
+## 17. DoT/状態異常の実装パターン
 
 ### DoTエフェクトの構造
 
@@ -971,29 +976,36 @@ newState = addEffect(newState, targetId, shockEffect);
 ### DoT起爆の実装
 
 ```typescript
+import { DoTEffect, isDoTEffect } from '../../simulator/effect/types';
+
+// DoTエフェクトの型ガード関数（EFFECT_REFERENCE.md参照）
+function isDoTEffect(effect: IEffect): effect is DoTEffect {
+    return 'dotType' in effect && 
+           typeof (effect as any).dotType === 'string';
+}
+
 // ON_SKILL_USED でDoT起爆
 if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
     const target = state.registry.get(createUnitId(event.targetId!));
     if (!target) return state;
     
-    // DoTエフェクトを検索
-    const dotEffects = target.effects.filter(e => 
-        (e as any).dotType && ['Shock', 'Burn', 'Bleed', 'WindShear'].includes((e as any).dotType)
-    );
+    // 型ガードを使用してDoTエフェクトを検索
+    const dotEffects = target.effects.filter(isDoTEffect);
     
     // 各DoTのダメージを75%で発動
     for (const dot of dotEffects) {
+        // dot.dotTypeは型安全にアクセス可能
         const dotDamage = calculateDotDamage(source, target, dot) * 0.75;
         // ダメージ適用処理...
     }
 }
 ```
 
-> **参照実装:** [kafka.ts](file:///c:/soft/starrail_party_calc/app/data/characters/kafka.ts)
+> **参照実装:** [kafka.ts](./kafka.ts)
 
 ---
 
-## 17. 強化通常攻撃の実装パターン
+## 18. 強化通常攻撃の実装パターン
 
 ### abilities.enhancedBasic の定義
 
@@ -1058,11 +1070,11 @@ if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId
 }
 ```
 
-> **参照実装:** [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts)
+> **参照実装:** [blade.ts](./blade.ts)
 
 ---
 
-## 18. 代表実装例へのリンク集
+## 19. 代表実装例へのリンク集
 
 実装の参考として、メカニズムごとの代表キャラクターをまとめています。
 
@@ -1070,16 +1082,16 @@ if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId
 
 | カテゴリ | キャラクター | 特徴 |
 |:---------|:------------|:-----|
-| 追撃 (条件発動) | [herta.ts](file:///c:/soft/starrail_party_calc/app/data/characters/herta.ts) | 敵HP50%以上で天賦発動 |
-| 追撃 (チャージ) | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | 5チャージで天賦発動 |
-| DoT (感電) | [kafka.ts](file:///c:/soft/starrail_party_calc/app/data/characters/kafka.ts) | DoT付与と起爆 |
-| 強化通常攻撃 | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | 地獄変 (ENHANCED_BASIC タグ) |
-| 召喚/精霊 | [aglaea.ts](file:///c:/soft/starrail_party_calc/app/data/characters/aglaea.ts) | ラフトラ召喚 |
-| EP不使用必殺技 | [acheron.ts](file:///c:/soft/starrail_party_calc/app/data/characters/acheron.ts) | 斬滅スタック |
-| 味方バフ | [sunday.ts](file:///c:/soft/starrail_party_calc/app/data/characters/sunday.ts) | 単体バフ付与 |
-| 結界/フィールド | [tribbie.ts](file:///c:/soft/starrail_party_calc/app/data/characters/tribbie.ts) | 三位一体結界 |
-| HP消費 | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | consumeHp 使用 |
-| 行動短縮 | [bronya.ts](file:///c:/soft/starrail_party_calc/app/data/characters/bronya.ts) | advanceAction 使用 |
+| 追撃 (条件発動) | [herta.ts](./herta.ts) | 敵HP50%以上で天賦発動 |
+| 追撃 (チャージ) | [blade.ts](./blade.ts) | 5チャージで天賦発動 |
+| DoT (感電) | [kafka.ts](./kafka.ts) | DoT付与と起爆 |
+| 強化通常攻撃 | [blade.ts](./blade.ts) | 地獄変 (ENHANCED_BASIC タグ) |
+| 召喚/精霊 | [aglaea.ts](./aglaea.ts) | ラフトラ召喚 |
+| EP不使用必殺技 | [acheron.ts](./acheron.ts) | 斬滅スタック |
+| 味方バフ | [sunday.ts](./sunday.ts) | 単体バフ付与 |
+| 結界/フィールド | [tribbie.ts](./tribbie.ts) | 三位一体結界 |
+| HP消費 | [blade.ts](./blade.ts) | consumeHp 使用 |
+| 行動短縮 | [bronya.ts](./bronya.ts) | advanceAction 使用 |
 
 ### 新規実装時のチェックリスト
 

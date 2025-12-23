@@ -84,7 +84,7 @@ describe('Argenti Scenario Test', () => {
         const partyConfig: PartyConfig = {
             members: characters.map(char => ({
                 character: char,
-                config: { rotation: ['s'], rotationMode: 'sequence', ultStrategy: 'argenti_180', ultCooldown: 0 },
+                config: { rotation: ['s'], rotationMode: 'sequence', ultStrategy: 'immediate', ultEpOption: 'argenti_180', ultCooldown: 0 },
                 enabled: true,
                 eidolonLevel: 0
             }))
@@ -160,7 +160,7 @@ describe('Argenti Scenario Test', () => {
                 registry: state.registry.update(createUnitId(argentiId), u => ({
                     ...u,
                     ep: 90,
-                    config: { ...u.config!, ultStrategy: 'argenti_90' as const }
+                    config: { ...u.config!, ultStrategy: 'immediate', ultEpOption: 'argenti_90' as const }
                 }))
             };
 
@@ -192,7 +192,7 @@ describe('Argenti Scenario Test', () => {
                 registry: state.registry.update(createUnitId(argentiId), u => ({
                     ...u,
                     ep: 180,
-                    config: { ...u.config!, ultStrategy: 'argenti_180' as const }
+                    config: { ...u.config!, ultStrategy: 'immediate', ultEpOption: 'argenti_180' as const }
                 }))
             };
 
@@ -243,7 +243,7 @@ describe('Argenti Scenario Test', () => {
             const partyConfig: PartyConfig = {
                 members: characters.map(char => ({
                     character: char,
-                    config: { rotation: ['s'], rotationMode: 'sequence', ultStrategy: 'argenti_180', ultCooldown: 0 },
+                    config: { rotation: ['s'], rotationMode: 'sequence', ultStrategy: 'immediate', ultEpOption: 'argenti_180', ultCooldown: 0 },
                     enabled: true,
                     eidolonLevel: 4  // E4
                 }))

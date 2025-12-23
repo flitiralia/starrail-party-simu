@@ -252,9 +252,9 @@ export const argenti: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'the-one-moment-i-engraved',
+        lightConeId: 'an-instant-before-a-gaze',
         superimposition: 1,
-        relicSetId: 'the_ashblazing_grand_duke',
+        relicSetId: 'scholar_drowning_in_the_sea_of_knowledge',
         ornamentSetId: 'inert_salsotto',
         mainStats: {
             body: 'crit_rate',
@@ -270,7 +270,8 @@ export const argenti: Character = {
         ],
         rotationMode: 'spam_skill',
         spamSkillTriggerSp: 1,
-        ultStrategy: 'argenti_180' as const,
+        ultStrategy: 'immediate' as const,
+        ultEpOption: 'argenti_180' as const,
     }
 };
 
@@ -522,7 +523,7 @@ const onUltimateUsed = (
     }
 
     // 180EP版の場合、メイン倍率の追加分 + 6回のバウンスダメージを追加
-    const is180EPVersion = source.config?.ultStrategy === 'argenti_180';
+    const is180EPVersion = source.config?.ultEpOption === 'argenti_180';
     if (is180EPVersion) {
         const aliveEnemies = newState.registry.getAliveEnemies();
         if (aliveEnemies.length > 0) {
