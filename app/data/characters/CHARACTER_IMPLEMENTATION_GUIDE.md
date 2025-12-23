@@ -26,6 +26,17 @@
 5. [データ構造 (概要)](#データ構造-概要)
 6. [汎用関数 (概要)](#汎用関数-概要)
 7. [ハンドラー作成クイックスタート](#ハンドラー作成クイックスタート)
+8. [ターゲットタイプ判定](#ターゲットタイプ判定)
+9. [リファクタリング基準 (v2.0)](#9-リファクタリング基準-v20)
+10. [特殊メカニズムの実装パターン](#10-特殊メカニズムの実装パターン)
+11. [`Character`型の詳細構造](#11-character型の詳細構造)
+12. [`IAbility`と`DamageLogic`の詳細](#12-iabilityとdamagelogicの詳細)
+13. [`Trace`と`Eidolon`の詳細](#13-traceとeidolonの詳細)
+14. [召喚獣/精霊の実装パターン](#14-召喚獣精霊の実装パターン)
+15. [追撃（Follow-up Attack）の実装パターン](#15-追撃follow-up-attackの実装パターン)
+16. [DoT/状態異常の実装パターン](#16-dot状態異常の実装パターン)
+17. [強化通常攻撃の実装パターン](#17-強化通常攻撃の実装パターン)
+18. [代表実装例へのリンク集](#18-代表実装例へのリンク集)
 
 ---
 
@@ -103,7 +114,66 @@ const skillLevel = (source.eidolonLevel || 0) >= 3 ? 12 : 10;
 const values = getLeveledValue(ABILITY_VALUES.skillDamage, skillLevel);
 ```
 
+> [!CAUTION]
+> ### アビリティ倍率の正しい設定
+> 
+> **`abilities` 定義では必ず無凸時（デフォルトレベル）の値を使用してください。**
+> 
+> | アビリティ | デフォルトレベル | 星魂効果 |
+> |-----------|----------------|---------|
+> | 通常攻撃 | **Lv6** | E3/E5でLv7に上昇 |
+> | 戦闘スキル | **Lv10** | E3/E5でLv12に上昇 |
+> | 必殺技 | **Lv10** | E3/E5でLv12に上昇 |
+> | 天賦 | **Lv10** | E3/E5でLv12に上昇 |
+> 
+> **誤った例:**
+> ```typescript
+> // ❌ 星魂効果適用後の値をハードコードしている
+> hits: [{ multiplier: 1.10, ... }]  // Lv7の値
+> hits: [{ multiplier: 0.77, ... }]  // Lv12の値
+> ```
+> 
+> **正しい例:**
+> ```typescript
+> // ✅ デフォルトレベルの値を使用
+> const BASIC_MULT = 1.00;  // Lv6基準
+> const SKILL_MULT = 0.70;  // Lv10基準
+> 
+> hits: [{ multiplier: BASIC_MULT, ... }]
+> hits: [{ multiplier: SKILL_MULT, ... }]
+> ```
+
+### 星魂の `abilityModifiers` について
+
+星魂（E3/E5）の `abilityModifiers` には、**レベルアップ後の正確な値**を設定します。
+
+```typescript
+eidolons: {
+    e3: {
+        level: 3,
+        name: '...',
+        description: '通常攻撃Lv+1、必殺技Lv+2',
+        abilityModifiers: [
+            // Lv6(100%) → Lv7(110%) への上書き
+            { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 1.10 },
+            // Lv10(160%) → Lv12(176%) への上書き
+            { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 1.76 }
+        ]
+    }
+}
+```
+
+### レビューチェックリスト
+
+新規キャラクター実装時、以下を確認してください:
+
+- [ ] `abilities` 定義の倍率はデフォルトレベル（通常Lv6、その他Lv10）か
+- [ ] 星魂の `abilityModifiers` はレベルアップ後の正しい値か
+- [ ] `ABILITY_VALUES` の値と `abilities` の値が整合しているか
+- [ ] 説明文（description）の倍率表記がコードと一致しているか
+
 > 詳細は実装ガイド内のコメントを参照してください。
+
 
 ---
 
@@ -227,7 +297,89 @@ newState = applyShield(
 - `delayAction(state, unitId, amount, type)`
 
 ### ダメージ
-- `applyUnifiedDamage(...)`
+
+#### `applyUnifiedDamage` - 統合ダメージ適用
+
+ダメージを適用し、統計・ログ・イベント発火を一元処理します。
+
+**重要: 統合ログに計算式を表示するには、必ず `breakdownMultipliers` を設定してください。**
+
+**シグネチャ:**
+```typescript
+function applyUnifiedDamage(
+    state: GameState,
+    source: Unit,
+    target: Unit,
+    damage: number,
+    options: DamageOptions
+): DamageResult
+
+interface DamageOptions {
+    damageType: string;              // 'ULTIMATE_DAMAGE', 'SKILL_DAMAGE' など
+    skipLog?: boolean;               // アクションの一部として記録する場合はtrue
+    skipStats?: boolean;             // 統計更新をスキップする場合はtrue
+    details?: string;                // ログ用の詳細メッセージ
+    isCrit?: boolean;                // 会心したか
+    breakdownMultipliers?: {         // ダメージ計算の内訳
+        baseDmg: number;             // 基礎ダメージ
+        critMult: number;            // 会心乗数
+        dmgBoostMult: number;        // 与ダメージ乗数
+        defMult: number;             // 防御乗数
+        resMult: number;             // 耐性乗数
+        vulnMult: number;            // 被ダメージ乗数
+        brokenMult: number;          // 撃破乗数
+    };
+}
+
+interface DamageResult {
+    state: GameState;
+    totalDamage: number;
+    killed: boolean;
+    isCrit?: boolean;
+    breakdownMultipliers?: {...};    // options から引き継がれる
+}
+```
+
+**推奨実装パターン:**
+
+`calculateNormalAdditionalDamageWithCritInfo` を使用してダメージ計算の詳細を取得し、`applyUnifiedDamage` に渡します。
+
+```typescript
+import { calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
+
+// 1. ダメージ計算の詳細を取得
+const baseDamage = source.stats.atk * SKILL_MULTIPLIER;
+const dmgCalcResult = calculateNormalAdditionalDamageWithCritInfo(
+    source,
+    target,
+    baseDamage
+);
+
+// 2. applyUnifiedDamage に渡す
+const result = applyUnifiedDamage(
+    state,
+    source,
+    target,
+    dmgCalcResult.damage,
+    {
+        damageType: 'ULTIMATE_DAMAGE',
+        details: 'スキル名',
+        skipLog: true,  // 統合ログを使用する場合
+        isCrit: dmgCalcResult.isCrit,
+        breakdownMultipliers: dmgCalcResult.breakdownMultipliers
+    }
+);
+
+// 3. 統合ログにヒットを追加（必殺技など複数ヒットの場合）
+newState = appendPrimaryHit(result.state, {
+    hitIndex: 0,
+    multiplier: SKILL_MULTIPLIER,
+    damage: result.totalDamage,
+    isCrit: result.isCrit || false,
+    targetName: `${target.name} - スキル名`,
+    breakdownMultipliers: result.breakdownMultipliers  // ★必須
+});
+```
 
 ---
 
@@ -498,3 +650,446 @@ if (event.type === 'ON_EFFECT_APPLIED') {
     }
 }
 ```
+
+---
+
+## 11. `Character`型の詳細構造
+
+キャラクターを定義する `Character` インターフェースの各プロパティです。
+
+```typescript
+export interface Character extends IUnitData {
+    id: string;                    // 一意のキャラクターID (例: 'herta', 'blade')
+    name: string;                  // 表示名 (例: 'ヘルタ', '刃')
+    path: Path;                    // 運命 (The Hunt, Erudition, ...)
+    element: Element;              // 属性 (Physical, Fire, Ice, ...)
+    rarity: 4 | 5;                 // レアリティ
+    maxEnergy: number;             // 最大EP
+    disableEnergyRecovery?: boolean; // 通常EP回復を無効化 (黄泉用)
+    
+    baseStats: CharacterBaseStats; // 基礎ステータス
+    abilities: { ... };            // アビリティ定義
+    traces: Trace[];               // 軌跡
+    eidolons?: CharacterEidolons;  // 星魂
+    defaultConfig?: CharacterDefaultConfig;  // デフォルト設定
+}
+```
+
+### baseStats の設定
+
+```typescript
+baseStats: {
+    hp: 952,
+    atk: 582,
+    def: 396,
+    spd: 100,
+    critRate: 0.05,  // 固定: 5%
+    critDmg: 0.50,   // 固定: 50%
+    aggro: 75        // 運命ごとのヘイト値
+}
+```
+
+> [!TIP]
+> `critRate` と `critDmg` は全キャラクター共通で固定値です。
+
+---
+
+## 12. `IAbility`と`DamageLogic`の詳細
+
+### IAbility インターフェース
+
+```typescript
+interface IAbility {
+    id: string;                     // 一意ID
+    name: string;                   // 表示名
+    type: AbilityType;              // 'Basic ATK' | 'Skill' | 'Ultimate' | 'Talent' | 'Technique'
+    description: string;            // 説明文
+    
+    targetType?: TargetType;        // ターゲットタイプ
+    damage?: DamageLogic;           // ダメージ計算ロジック
+    energyGain?: number;            // EP回復量
+    spCost?: number;                // SP消費量 (デフォルト: スキル=1)
+    
+    // シールド付与アビリティ用
+    shield?: { multiplier: number, flat: number, scaling: 'atk' | 'def' | 'hp', duration?: number };
+}
+```
+
+### TargetType の種類
+
+| タイプ | 説明 | 使用例 |
+|:-------|:-----|:-------|
+| `single_enemy` | 敵単体 | 花火スキル |
+| `all_enemies` | 敵全体 | ヘルタスキル |
+| `blast` | 拡散 (単体+隣接) | 刃強化通常 |
+| `bounce` | バウンス | クラーラ天賦 |
+| `self` | 自己 | 刃スキル |
+| `ally` | 味方単体 | サンデースキル |
+| `all_allies` | 味方全体 | 花火必殺技 |
+
+### DamageLogic の4タイプ
+
+```typescript
+// 1. simple - 単純ダメージ
+damage: {
+    type: 'simple',
+    scaling: 'atk',  // 参照ステータス
+    hits: [
+        { multiplier: 0.50, toughnessReduction: 15 },
+        { multiplier: 0.50, toughnessReduction: 15 }
+    ]
+}
+
+// 2. blast - 拡散ダメージ (単体+隣接)
+damage: {
+    type: 'blast',
+    scaling: 'hp',
+    mainHits: [{ multiplier: 1.30, toughnessReduction: 15 }],
+    adjacentHits: [{ multiplier: 0.52, toughnessReduction: 5 }]
+}
+
+// 3. aoe - 全体ダメージ
+damage: {
+    type: 'aoe',
+    scaling: 'atk',
+    hits: [{ multiplier: 2.00, toughnessReduction: 20 }]
+}
+
+// 4. bounce - バウンスダメージ
+damage: {
+    type: 'bounce',
+    scaling: 'atk',
+    hits: [
+        { multiplier: 0.60, toughnessReduction: 5 },
+        { multiplier: 0.60, toughnessReduction: 5 },
+        { multiplier: 0.60, toughnessReduction: 5 }
+    ]
+}
+```
+
+> [!IMPORTANT]
+> `scaling` は参照ステータスを指定します: `'atk'`（攻撃力）、`'hp'`（最大HP）、`'def'`（防御力）
+
+---
+
+## 13. `Trace`と`Eidolon`の詳細
+
+### Trace（軌跡）
+
+軌跡には2種類があります。
+
+```typescript
+// 1. Bonus Ability - 追加能力
+{
+    id: 'blade-trace-a2',
+    name: '無尽形寿',
+    type: 'Bonus Ability',
+    description: '必殺技発動時、クリアされる失ったHP累計値が50%になる。'
+}
+
+// 2. Stat Bonus - ステータスボーナス
+{
+    id: 'blade-stat-hp',
+    name: 'HP',
+    type: 'Stat Bonus',
+    description: '最大HP+28.0%',
+    stat: 'hp_pct',     // 対象ステータス
+    value: 0.28         // 増加値
+}
+```
+
+### Eidolon（星魂）と abilityModifiers
+
+星魂で能力パラメータを変更する場合、`abilityModifiers` を使用します。
+
+```typescript
+eidolons: {
+    e3: {
+        level: 3,
+        name: '鍛造されし玄鋼 寒光放つ',
+        description: '必殺技のLv.+2、天賦のLv.+2。',
+        abilityModifiers: [
+            // パラメータパスで対象を指定
+            { abilityName: 'ultimate', param: 'damage.mainHits.0.multiplier', value: 1.62 },
+            { abilityName: 'talent', param: 'damage.hits.0.multiplier', value: 0.4719 }
+        ]
+    }
+}
+```
+
+#### パラメータパスの例
+
+| パス | 対象 |
+|:-----|:-----|
+| `damage.hits.0.multiplier` | simple/bounceの1ヒット目倍率 |
+| `damage.mainHits.0.multiplier` | blastのメイン1ヒット目倍率 |
+| `damage.adjacentHits.0.multiplier` | blastの隣接1ヒット目倍率 |
+| `shield.multiplier` | シールド倍率 |
+
+---
+
+## 14. 召喚獣/精霊の実装パターン
+
+記憶の運命キャラクター（アグライア等）の精霊実装には `memorySpiritManager.ts` を使用します。
+
+### 精霊定義の作成
+
+```typescript
+import { IMemorySpiritDefinition } from '../../simulator/engine/memorySpiritManager';
+
+function createRaftraDefinition(owner: Unit, eidolonLevel: number): IMemorySpiritDefinition {
+    return {
+        idPrefix: 'raftra',
+        name: 'ラフトラ',
+        element: 'Lightning',
+        baseSpd: owner.stats.spd,  // オーナーの速度を継承
+        abilities: {
+            basic: owner.abilities.basic,
+            skill: { ... },  // 精霊専用スキル
+            ultimate: owner.abilities.ultimate,
+            talent: owner.abilities.talent,
+            technique: owner.abilities.technique,
+        }
+    };
+}
+```
+
+### 召喚とリフレッシュ
+
+```typescript
+import { summonOrRefreshSpirit, getActiveSpirit, removeSpirit } from '../../simulator/engine/memorySpiritManager';
+
+// 精霊召喚
+const result = summonOrRefreshSpirit(state, owner, definition, { duration: 3 });
+newState = result.state;
+const spirit = result.spirit;
+
+// 既存精霊の取得
+const existingSpirit = getActiveSpirit(state, ownerId, 'raftra');
+
+// 精霊削除
+newState = removeSpirit(state, ownerId, 'raftra');
+```
+
+> **参照実装:** [aglaea.ts](file:///c:/soft/starrail_party_calc/app/data/characters/aglaea.ts)
+
+---
+
+## 15. 追撃（Follow-up Attack）の実装パターン
+
+### 追撃のトリガー
+
+追撃は `pendingActions` に追加することでトリガーします。
+
+```typescript
+import { FollowUpAttackAction } from '../../simulator/engine/types';
+
+// チャージ満タン時に追撃をトリガー
+if (getCharges(unit) >= MAX_CHARGES) {
+    newState = {
+        ...newState,
+        pendingActions: [...newState.pendingActions, {
+            type: 'FOLLOW_UP_ATTACK',
+            sourceId: sourceUnitId,
+            targetId: undefined,  // 全体攻撃の場合は undefined
+            eidolonLevel
+        } as FollowUpAttackAction]
+    };
+}
+```
+
+### ON_FOLLOW_UP_ATTACK でのダメージ処理
+
+```typescript
+const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
+    if (event.sourceId !== sourceUnitId) return state;
+    
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source) return state;
+    
+    let newState = state;
+    
+    // チャージをリセット
+    newState = resetCharges(newState, sourceUnitId);
+    
+    // 敵全体にダメージ
+    const enemies = newState.registry.getAliveEnemies();
+    for (const enemy of enemies) {
+        const dmgCalc = calculateNormalAdditionalDamageWithCritInfo(source, enemy, baseDamage);
+        const result = applyUnifiedDamage(newState, source, enemy, dmgCalc.damage, {
+            damageType: 'FOLLOW_UP_ATTACK_DAMAGE',
+            details: '天賦: 追加攻撃',
+            isCrit: dmgCalc.isCrit,
+            breakdownMultipliers: dmgCalc.breakdownMultipliers
+        });
+        newState = result.state;
+    }
+    
+    return newState;
+};
+```
+
+> **参照実装:** [herta.ts](file:///c:/soft/starrail_party_calc/app/data/characters/herta.ts), [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts)
+
+---
+
+## 16. DoT/状態異常の実装パターン
+
+### DoTエフェクトの構造
+
+```typescript
+interface DoTEffect extends IEffect {
+    dotType: 'Shock' | 'Burn' | 'Bleed' | 'WindShear';
+    damageCalculation: 'multiplier' | 'fixed';
+    multiplier?: number;    // multiplierの場合
+    baseDamage?: number;    // fixedの場合
+}
+```
+
+### DoT付与の実装
+
+```typescript
+// 感電付与
+const shockEffect: IEffect = {
+    id: `kafka-shock-${sourceUnitId}-${targetId}`,
+    name: '感電',
+    category: 'DEBUFF',
+    sourceUnitId: sourceUnitId,
+    durationType: 'TURN_START_BASED',
+    duration: 2,
+    dotType: 'Shock',
+    damageCalculation: 'multiplier',
+    multiplier: 2.9,  // ATK 290%
+    tags: ['DOT', 'SHOCK'],
+    apply: (t, s) => s,
+    remove: (t, s) => s
+} as DoTEffect;
+
+newState = addEffect(newState, targetId, shockEffect);
+```
+
+### DoT起爆の実装
+
+```typescript
+// ON_SKILL_USED でDoT起爆
+if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
+    const target = state.registry.get(createUnitId(event.targetId!));
+    if (!target) return state;
+    
+    // DoTエフェクトを検索
+    const dotEffects = target.effects.filter(e => 
+        (e as any).dotType && ['Shock', 'Burn', 'Bleed', 'WindShear'].includes((e as any).dotType)
+    );
+    
+    // 各DoTのダメージを75%で発動
+    for (const dot of dotEffects) {
+        const dotDamage = calculateDotDamage(source, target, dot) * 0.75;
+        // ダメージ適用処理...
+    }
+}
+```
+
+> **参照実装:** [kafka.ts](file:///c:/soft/starrail_party_calc/app/data/characters/kafka.ts)
+
+---
+
+## 17. 強化通常攻撃の実装パターン
+
+### abilities.enhancedBasic の定義
+
+```typescript
+abilities: {
+    basic: { ... },  // 通常の通常攻撃
+    skill: { ... },
+    // ...
+    
+    // 強化通常攻撃
+    enhancedBasic: {
+        id: 'blade-enhanced-basic',
+        name: '無間剣樹',
+        type: 'Basic ATK',
+        description: 'HP10%消費。敵単体にHP130%、隣接にHP52%の風属性ダメージ。',
+        damage: {
+            type: 'blast',
+            scaling: 'hp',
+            mainHits: [{ multiplier: 1.30, toughnessReduction: 15 }],
+            adjacentHits: [{ multiplier: 0.52, toughnessReduction: 5 }]
+        },
+        energyGain: 30,
+        targetType: 'blast'
+    }
+}
+```
+
+### ENHANCED_BASIC タグによる自動切替
+
+スキル使用時に `ENHANCED_BASIC` タグを持つバフを付与すると、通常攻撃が自動的に強化通常攻撃に切り替わります。
+
+```typescript
+const hellscapeEffect: IEffect = {
+    id: `blade-hellscape-${sourceUnitId}`,
+    name: '地獄変',
+    category: 'BUFF',
+    sourceUnitId: sourceUnitId,
+    durationType: 'TURN_END_BASED',
+    duration: 3,
+    skipFirstTurnDecrement: true,
+    modifiers: [
+        { target: 'all_type_dmg_boost', value: 0.40, type: 'add', source: '地獄変' }
+    ],
+    tags: ['HELLSCAPE', 'SKILL_SILENCE', 'ENHANCED_BASIC'],  // ★ ENHANCED_BASIC
+    apply: (t, s) => s,
+    remove: (t, s) => s
+};
+```
+
+### ON_ENHANCED_BASIC_ATTACK イベント
+
+強化通常攻撃実行後の追加処理には `ON_ENHANCED_BASIC_ATTACK` を使用します。
+
+```typescript
+subscribesTo: ['ON_ENHANCED_BASIC_ATTACK'],
+
+// ハンドラー
+if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
+    // HP消費処理など
+    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, 0.10, '無間剣樹');
+    newState = afterConsume;
+}
+```
+
+> **参照実装:** [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts)
+
+---
+
+## 18. 代表実装例へのリンク集
+
+実装の参考として、メカニズムごとの代表キャラクターをまとめています。
+
+### 運命・メカニズム別
+
+| カテゴリ | キャラクター | 特徴 |
+|:---------|:------------|:-----|
+| 追撃 (条件発動) | [herta.ts](file:///c:/soft/starrail_party_calc/app/data/characters/herta.ts) | 敵HP50%以上で天賦発動 |
+| 追撃 (チャージ) | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | 5チャージで天賦発動 |
+| DoT (感電) | [kafka.ts](file:///c:/soft/starrail_party_calc/app/data/characters/kafka.ts) | DoT付与と起爆 |
+| 強化通常攻撃 | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | 地獄変 (ENHANCED_BASIC タグ) |
+| 召喚/精霊 | [aglaea.ts](file:///c:/soft/starrail_party_calc/app/data/characters/aglaea.ts) | ラフトラ召喚 |
+| EP不使用必殺技 | [acheron.ts](file:///c:/soft/starrail_party_calc/app/data/characters/acheron.ts) | 斬滅スタック |
+| 味方バフ | [sunday.ts](file:///c:/soft/starrail_party_calc/app/data/characters/sunday.ts) | 単体バフ付与 |
+| 結界/フィールド | [tribbie.ts](file:///c:/soft/starrail_party_calc/app/data/characters/tribbie.ts) | 三位一体結界 |
+| HP消費 | [blade.ts](file:///c:/soft/starrail_party_calc/app/data/characters/blade.ts) | consumeHp 使用 |
+| 行動短縮 | [bronya.ts](file:///c:/soft/starrail_party_calc/app/data/characters/bronya.ts) | advanceAction 使用 |
+
+### 新規実装時のチェックリスト
+
+新しいキャラクターを実装する際は、以下を確認してください。
+
+- [ ] `Character` 定義（`id`, `name`, `path`, `element`, `baseStats`, `maxEnergy`）
+- [ ] `abilities` 定義（`basic`, `skill`, `ultimate`, `talent`, `technique`）
+- [ ] `traces` 定義（追加能力とステータスボーナス）
+- [ ] `eidolons` 定義（E1〜E6、`abilityModifiers`）
+- [ ] ハンドラーファクトリ（`subscribesTo`、各イベントハンドラー）
+- [ ] エクスポート（`index.ts` に追加）
+- [ ] テスト（`scenarios/` にテストファイル作成）
+

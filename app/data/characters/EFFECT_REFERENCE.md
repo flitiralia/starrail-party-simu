@@ -129,6 +129,34 @@ newState = addEffect(newState, targetId, stackBuff);
 > - 同一エフェクトの判定は `id` と `sourceUnitId` の両方で行われる
 > - `modifiers.value` は**1層あたりの値**を指定する（累積値ではない）
 
+> [!CAUTION]
+> ### stackCount と modifiers の自動乗算
+>
+> **StatBuilder** は `effect.modifiers` の値を `effect.stackCount` で**自動的に乗算**します。
+>
+> ```typescript
+> // statBuilder.ts の処理
+> const effectiveValue = baseValue * stackCount;  // 自動乗算
+> ```
+>
+> したがって、`modifiers.value` に手動で `* stackCount` を掛けると**二重乗算**になります。
+>
+> **誤った例:**
+> ```typescript
+> modifiers: [{
+>     value: critRatePerStack * newStacks,  // ❌ 二重乗算になる
+> }],
+> stackCount: newStacks,
+> ```
+>
+> **正しい例:**
+> ```typescript
+> modifiers: [{
+>     value: critRatePerStack,  // ✅ 1層あたりの値のみ
+> }],
+> stackCount: newStacks,
+> ```
+
 ### リンクエフェクト（親依存）
 
 「スキル発動者がバフを持っている間、対象もバフを得る」などの実装に使用します。

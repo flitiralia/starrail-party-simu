@@ -610,7 +610,13 @@ export function applyUnifiedDamage(
     });
   }
 
-  return { state: newState, totalDamage: damage, killed };
+  return {
+    state: newState,
+    totalDamage: damage,
+    killed,
+    isCrit: options.isCrit,
+    breakdownMultipliers: options.breakdownMultipliers
+  };
 }
 
 
@@ -727,7 +733,17 @@ function stepPayCost(context: ActionContext): ActionContext {
     newState = addSkillPoints(newState, -cost, source.id);
   } else if (action.type === 'ULTIMATE') {
     // 必殺技: EP消費
-    updatedSource = { ...updatedSource, ep: 0 };
+    const strategy = updatedSource.config?.ultStrategy;
+    if (strategy === 'argenti_90') {
+      // アルジェンティ90EP版: 90EP消費
+      updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - 90) };
+    } else if (strategy === 'argenti_180') {
+      // アルジェンティ180EP版: 180EP消費
+      updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - 180) };
+    } else {
+      // 通常: 全消費
+      updatedSource = { ...updatedSource, ep: 0 };
+    }
   }
 
   newState = {
@@ -1248,15 +1264,27 @@ function stepGenerateLog(context: ActionContext): ActionContext {
   const { action, source, state, totalDamage, totalShield, targets } = context;
 
   // currentActionLogが存在する場合は、プライマリダメージを更新
+  // ただし、既存のhitDetailsがある場合はそれを保持する（ハンドラーが追加した場合）
   let newState = state;
   if (newState.currentActionLog) {
+    const existingHitDetails = newState.currentActionLog.primaryDamage.hitDetails;
+    const existingTotalDamage = newState.currentActionLog.primaryDamage.totalDamage;
+
+    // context.hitDetailsが空でない場合は追加、そうでなければ既存を保持
+    const mergedHitDetails = context.hitDetails.length > 0
+      ? [...existingHitDetails, ...context.hitDetails]
+      : existingHitDetails;
+    const mergedTotalDamage = context.hitDetails.length > 0
+      ? existingTotalDamage + totalDamage
+      : existingTotalDamage;
+
     newState = {
       ...newState,
       currentActionLog: {
         ...newState.currentActionLog,
         primaryDamage: {
-          hitDetails: context.hitDetails,
-          totalDamage: totalDamage
+          hitDetails: mergedHitDetails,
+          totalDamage: mergedTotalDamage
         }
       }
     };
@@ -1279,6 +1307,12 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
     // フォールバック: 旧ロジック
     return context;
   }
+
+  // デバッグログ
+  console.log(`[stepFinalizeActionLog] action=${action.type}, hitDetails count=${currentActionLog.primaryDamage.hitDetails.length}, totalDamage=${currentActionLog.primaryDamage.totalDamage.toFixed(2)}`);
+  currentActionLog.primaryDamage.hitDetails.forEach((hit, i) => {
+    console.log(`  [hitDetail ${i}] index=${hit.hitIndex}, name=${hit.targetName}, damage=${hit.damage.toFixed(2)}`);
+  });
 
   const primaryTarget = targets[0] || source;
   const updatedSource = state.registry.get(createUnitId(source.id)) || source;
@@ -1796,8 +1830,8 @@ function resolveAction(state: GameState, action: Action): GameState {
   context = stepProcessHits(context);
   context = stepApplyShield(context);
   context = stepEnergyGain(context);
-  context = stepGenerateLog(context);  // プライマリダメージをcurrentActionLogに記録
-  context = stepPublishActionEvents(context);
+  context = stepPublishActionEvents(context);  // ON_ULTIMATE_USEDなどのイベント発火
+  context = stepGenerateLog(context);  // プライマリダメージをcurrentActionLogに記録（ハンドラーが追加した後）
   context = stepApplyAbilityEffects(context);
   context = stepPublishActionCompleteEvent(context);  // Fire ON_ACTION_COMPLETE
   context = stepCheckEnemySpawn(context);  // Check for newly spawned enemies

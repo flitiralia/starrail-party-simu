@@ -271,7 +271,7 @@ export interface CharacterDefaultConfig {
   /** スパムスキル発動SP閾値 */
   spamSkillTriggerSp?: number;
   /** デフォルト必殺技発動方針 */
-  ultStrategy?: 'immediate' | 'cooldown';
+  ultStrategy?: 'immediate' | 'cooldown' | 'argenti_90' | 'argenti_180';
   /** 必殺技クールダウン（ultStrategy === 'cooldown'の場合） */
   ultCooldown?: number;
 }
@@ -326,7 +326,7 @@ export interface CharacterRotationConfig {
   rotationMode?: 'sequence' | 'spam_skill'; // 'sequence' (default) or 'spam_skill'
   spamSkillTriggerSp?: number; // SP Threshold to start spamming skill (for 'spam_skill' mode)
   skillTargetId?: string; // Target Character ID (or name-based ID)
-  ultStrategy: 'immediate' | 'cooldown'; // 必殺技発動戦略
+  ultStrategy: 'immediate' | 'cooldown' | 'argenti_90' | 'argenti_180'; // 必殺技発動戦略
   ultCooldown: number; // 必殺技のクールダウン（ターン数）
   useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
 }

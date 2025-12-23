@@ -236,14 +236,25 @@ function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
         let ultTriggered = false;
 
         for (const char of characters) {
-            if (char.config && char.ep >= char.stats.max_ep && char.ultCooldown === 0 && char.config.ultStrategy === 'immediate') {
-                const ultAction: Action = { type: 'ULTIMATE', sourceId: char.id };
-                newState = dispatch(newState, ultAction);
+            if (char.config && char.ultCooldown === 0) {
+                const strategy = char.config.ultStrategy;
+                let shouldTrigger = false;
 
-                // Reset cooldown (if any logic requires it, though usually handled by energy cost)
-                // And we might want to re-evaluate state immediately (e.g. another Ult becomes ready due to kill)
-                ultTriggered = true;
-                break; // Restart loop to re-check all characters with fresh state
+                if (strategy === 'immediate' && char.ep >= char.stats.max_ep) {
+                    shouldTrigger = true;
+                } else if (strategy === 'argenti_90' && char.ep >= 90) {
+                    shouldTrigger = true;
+                } else if (strategy === 'argenti_180' && char.ep >= 180) {
+                    shouldTrigger = true;
+                }
+
+                if (shouldTrigger) {
+                    const ultAction: Action = { type: 'ULTIMATE', sourceId: char.id };
+                    newState = dispatch(newState, ultAction);
+
+                    ultTriggered = true;
+                    break;
+                }
             }
         }
 

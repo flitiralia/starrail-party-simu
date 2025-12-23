@@ -315,25 +315,52 @@ export default function PartySlotCard({
                     {/* 必殺技発動方針 */}
                     <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>必殺技:</label>
-                        <div style={{ display: 'flex', gap: '8px', fontSize: '0.85em' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                <input
-                                    type="radio"
-                                    value="immediate"
-                                    checked={config.ultStrategy === 'immediate'}
-                                    onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'immediate' })}
-                                />
-                                即時
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                <input
-                                    type="radio"
-                                    value="cooldown"
-                                    checked={config.ultStrategy === 'cooldown'}
-                                    onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'cooldown' })}
-                                />
-                                CD制
-                            </label>
+                        <div style={{ display: 'flex', gap: '8px', fontSize: '0.85em', flexWrap: 'wrap' }}>
+                            {character.id === 'argenti' ? (
+                                // アルジェンティ専用: 90EP/180EP選択
+                                <>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        <input
+                                            type="radio"
+                                            value="argenti_90"
+                                            checked={config.ultStrategy === 'argenti_90'}
+                                            onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'argenti_90' })}
+                                        />
+                                        90EP
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        <input
+                                            type="radio"
+                                            value="argenti_180"
+                                            checked={config.ultStrategy === 'argenti_180'}
+                                            onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'argenti_180' })}
+                                        />
+                                        180EP
+                                    </label>
+                                </>
+                            ) : (
+                                // 通常キャラ: 即時/CD制
+                                <>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        <input
+                                            type="radio"
+                                            value="immediate"
+                                            checked={config.ultStrategy === 'immediate'}
+                                            onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'immediate' })}
+                                        />
+                                        即時
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        <input
+                                            type="radio"
+                                            value="cooldown"
+                                            checked={config.ultStrategy === 'cooldown'}
+                                            onChange={() => onConfigUpdate && onConfigUpdate({ ...config, ultStrategy: 'cooldown' })}
+                                        />
+                                        CD制
+                                    </label>
+                                </>
+                            )}
                         </div>
                         {config.ultStrategy === 'cooldown' && (
                             <input

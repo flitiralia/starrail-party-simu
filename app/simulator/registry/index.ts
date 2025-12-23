@@ -12,6 +12,7 @@ import { sundayHandlerFactory } from '../../data/characters/sunday';
 import { trailblazerRemembranceHandlerFactory } from '../../data/characters/trailblazer-remembrance';
 import { trailblazerHarmonyHandlerFactory } from '../../data/characters/trailblazer-harmony';
 import { hertaHandlerFactory } from '../../data/characters/herta';
+import { acheronHandlerFactory } from '../../data/characters/acheron';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -64,4 +65,5 @@ registry.registerCharacter('sunday', sundayHandlerFactory);
 registry.registerCharacter('trailblazer-remembrance', trailblazerRemembranceHandlerFactory);
 registry.registerCharacter('trailblazer-harmony', trailblazerHarmonyHandlerFactory);
 registry.registerCharacter('herta', hertaHandlerFactory);
+registry.registerCharacter('acheron', acheronHandlerFactory);
 

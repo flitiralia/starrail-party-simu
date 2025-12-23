@@ -101,12 +101,12 @@ export const anaxa: Character = {
             id: 'anaxa-basic',
             name: '苦痛、認識の造成',
             type: 'Basic ATK',
-            description: '指定した敵単体にアナイクスの攻撃力110%分の風属性ダメージを与える。',
+            description: '指定した敵単体にアナイクスの攻撃力100%分の風属性ダメージを与える。',
             targetType: 'single_enemy',
             damage: {
                 type: 'simple',
                 scaling: 'atk',
-                hits: [{ multiplier: 1.10, toughnessReduction: 10 }]
+                hits: [{ multiplier: 1.00, toughnessReduction: 10 }]
             },
             energyGain: 30
         },
@@ -114,17 +114,17 @@ export const anaxa: Character = {
             id: 'anaxa-skill',
             name: '分形、誤謬の駆駆',
             type: 'Skill',
-            description: '指定した敵単体にアナイクスの攻撃力77%分の風属性ダメージを与え、さらに4ヒットする。',
+            description: '指定した敵単体にアナイクスの攻撃力70%分の風属性ダメージを与え、さらに4ヒットする。',
             targetType: 'bounce',
             damage: {
                 type: 'bounce',
                 scaling: 'atk',
                 hits: [
-                    { multiplier: 0.77, toughnessReduction: 10 },
-                    { multiplier: 0.77, toughnessReduction: 5 },
-                    { multiplier: 0.77, toughnessReduction: 5 },
-                    { multiplier: 0.77, toughnessReduction: 5 },
-                    { multiplier: 0.77, toughnessReduction: 5 }
+                    { multiplier: 0.70, toughnessReduction: 10 },
+                    { multiplier: 0.70, toughnessReduction: 5 },
+                    { multiplier: 0.70, toughnessReduction: 5 },
+                    { multiplier: 0.70, toughnessReduction: 5 },
+                    { multiplier: 0.70, toughnessReduction: 5 }
                 ]
             },
             energyGain: 30
@@ -133,12 +133,12 @@ export const anaxa: Character = {
             id: 'anaxa-ultimate',
             name: '化育、世界の創造',
             type: 'Ultimate',
-            description: '敵全体を「昇華」状態にした後、アナイクスの攻撃力176%分の風属性ダメージを与える。',
+            description: '敵全体を「昇華」状態にした後、アナイクスの攻撃力160%分の風属性ダメージを与える。',
             targetType: 'all_enemies',
             damage: {
                 type: 'aoe',
                 scaling: 'atk',
-                hits: [{ multiplier: 1.76, toughnessReduction: 20 }]
+                hits: [{ multiplier: 1.60, toughnessReduction: 20 }]
             },
             energyGain: 5
         },
@@ -215,8 +215,8 @@ export const anaxa: Character = {
             name: '深宇宙に刻まれた瞳',
             description: '必殺技のLv.+2、最大Lv.15まで。通常攻撃のLv.+1、最大Lv.10まで。',
             abilityModifiers: [
-                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 1.21 },
-                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 1.936 }
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 1.10 },
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 1.76 }
             ]
         },
         e4: {
@@ -229,11 +229,11 @@ export const anaxa: Character = {
             name: '渦状腕外の胚種',
             description: '戦闘スキルのLv.+2、最大Lv.15まで。天賦のLv.+2、最大Lv.15まで。',
             abilityModifiers: [
-                { abilityName: 'skill', param: 'damage.hits.0.multiplier', value: 0.847 },
-                { abilityName: 'skill', param: 'damage.hits.1.multiplier', value: 0.847 },
-                { abilityName: 'skill', param: 'damage.hits.2.multiplier', value: 0.847 },
-                { abilityName: 'skill', param: 'damage.hits.3.multiplier', value: 0.847 },
-                { abilityName: 'skill', param: 'damage.hits.4.multiplier', value: 0.847 }
+                { abilityName: 'skill', param: 'damage.hits.0.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.hits.1.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.hits.2.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.hits.3.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.hits.4.multiplier', value: 0.77 }
             ]
         },
         e6: {

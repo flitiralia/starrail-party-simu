@@ -1,4 +1,4 @@
-import { Character, StatKey } from '../../types';
+import { Character, StatKey, HitDetail } from '../../types';
 import {
     IEventHandlerFactory,
     GameState,
@@ -13,9 +13,10 @@ import {
 import { IEffect } from '../../simulator/effect/types';
 import { createUnitId, UnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { applyUnifiedDamage, publishEvent, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, publishEvent } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { SimulationLogEntry } from '../../types';
+import { calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
 
 // =============================================================================
 // 定数定義
@@ -125,6 +126,39 @@ const A4_NIHILITY_1 = 0.15;  // 115% -> +15%
 const A4_NIHILITY_2 = 0.60;  // 160% -> +60%
 
 // =============================================================================
+// ヘルパー関数
+// =============================================================================
+
+/**
+ * 必殺技ダメージをprimaryDamage.hitDetailsに追加する
+ * @param state 現在のGameState
+ * @param hitDetail 追加するヒット詳細
+ * @returns 更新されたGameState
+ */
+const appendPrimaryHit = (state: GameState, hitDetail: HitDetail): GameState => {
+    if (!state.currentActionLog) {
+        console.warn('[appendPrimaryHit] currentActionLog is null, skipping hit:', hitDetail.targetName);
+        return state;
+    }
+
+    const currentHitDetails = state.currentActionLog.primaryDamage.hitDetails;
+    const currentTotalDamage = state.currentActionLog.primaryDamage.totalDamage;
+
+    console.log(`[appendPrimaryHit] Adding hit: index=${hitDetail.hitIndex}, name=${hitDetail.targetName}, damage=${hitDetail.damage.toFixed(2)}, currentCount=${currentHitDetails.length}`);
+
+    return {
+        ...state,
+        currentActionLog: {
+            ...state.currentActionLog,
+            primaryDamage: {
+                hitDetails: [...currentHitDetails, hitDetail],
+                totalDamage: currentTotalDamage + hitDetail.damage
+            }
+        }
+    };
+};
+
+// =============================================================================
 // キャラクター定義
 // =============================================================================
 
@@ -188,10 +222,11 @@ export const acheron: Character = {
             name: '残夢染める繚乱の一太刀',
             type: 'Ultimate',
             description: '「啼沢斬り」を3回、「黄泉返り」を1回発動。指定した敵単体に最大で攻撃力372%分、その他の敵に最大で攻撃力300%分の雷属性ダメージ。',
+            // ダメージはonUltimateUsedで手動処理するため無効化
             damage: {
                 type: 'aoe',
                 scaling: 'atk',
-                hits: [{ multiplier: 3.72, toughnessReduction: 45 }]  // 合計削靭: (5+5)*3 + 10 = 40
+                hits: []  // dispatcher自動処理を無効化
             },
             energyGain: 0,
             targetType: 'all_enemies',
@@ -793,6 +828,7 @@ const onEnemyDefeated = (
 
 /**
  * 必殺技使用時
+ * 啼沢斬り×3回 + 黄泉返り のダメージを手動処理
  */
 const onUltimateUsed = (
     event: ActionEvent,
@@ -802,8 +838,11 @@ const onUltimateUsed = (
 ): GameState => {
     if (event.sourceId !== sourceUnitId) return state;
 
-    const acheronUnit = state.registry.get(createUnitId(sourceUnitId));
+    let acheronUnit = state.registry.get(createUnitId(sourceUnitId));
     if (!acheronUnit) return state;
+
+    // デバッグログ: 関数の開始
+    console.log(`[onUltimateUsed] Started, sourceId=${event.sourceId}, targetId=${event.targetId}`);
 
     let newState = state;
 
@@ -827,7 +866,7 @@ const onUltimateUsed = (
     const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
     const resDown = getLeveledValue(ABILITY_VALUES.talentResDown, talentLevel);
 
-    const enemies = newState.registry.getAliveEnemies();
+    let enemies = newState.registry.getAliveEnemies();
     enemies.forEach(enemy => {
         const resDownEffect: IEffect = {
             id: EFFECT_IDS.ULT_RES_DOWN(sourceUnitId, enemy.id),
@@ -851,15 +890,155 @@ const onUltimateUsed = (
         newState = addEffect(newState, enemy.id, resDownEffect);
     });
 
-    // ダメージ計算は dispatcher で行われるため、ここでは集真赤消去とA6処理のみ
+    // ダメージ倍率を取得
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 3, 'Ultimate');
+    const ultValues = getLeveledValue(ABILITY_VALUES.ultDmg, ultLevel) as {
+        singleTotal: number;
+        othersTotal: number;
+        teisouFlat: number;
+        teisouAoe: number;
+        teisouBonus: number;
+        yomigaeri: number;
+    };
 
-    // 啼沢斬り × 3回
-    const targetId = event.targetId;
+    // 最新のユニット情報を取得
+    acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
+    const atk = acheronUnit.stats.atk;
+
+    // === 啼沢斬り × 3回 ===
+    // targetIdがundefinedの場合は、集真赤が最も多い敵または最初の生存敵を選択
+    let targetId = event.targetId;
+    if (!targetId) {
+        const primaryTarget = getEnemyWithMostShishinaka(newState, sourceUnitId);
+        if (primaryTarget) {
+            targetId = primaryTarget.id;
+        } else {
+            const aliveEnemies = newState.registry.getAliveEnemies();
+            if (aliveEnemies.length > 0) {
+                targetId = aliveEnemies[0].id;
+            }
+        }
+    }
+    console.log(`[onUltimateUsed] targetId=${targetId}, will execute teisou loop: ${!!targetId}`);
+
     if (targetId) {
         for (let i = 0; i < 3; i++) {
-            // 集真赤を最大3層消去
+            console.log(`[onUltimateUsed] Teisou loop iteration ${i + 1}/3`);
+            // 最新の状態を取得
+            const targetUnit = newState.registry.get(createUnitId(targetId));
+            acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
+            if (!targetUnit || targetUnit.hp <= 0) continue;
+
+            // 1. 単体ダメージ (ATK × Z%)
+            const teisouFlatDamage = atk * ultValues.teisouFlat;
+            // ダメージ計算の詳細を取得
+            const dmgCalcResult1 = calculateNormalAdditionalDamageWithCritInfo(
+                acheronUnit,
+                targetUnit,
+                teisouFlatDamage
+            );
+            const result1 = applyUnifiedDamage(
+                newState,
+                acheronUnit,
+                targetUnit,
+                dmgCalcResult1.damage,
+                {
+                    damageType: 'ULTIMATE_DAMAGE',
+                    details: `啼沢斬り${i + 1}回目`,
+                    skipLog: true,
+                    isCrit: dmgCalcResult1.isCrit,
+                    breakdownMultipliers: dmgCalcResult1.breakdownMultipliers
+                }
+            );
+            newState = result1.state;
+
+            // ログに記録
+            newState = appendPrimaryHit(newState, {
+                hitIndex: i * 3,  // 各啼沢斬りの単体ダメージ
+                multiplier: ultValues.teisouFlat,
+                damage: result1.totalDamage,
+                isCrit: result1.isCrit || false,
+                targetName: `${targetUnit.name} - 啼沢斬り${i + 1}回目`,
+                breakdownMultipliers: result1.breakdownMultipliers
+            });
+
+            // 2. 集真赤を最大3層消去
             const { state: afterRemove, removed } = removeShishinakaStacks(newState, sourceUnitId, targetId, 3);
             newState = afterRemove;
+
+            // 3. 集真赤ボーナス単体ダメージ (removed × ATK × Y%)
+            if (removed > 0) {
+                const bonusDamage = atk * ultValues.teisouBonus * removed;
+                const updatedTarget = newState.registry.get(createUnitId(targetId));
+                acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
+                if (updatedTarget && updatedTarget.hp > 0) {
+                    const dmgCalcResult2 = calculateNormalAdditionalDamageWithCritInfo(
+                        acheronUnit,
+                        updatedTarget,
+                        bonusDamage
+                    );
+                    const result2 = applyUnifiedDamage(
+                        newState,
+                        acheronUnit,
+                        updatedTarget,
+                        dmgCalcResult2.damage,
+                        {
+                            damageType: 'ULTIMATE_DAMAGE',
+                            details: `啼沢斬り${i + 1}回目 集真赤ボーナス(${removed}層)`,
+                            skipLog: true,
+                            isCrit: dmgCalcResult2.isCrit,
+                            breakdownMultipliers: dmgCalcResult2.breakdownMultipliers
+                        }
+                    );
+                    newState = result2.state;
+
+                    // ログに記録
+                    newState = appendPrimaryHit(newState, {
+                        hitIndex: i * 3 + 1,  // 集真赤ボーナス
+                        multiplier: ultValues.teisouBonus * removed,
+                        damage: result2.totalDamage,
+                        isCrit: result2.isCrit || false,
+                        targetName: `${updatedTarget.name} - 啼沢斬り${i + 1}回目 集真赤ボーナス(${removed}層)`,
+                        breakdownMultipliers: result2.breakdownMultipliers
+                    });
+                }
+
+                // 4. 集真赤ボーナス全体ダメージ (removed × ATK × X%)
+                const aoeBonusDamage = atk * ultValues.teisouAoe * removed;
+                enemies = newState.registry.getAliveEnemies();
+                for (const enemy of enemies) {
+                    acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
+                    const dmgCalcResult3 = calculateNormalAdditionalDamageWithCritInfo(
+                        acheronUnit,
+                        enemy,
+                        aoeBonusDamage
+                    );
+                    const result3 = applyUnifiedDamage(
+                        newState,
+                        acheronUnit,
+                        enemy,
+                        dmgCalcResult3.damage,
+                        {
+                            damageType: 'ULTIMATE_DAMAGE',
+                            details: `啼沢斬り${i + 1}回目 全体追加`,
+                            skipLog: true,
+                            isCrit: dmgCalcResult3.isCrit,
+                            breakdownMultipliers: dmgCalcResult3.breakdownMultipliers
+                        }
+                    );
+                    newState = result3.state;
+
+                    // ログに記録
+                    newState = appendPrimaryHit(newState, {
+                        hitIndex: i * 3 + 2,  // 全体追加ダメージ
+                        multiplier: ultValues.teisouAoe * removed,
+                        damage: result3.totalDamage,
+                        isCrit: result3.isCrit || false,
+                        targetName: `${enemy.name} - 啼沢斬り${i + 1}回目 全体追加`,
+                        breakdownMultipliers: result3.breakdownMultipliers
+                    });
+                }
+            }
 
             // A6: 集真赤持ちの敵に命中時、与ダメ+30%（最大3層、3ターン）
             if (acheronUnit.traces?.some(t => t.id === TRACE_IDS.A6_RAISHIN) && removed > 0) {
@@ -913,7 +1092,44 @@ const onUltimateUsed = (
         }
     }
 
-    // 黄泉返り: 全集真赤クリア
+    // === 黄泉返り ===
+    // 全体ダメージ (ATK × z%)
+    const yomigaeriDamage = atk * ultValues.yomigaeri;
+    enemies = newState.registry.getAliveEnemies();
+    for (const enemy of enemies) {
+        acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
+        const dmgCalcResult4 = calculateNormalAdditionalDamageWithCritInfo(
+            acheronUnit,
+            enemy,
+            yomigaeriDamage
+        );
+        const result4 = applyUnifiedDamage(
+            newState,
+            acheronUnit,
+            enemy,
+            dmgCalcResult4.damage,
+            {
+                damageType: 'ULTIMATE_DAMAGE',
+                details: '黄泉返り',
+                skipLog: true,
+                isCrit: dmgCalcResult4.isCrit,
+                breakdownMultipliers: dmgCalcResult4.breakdownMultipliers
+            }
+        );
+        newState = result4.state;
+
+        // ログに記録
+        newState = appendPrimaryHit(newState, {
+            hitIndex: 9,  // 黄泉返り（啼沢斬り3回×3=9の次）
+            multiplier: ultValues.yomigaeri,
+            damage: result4.totalDamage,
+            isCrit: result4.isCrit || false,
+            targetName: `${enemy.name} - 黄泉返り`,
+            breakdownMultipliers: result4.breakdownMultipliers
+        });
+    }
+
+    // 全集真赤クリア
     newState = clearAllShishinaka(newState, sourceUnitId);
 
     // 全耐性ダウン効果を削除
@@ -975,6 +1191,11 @@ export const acheronHandlerFactory: IEventHandlerFactory = (
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
             const acheronUnit = state.registry.get(createUnitId(sourceUnitId));
             if (!acheronUnit) return state;
+
+            // Debug: 全イベントログ出力
+            if (event.sourceId === sourceUnitId || event.type === 'ON_SKILL_USED' || event.type === 'ON_ACTION_COMPLETE') {
+                console.log(`[Acheron Debug] Event=${event.type}, Source=${event.sourceId}, MyID=${sourceUnitId}`);
+            }
 
             // 戦闘開始時
             if (event.type === 'ON_BATTLE_START') {

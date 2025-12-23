@@ -164,8 +164,9 @@ export function createInitialGameState(
       disableEnergyRecovery: char.disableEnergyRecovery,
     };
 
-    // Initialize Energy (50% start)
-    const unitWithEnergy = initializeEnergy(unit, 0.5);
+    // Initialize Energy (50% start, or 0% if energy recovery is disabled)
+    const initialEnergyRatio = unit.disableEnergyRecovery ? 0 : 0.5;
+    const unitWithEnergy = initializeEnergy(unit, initialEnergyRatio);
 
     // Apply Character Mechanics (Traces, Eidolons that modify structure beyond simple params)
     return applyCharacterMechanics(unitWithEnergy);

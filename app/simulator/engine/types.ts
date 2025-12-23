@@ -22,7 +22,7 @@ export interface IAura {
         source: string;
     }[];
 }
-export type UltimateStrategy = 'immediate' | 'cooldown';
+export type UltimateStrategy = 'immediate' | 'cooldown' | 'argenti_90' | 'argenti_180';
 
 export interface CharacterConfig {
     rotation: string[];
@@ -212,6 +212,18 @@ export interface DamageOptions {
     }[];
     details?: string; // ログ用の詳細メッセージ
 
+    // ダメージ計算の詳細（HitDetailに含める場合に使用）
+    isCrit?: boolean;
+    breakdownMultipliers?: {
+        baseDmg: number;
+        critMult: number;
+        dmgBoostMult: number;
+        defMult: number;
+        resMult: number;
+        vulnMult: number;
+        brokenMult: number;
+    };
+
     // 付加ダメージのログ自動追加用
     additionalDamageEntry?: {
         source: string;        // ダメージ源（キャラクター名）
@@ -234,6 +246,16 @@ export interface DamageResult {
     state: GameState;
     totalDamage: number;
     killed: boolean;
+    isCrit?: boolean;
+    breakdownMultipliers?: {
+        baseDmg: number;
+        critMult: number;
+        dmgBoostMult: number;
+        defMult: number;
+        resMult: number;
+        vulnMult: number;
+        brokenMult: number;
+    };
 }
 
 export interface ActionQueueEntry {
