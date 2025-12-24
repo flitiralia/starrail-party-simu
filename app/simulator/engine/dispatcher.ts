@@ -1015,7 +1015,11 @@ function stepProcessHits(context: ActionContext): ActionContext {
     let updatedTarget = currentTarget;
     let breakDamageResult: { damage: number; isCrit: boolean; breakdownMultipliers?: { baseDmg: number; critMult: number; dmgBoostMult: number; defMult: number; resMult: number; vulnMult: number; brokenMult: number } } | null = null;
 
-    if (currentTarget.weaknesses.has(currentSource.element)) {
+    // E6キャストリス: 弱点チェック（弱点一致 または ignoreToughnessWeaknessフラグ）
+    const canReduceToughness = currentTarget.weaknesses.has(currentSource.element) ||
+      currentDamageModifiers.ignoreToughnessWeakness;
+
+    if (canReduceToughness) {
       if (currentTarget.toughness > 0) {
         // 削靭値計算: (基礎 + toughnessFlat) × (1 + break_efficiency)
         const baseToughness = hit.toughnessReduction + (currentDamageModifiers.toughnessFlat || 0);
@@ -1025,8 +1029,15 @@ function stepProcessHits(context: ActionContext): ActionContext {
         if (newToughness <= 0) {
           targetIsBroken = true;
           isBroken = true;
+
+          // E6キャストリス: 弱点撃破効果の属性決定（量子を強制）
+          const breakElement = currentDamageModifiers.forceBreakElement || currentSource.element;
+          const breakSource = breakElement !== currentSource.element
+            ? { ...currentSource, element: breakElement }
+            : currentSource;
+
           // 撃破ダメージは撃破時点の状態で計算
-          breakDamageResult = calculateBreakDamageWithBreakdown(currentSource, currentTarget, currentDamageModifiers);
+          breakDamageResult = calculateBreakDamageWithBreakdown(breakSource, currentTarget, currentDamageModifiers);
           breakDamage = breakDamageResult.damage;
         }
       }
