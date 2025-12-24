@@ -1,5 +1,4 @@
-import { z } from 'zod'; // Zodをインポート
-import { StatKey, FinalStats, Modifier, StatKeySchema } from './stats'; // Modifier, FinalStatsを追加, StatKeySchemaをインポート
+import { StatKey, FinalStats, Modifier } from './stats';
 import { ILightConeData } from './lightcone';
 import { IRelicData, IOrnamentData } from './relic';
 import { Unit, GameState } from '../simulator/engine/types';
@@ -63,17 +62,19 @@ export type EventType =
  * キャラクターのレベル80時点での基礎ステータス（光円錐を含まない）
  * 会心率: 5%, 会心ダメージ: 50% が基礎値
  */
-export const CharacterBaseStatsSchema = z.object({
-  hp: z.number(),
-  atk: z.number(),
-  def: z.number(),
-  spd: z.number(),
-  critRate: z.literal(0.05), // Zodではexact valueを指定できる
-  critDmg: z.literal(0.5),
-  aggro: z.number(),
-});
-
-export type CharacterBaseStats = z.infer<typeof CharacterBaseStatsSchema>;
+/**
+ * キャラクターのレベル80時点での基礎ステータス
+ * 会心率: 5%, 会心ダメージ: 50% が基礎値
+ */
+export interface CharacterBaseStats {
+  hp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  critRate: 0.05;
+  critDmg: 0.5;
+  aggro: number;
+}
 
 export type AbilityType = 'Basic ATK' | 'Skill' | 'Ultimate' | 'Talent' | 'Technique';
 

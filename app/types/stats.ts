@@ -1,6 +1,5 @@
-import { z } from 'zod';
-
-export const StatKeySchema = z.enum([
+// StatKey: 全てのステータスキーのリテラル型ユニオン
+export const STAT_KEYS = [
   'hp', 'atk', 'def',                           // Flat stats that also serve as base stats
   'hp_pct', 'atk_pct', 'def_pct', 'spd_pct',      // Percentage-based stats
   'spd', 'aggro',                                // Flat stat
@@ -34,11 +33,9 @@ export const StatKeySchema = z.enum([
   'all_dmg_dealt_reduction', // All damage dealt reduction (Debuff applied to enemies, reduces their outgoing damage)
   'dmg_taken_reduction', // Damage taken reduction (Buff applied to allies, reduces incoming damage)
   'shield_strength_boost' // Shield strength boost
-]);
+] as const;
 
-export type StatKey = z.infer<typeof StatKeySchema>;
-
-export const STAT_KEYS = StatKeySchema.options;
+export type StatKey = (typeof STAT_KEYS)[number];
 
 /**
  * Defines how a stat is modified. This is a generic structure for buffs,
