@@ -214,7 +214,7 @@ export interface IUnitData {
  * アビリティのパラメータ変更定義
  */
 export interface AbilityModifier {
-  abilityName: 'basic' | 'skill' | 'ultimate' | 'talent';
+  abilityName: 'basic' | 'skill' | 'ultimate' | 'talent' | 'enhancedBasic';
   param: string; // 変更するパラメータのパス (例: "damage.multiplier", "shield.flat")
   value: number; // 変更後の値
 }

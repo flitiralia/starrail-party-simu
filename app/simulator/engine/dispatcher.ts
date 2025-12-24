@@ -1017,7 +1017,11 @@ function stepProcessHits(context: ActionContext): ActionContext {
 
     if (currentTarget.weaknesses.has(currentSource.element)) {
       if (currentTarget.toughness > 0) {
-        newToughness = Math.max(0, currentTarget.toughness - hit.toughnessReduction);
+        // 削靭値計算: (基礎 + toughnessFlat) × (1 + break_efficiency)
+        const baseToughness = hit.toughnessReduction + (currentDamageModifiers.toughnessFlat || 0);
+        const breakEfficiency = currentSource.stats.break_efficiency || 0;
+        const toughnessReduction = baseToughness * (1 + breakEfficiency);
+        newToughness = Math.max(0, currentTarget.toughness - toughnessReduction);
         if (newToughness <= 0) {
           targetIsBroken = true;
           isBroken = true;

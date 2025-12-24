@@ -157,7 +157,11 @@ function calculateResMultiplier(source: Unit, target: Unit, modifiers: DamageCal
   return 1.0 - (baseRes - totalResPen);
 }
 
-function calculateVulnerabilityMultiplier(source: Unit, target: Unit): number {
+function calculateVulnerabilityMultiplier(
+  source: Unit,
+  target: Unit,
+  modifiers: DamageCalculationModifiers = {}
+): number {
   // All-type vulnerability
   const allTypeVuln = target.stats.all_type_vuln || 0;
 
@@ -166,10 +170,13 @@ function calculateVulnerabilityMultiplier(source: Unit, target: Unit): number {
   const elementVuln = target.stats[vulnKey] || 0;
 
   // Damage taken reduction (buff on target that reduces incoming damage)
-  const dmgTakenReduction = target.stats.dmg_taken_reduction || 0;
+  // 静的軽減（エフェクトのmodifiersから）+ 動的軽減（A4等）
+  const staticReduction = target.stats.dmg_taken_reduction || 0;
+  const dynamicReduction = modifiers.dmgTakenReduction || 0;
+  const totalReduction = staticReduction + dynamicReduction;
 
   // Total vulnerability (additive) - damage reduction (subtractive)
-  const totalVulnerability = allTypeVuln + elementVuln - dmgTakenReduction;
+  const totalVulnerability = allTypeVuln + elementVuln - totalReduction;
 
   return 1 + totalVulnerability;
 }
@@ -201,6 +208,8 @@ export interface DamageCalculationModifiers {
   fuaDmg?: number; // 動的追加攻撃ダメバフ
   ultDmg?: number; // 動的必殺技ダメバフ
   resReduction?: number; // 動的耐性ダウン（ブラック・スワンE1等）
+  dmgTakenReduction?: number; // 動的被ダメ軽減（ブートヒルA4等）
+  toughnessFlat?: number; // 削靭値固定加算（ブートヒル天賦等）
 }
 
 export interface DamageResultWithCritInfo {
@@ -246,7 +255,7 @@ export function calculateDamageWithCritInfo(
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target, modifiers);
 
   let finalDamage = baseDmg * critResult.multiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnerabilityMultiplier * toughnessBrokenMultiplier;
 
