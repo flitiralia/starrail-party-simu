@@ -1032,6 +1032,7 @@ function stepProcessHits(context: ActionContext): ActionContext {
       }
     }
 
+
     updatedTarget = { ...updatedTarget, toughness: newToughness };
 
     // 5. Apply Damage
