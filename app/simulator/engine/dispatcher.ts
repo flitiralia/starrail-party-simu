@@ -1505,6 +1505,78 @@ function calculateEffectSuccess(source: Unit, target: Unit, effectDef: IEffectDe
   return false;
 }
 
+/**
+ * デバフ付与成功判定（ハンドラー用エクスポート関数）
+ * 効果命中 vs 効果抵抗を計算し、デバフが成功するかを判定します。
+ * 
+ * @param source ソースユニット
+ * @param target ターゲットユニット
+ * @param baseChance 基礎確率（0.0〜1.0）
+ * @param debuffType デバフタイプ（特殊抵抗計算用）
+ * @param options オプション
+ * @returns 成功した場合true
+ * 
+ * @example
+ * // 燃焼付与（100%基礎確率）
+ * if (checkDebuffSuccess(source, target, 1.0, 'Burn')) {
+ *     newState = addEffect(newState, target.id, burnEffect);
+ * }
+ */
+export function checkDebuffSuccess(
+  source: Unit,
+  target: Unit,
+  baseChance: number,
+  debuffType?: 'Burn' | 'Shock' | 'Bleed' | 'WindShear' | 'Freeze' | 'Entanglement' | 'Imprisonment' | 'Debuff',
+  options?: {
+    ignoreResistance?: boolean;  // 効果抵抗を無視（固定確率）
+    hits?: number;               // 複数ヒット判定（1ヒットでも成功すればtrue）
+  }
+): boolean {
+  const hits = options?.hits ?? 1;
+
+  // 効果抵抗無視フラグ
+  if (options?.ignoreResistance === true) {
+    for (let i = 0; i < hits; i++) {
+      if (Math.random() < baseChance) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 効果命中/抵抗計算
+  const ehr = source.stats.effect_hit_rate || 0;
+  const res = target.stats.effect_res || 0;
+  const crowdControlRes = target.stats.crowd_control_res || 0;
+
+  // 特殊抵抗
+  let specificRes = 0;
+  if (debuffType === 'Freeze') specificRes = target.stats.frozen_res || 0;
+  else if (debuffType === 'Burn') specificRes = target.stats.burn_res || 0;
+  else if (debuffType === 'Shock') specificRes = target.stats.shock_res || 0;
+  else if (debuffType === 'WindShear') specificRes = target.stats.wind_shear_res || 0;
+  else if (debuffType === 'Bleed') specificRes = target.stats.bleed_res || 0;
+  else if (debuffType === 'Entanglement') specificRes = target.stats.entanglement_res || 0;
+  else if (debuffType === 'Imprisonment') specificRes = target.stats.imprisonment_res || 0;
+
+  // CC抵抗（凍結、禁錮、もつれ）
+  let ccResMultiplier = 1.0;
+  if (['Freeze', 'Imprisonment', 'Entanglement'].includes(debuffType || '')) {
+    ccResMultiplier = (1 - crowdControlRes);
+  }
+
+  // 実際確率 = 基礎確率 × (1 + 効果命中) × (1 - 効果抵抗) × CC抵抗 × (1 - 特殊抵抗)
+  const realChance = baseChance * (1 + ehr) * (1 - res) * ccResMultiplier * (1 - specificRes);
+
+  // 判定
+  for (let i = 0; i < hits; i++) {
+    if (Math.random() < realChance) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function createEffectInstance(source: Unit, target: Unit, effectDef: IEffectDef): IEffect | null {
   if (effectDef.type === 'Buff') {
     return {

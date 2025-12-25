@@ -4,7 +4,7 @@ import { UnitId, createUnitId } from '../../simulator/engine/unitId';
 
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
-import { applyUnifiedDamage, appendAdditionalDamage, initializeCurrentActionLog, publishEvent } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, appendAdditionalDamage, initializeCurrentActionLog, publishEvent, checkDebuffSuccess } from '../../simulator/engine/dispatcher';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { calculateNormalAdditionalDamageWithCritInfo, calculateTrueDamageWithBreakdown } from '../../simulator/damage';
@@ -633,18 +633,34 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
     // お得意様を設定
     newState = setCustomer(newState, sourceUnitId, actionEvent.targetId);
 
-    // 虚弱デバフ付与（効果命中判定）
+    // 虚弱デバフ付与（効果命中/抵抗判定）
     const mainTargetUnit = newState.registry.get(createUnitId(actionEvent.targetId));
-    if (mainTargetUnit) {
-        // 効果命中 vs 効果抵抗の判定
-        const effectHit = unit.stats.effect_hit_rate || 0;
-        const effectRes = mainTargetUnit.stats.effect_res || 0;
-        const finalChance = SKILL_WEAKNESS_CHANCE * (1 + effectHit) * (1 - effectRes);
+    if (mainTargetUnit && checkDebuffSuccess(unit, mainTargetUnit, SKILL_WEAKNESS_CHANCE, 'Debuff')) {
+        // 敵の与ダメージ-10%
+        const weaknessDebuff: IEffect = {
+            id: EFFECT_IDS.WEAKNESS(sourceUnitId, actionEvent.targetId),
+            name: '虚弱',
+            category: 'DEBUFF',
+            sourceUnitId: sourceUnitId,
+            durationType: 'TURN_START_BASED',
+            duration: SKILL_DURATION,
+            modifiers: [
+                { target: 'all_type_dmg' as StatKey, value: -SKILL_ENEMY_DMG_REDUCTION, type: 'add', source: '虚弱' }
+            ],
+            apply: (t, s) => s,
+            remove: (t, s) => s
+        };
+        newState = addEffect(newState, actionEvent.targetId, weaknessDebuff);
+    }
 
-        if (Math.random() < finalChance) {
-            // 敵の与ダメージ-10%
+    // 隣接する敵にも虚弱デバフを付与（効果命中/抵抗判定）
+    const actionEventTyped = actionEvent as any;
+    const adjacentIds = actionEventTyped.adjacentIds || [];
+    adjacentIds.forEach((adjId: string) => {
+        const adjTarget = newState.registry.get(createUnitId(adjId));
+        if (adjTarget && checkDebuffSuccess(unit, adjTarget, SKILL_WEAKNESS_CHANCE, 'Debuff')) {
             const weaknessDebuff: IEffect = {
-                id: EFFECT_IDS.WEAKNESS(sourceUnitId, actionEvent.targetId),
+                id: EFFECT_IDS.WEAKNESS(sourceUnitId, adjId),
                 name: '虚弱',
                 category: 'DEBUFF',
                 sourceUnitId: sourceUnitId,
@@ -656,36 +672,7 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
                 apply: (t, s) => s,
                 remove: (t, s) => s
             };
-            newState = addEffect(newState, actionEvent.targetId, weaknessDebuff);
-        }
-    }
-
-    // 隣接する敵にも虚弱デバフを付与
-    const actionEventTyped = actionEvent as any;
-    const adjacentIds = actionEventTyped.adjacentIds || [];
-    adjacentIds.forEach((adjId: string) => {
-        const adjTarget = newState.registry.get(createUnitId(adjId));
-        if (adjTarget) {
-            const effectHit = unit?.stats.effect_hit_rate || 0;
-            const effectRes = adjTarget.stats.effect_res || 0;
-            const finalChance = SKILL_WEAKNESS_CHANCE * (1 + effectHit) * (1 - effectRes);
-
-            if (Math.random() < finalChance) {
-                const weaknessDebuff: IEffect = {
-                    id: EFFECT_IDS.WEAKNESS(sourceUnitId, adjId),
-                    name: '虚弱',
-                    category: 'DEBUFF',
-                    sourceUnitId: sourceUnitId,
-                    durationType: 'TURN_START_BASED',
-                    duration: SKILL_DURATION,
-                    modifiers: [
-                        { target: 'all_type_dmg' as StatKey, value: -SKILL_ENEMY_DMG_REDUCTION, type: 'add', source: '虚弱' }
-                    ],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
-                };
-                newState = addEffect(newState, adjId, weaknessDebuff);
-            }
+            newState = addEffect(newState, adjId, weaknessDebuff);
         }
     });
 
@@ -1081,12 +1068,8 @@ const onAfterHit = (event: IEvent, state: GameState, sourceUnitId: string, eidol
     const target = state.registry.get(createUnitId(targetId));
     if (!unit || !target) return state;
 
-    // 効果命中 vs 効果抵抗の判定
-    const effectHit = unit.stats.effect_hit_rate || 0;
-    const effectRes = target.stats.effect_res || 0;
-    const finalChance = E2_CHANCE * (1 + effectHit) * (1 - effectRes);
-
-    if (Math.random() < finalChance) {
+    // 効果命中/抵抗判定（checkDebuffSuccessを使用）
+    if (checkDebuffSuccess(unit, target, E2_CHANCE, 'Debuff')) {
         const e2Debuff: IEffect = {
             id: EFFECT_IDS.E2_DMG_TAKEN(sourceUnitId, targetId),
             name: 'E2被ダメージ増加',

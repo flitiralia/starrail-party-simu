@@ -6,7 +6,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect, DoTEffect } from '../../simulator/effect/types';
 import { calculateNormalDoTDamageWithBreakdown, calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
-import { applyUnifiedDamage, appendAdditionalDamage, publishEvent } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, appendAdditionalDamage, publishEvent, checkDebuffSuccess } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 
@@ -392,12 +392,11 @@ function tryApplyArcana(
     const target = state.registry.get(createUnitId(targetId));
     if (!source || !target) return state;
 
-    // 効果命中 vs 効果抵抗の判定（簡易版）
-    const effectHit = source.stats.effect_hit_rate || 0;
-    const effectRes = target.stats.effect_res || 0;
-    const finalChance = baseChance * (1 + effectHit) * (1 - effectRes);
-
-    if (Math.random() > finalChance) return state;
+    // 効果命中/抵抗判定（checkDebuffSuccessを使用）
+    // アルカナは特殊DoTなので'Debuff'として判定
+    if (!checkDebuffSuccess(source, target, baseChance, 'Debuff')) {
+        return state;
+    }
 
     let actualStacks = stacksToAdd;
 
@@ -529,12 +528,9 @@ const onBattleStart = (
             const target = newState.registry.get(createUnitId(enemy.id));
             if (!source || !target) return;
 
-            const effectHit = source.stats.effect_hit_rate || 0;
-            const effectRes = target.stats.effect_res || 0;
-
             while (currentChance > 0.01) {  // 1%未満になったら終了
-                const finalChance = currentChance * (1 + effectHit) * (1 - effectRes);
-                if (Math.random() > finalChance) break;
+                // checkDebuffSuccessを使用（アルカナは特殊DoTなので'Debuff'として判定）
+                if (!checkDebuffSuccess(source, target, currentChance, 'Debuff')) break;
 
                 // 成功: アルカナ1層付与
                 let stacksToAdd = 1;
@@ -616,10 +612,15 @@ const onSkillUsed = (
     // メインターゲット
     const targetId = event.targetId;
     if (targetId) {
-        // 100%基礎確率でアルカナ1層
-        newState = tryApplyArcana(newState, sourceUnitId, targetId, 1.0, eidolonLevel, 1);
-        // 100%基礎確率で防御力デバフ
-        newState = addEffect(newState, targetId, createDefDownEffect(sourceUnitId, targetId, defDown));
+        const target = newState.registry.get(createUnitId(targetId));
+        if (target) {
+            // 100%基礎確率でアルカナ1層
+            newState = tryApplyArcana(newState, sourceUnitId, targetId, 1.0, eidolonLevel, 1);
+            // 100%基礎確率で防御力デバフ（効果命中/抵抗判定）
+            if (checkDebuffSuccess(source, target, 1.0, 'Debuff')) {
+                newState = addEffect(newState, targetId, createDefDownEffect(sourceUnitId, targetId, defDown));
+            }
+        }
 
         // A2: DoT状態の敵に追加アルカナ
         if (source.traces?.some(t => t.id === TRACE_IDS.A2)) {
@@ -642,25 +643,30 @@ const onSkillUsed = (
     // 隣接ターゲット
     const adjacentIds = event.adjacentIds || [];
     adjacentIds.forEach(adjId => {
-        // 100%基礎確率でアルカナ1層
-        newState = tryApplyArcana(newState, sourceUnitId, adjId, 1.0, eidolonLevel, 1);
-        // 100%基礎確率で防御力デバフ
-        newState = addEffect(newState, adjId, createDefDownEffect(sourceUnitId, adjId, defDown));
+        const adjTarget = newState.registry.get(createUnitId(adjId));
+        if (adjTarget) {
+            // 100%基礎確率でアルカナ1層
+            newState = tryApplyArcana(newState, sourceUnitId, adjId, 1.0, eidolonLevel, 1);
+            // 100%基礎確率で防御力デバフ（効果命中/抵抗判定）
+            if (checkDebuffSuccess(source, adjTarget, 1.0, 'Debuff')) {
+                newState = addEffect(newState, adjId, createDefDownEffect(sourceUnitId, adjId, defDown));
+            }
 
-        // A2: DoT状態の敵に追加アルカナ
-        if (source.traces?.some(t => t.id === TRACE_IDS.A2)) {
-            const target = newState.registry.get(createUnitId(adjId));
-            if (target) {
-                const hasEpiphany = target.effects.some(e => isEpiphanyEffect(e));
-                const hasArcana = target.effects.some(e => isArcanaEffect(e));
-                const hasAllDoTsViaEpiphany = hasEpiphany && hasArcana;
+            // A2: DoT状態の敵に追加アルカナ
+            if (source.traces?.some(t => t.id === TRACE_IDS.A2)) {
+                const freshTarget = newState.registry.get(createUnitId(adjId));
+                if (freshTarget) {
+                    const hasEpiphany = freshTarget.effects.some(e => isEpiphanyEffect(e));
+                    const hasArcana = freshTarget.effects.some(e => isArcanaEffect(e));
+                    const hasAllDoTsViaEpiphany = hasEpiphany && hasArcana;
 
-                const dotTypes: Array<'WindShear' | 'Bleed' | 'Burn' | 'Shock'> = ['WindShear', 'Bleed', 'Burn', 'Shock'];
-                dotTypes.forEach(dotType => {
-                    if (hasAllDoTsViaEpiphany || hasDoTState(target, dotType)) {
-                        newState = tryApplyArcana(newState, sourceUnitId, adjId, A4_BASE_CHANCE, eidolonLevel, 1);
-                    }
-                });
+                    const dotTypes: Array<'WindShear' | 'Bleed' | 'Burn' | 'Shock'> = ['WindShear', 'Bleed', 'Burn', 'Shock'];
+                    dotTypes.forEach(dotType => {
+                        if (hasAllDoTsViaEpiphany || hasDoTState(freshTarget, dotType)) {
+                            newState = tryApplyArcana(newState, sourceUnitId, adjId, A4_BASE_CHANCE, eidolonLevel, 1);
+                        }
+                    });
+                }
             }
         }
     });

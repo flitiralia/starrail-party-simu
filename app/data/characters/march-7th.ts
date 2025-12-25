@@ -4,7 +4,7 @@ import { IEventHandlerFactory, GameState, IEvent, Unit } from '../../simulator/e
 import { createUnitId } from '../../simulator/engine/unitId';
 
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, checkDebuffSuccess } from '../../simulator/engine/dispatcher';
 import { applyShield } from '../../simulator/engine/utils';
 import { IEffect } from '../../simulator/effect/types';
 
@@ -309,11 +309,9 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
     const enemies = newState.registry.getAliveEnemies();
     if (enemies.length > 0) {
       const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
-      const ehr = marchUnit.stats.effect_hit_rate || 0;
-      const res = randomEnemy.stats.effect_res || 0;
-      const realChance = TECHNIQUE_FREEZE_CHANCE * (1 + ehr) * (1 - res);
 
-      if (Math.random() < realChance) {
+      // 効果命中/抵抗判定（checkDebuffSuccessを使用）
+      if (checkDebuffSuccess(marchUnit, randomEnemy, TECHNIQUE_FREEZE_CHANCE, 'Freeze')) {
         const techFreezeEffect: IEffect = {
           id: `freeze-${randomEnemy.id}`,
           name: '凍結 (秘技)',

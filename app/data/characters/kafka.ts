@@ -9,7 +9,7 @@ import { IEffect } from '../../simulator/effect/types';
 import { recalculateUnitStats } from '../../simulator/statBuilder';
 import { createCharacterShockEffect } from '../../simulator/effect/breakEffects';
 import { calculateNormalDoTDamageWithBreakdown } from '../../simulator/damage';
-import { applyUnifiedDamage, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, appendAdditionalDamage, checkDebuffSuccess } from '../../simulator/engine/dispatcher';
 // 星魂対応ユーティリティ
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
@@ -562,6 +562,11 @@ const onTurnEnd = (event: GeneralEvent, state: GameState, sourceUnitId: string):
 
 // 3. 感電付与ヘルパー関数
 const applyShockToEnemy = (state: GameState, source: Unit, target: Unit, eidolonLevel: number): GameState => {
+    // 効果命中/抵抗判定（100%基礎確率）
+    if (!checkDebuffSuccess(source, target, 1.0, 'Shock')) {
+        return state;
+    }
+
     // E5で必殺技Lv+2 → calculateAbilityLevelを使用
     const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
     let multiplier = getLeveledValue(ABILITY_VALUES.shockMultiplier, ultLevel);
@@ -666,8 +671,8 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
     // 感電を付与
     newState = applyShockToEnemy(newState, currentKafka, target, eidolonLevel);
 
-    // E1: 受DoT+30%
-    if (eidolonLevel >= 1) {
+    // E1: 受DoT+30%（効果命中/抵抗判定）
+    if (eidolonLevel >= 1 && checkDebuffSuccess(currentKafka, target, 1.0, 'Debuff')) {
         const dotVulnDebuff: IEffect = {
             id: EFFECT_IDS.E1_DOT_VULN(sourceUnitId, targetId),
             name: '受DoT+30%',
