@@ -1087,10 +1087,11 @@ if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId
 | DoT (感電) | [kafka.ts](./kafka.ts) | DoT付与と起爆 |
 | 強化通常攻撃 | [blade.ts](./blade.ts) | 地獄変 (ENHANCED_BASIC タグ) |
 | 召喚/精霊 | [aglaea.ts](./aglaea.ts) | ラフトラ召喚 |
+| 召喚/精霊 (記憶) | [evernight.ts](./evernight.ts) | 長夜召喚、憶質スタック |
 | EP不使用必殺技 | [acheron.ts](./acheron.ts) | 斬滅スタック |
 | 味方バフ | [sunday.ts](./sunday.ts) | 単体バフ付与 |
 | 結界/フィールド | [tribbie.ts](./tribbie.ts) | 三位一体結界 |
-| HP消費 | [blade.ts](./blade.ts) | consumeHp 使用 |
+| HP消費 | [blade.ts](./blade.ts), [evernight.ts](./evernight.ts) | consumeHp 使用 |
 | 行動短縮 | [bronya.ts](./bronya.ts) | advanceAction 使用 |
 
 ### 新規実装時のチェックリスト

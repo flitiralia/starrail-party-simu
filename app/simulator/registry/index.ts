@@ -13,6 +13,17 @@ import { trailblazerRemembranceHandlerFactory } from '../../data/characters/trai
 import { trailblazerHarmonyHandlerFactory } from '../../data/characters/trailblazer-harmony';
 import { hertaHandlerFactory } from '../../data/characters/herta';
 import { acheronHandlerFactory } from '../../data/characters/acheron';
+import { guinaifenHandlerFactory } from '../../data/characters/guinaifen';
+import { blackSwanHandlerFactory } from '../../data/characters/black-swan';
+import { cipherHandlerFactory } from '../../data/characters/cipher';
+import { anaxaHandlerFactory } from '../../data/characters/anaxa';
+import { bronyaHandlerFactory } from '../../data/characters/bronya';
+import { evernightHandlerFactory } from '../../data/characters/evernight';
+import { aglaeaHandlerFactory } from '../../data/characters/aglaea';
+import { argentiHandlerFactory } from '../../data/characters/argenti';
+import { aventurineHandlerFactory } from '../../data/characters/aventurine';
+import { boothillHandlerFactory } from '../../data/characters/boothill';
+import { castoriceHandlerFactory } from '../../data/characters/castorice';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -66,4 +77,15 @@ registry.registerCharacter('trailblazer-remembrance', trailblazerRemembranceHand
 registry.registerCharacter('trailblazer-harmony', trailblazerHarmonyHandlerFactory);
 registry.registerCharacter('herta', hertaHandlerFactory);
 registry.registerCharacter('acheron', acheronHandlerFactory);
+registry.registerCharacter('guinaifen', guinaifenHandlerFactory);
+registry.registerCharacter('black-swan', blackSwanHandlerFactory);
+registry.registerCharacter('cipher', cipherHandlerFactory);
+registry.registerCharacter('anaxa', anaxaHandlerFactory);
+registry.registerCharacter('bronya', bronyaHandlerFactory);
+registry.registerCharacter('evernight', evernightHandlerFactory);
+registry.registerCharacter('aglaea', aglaeaHandlerFactory);
+registry.registerCharacter('argenti', argentiHandlerFactory);
+registry.registerCharacter('aventurine', aventurineHandlerFactory);
+registry.registerCharacter('boothill', boothillHandlerFactory);
+registry.registerCharacter('castorice', castoriceHandlerFactory);
 

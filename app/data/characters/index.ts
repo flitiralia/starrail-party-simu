@@ -23,6 +23,7 @@ export { bronya, bronyaHandlerFactory } from './bronya';
 export { castorice, castoriceHandlerFactory } from './castorice';
 export { cipher, cipherHandlerFactory } from './cipher';
 export { guinaifen, guinaifenHandlerFactory } from './guinaifen';
+export { evernight, evernightHandlerFactory } from './evernight';
 // Export all characters for easy access
 import { march7th } from './march-7th';
 import { tribbie } from './tribbie';
@@ -48,6 +49,7 @@ import { bronya } from './bronya';
 import { castorice } from './castorice';
 import { cipher } from './cipher';
 import { guinaifen } from './guinaifen';
+import { evernight } from './evernight';
 
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen];
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight];
