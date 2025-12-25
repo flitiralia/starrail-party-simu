@@ -14,11 +14,19 @@ export class TargetSelector {
         let candidates: Unit[] = [];
 
         // 1. Initial Candidate Selection
+        // 注意: 'all_enemies'（複数形）と'single_enemy'（単数形）の両方を正しく判定する
+        const isEnemyTarget = criteria.type === 'single_enemy' ||
+            criteria.type === 'all_enemies' ||
+            criteria.type === 'random_enemy' ||
+            criteria.type === 'blast' ||
+            criteria.type === 'bounce';
+        const isAllyTarget = criteria.type === 'ally' || criteria.type === 'all_allies';
+
         if (criteria.type === 'self') {
             return [source];
-        } else if (criteria.type.includes('enemy')) {
+        } else if (isEnemyTarget) {
             candidates = state.registry.getAliveEnemies();
-        } else if (criteria.type.includes('ally')) {
+        } else if (isAllyTarget) {
             candidates = state.registry.getAliveAllies();
         }
 

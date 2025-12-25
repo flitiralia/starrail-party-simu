@@ -36,6 +36,7 @@ export interface CharacterConfig {
     ultCooldown: number;
     ultEpOption?: UltEpOption; // 可変EPコストキャラ用
     useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
+    customConfig?: Record<string, any>; // キャラクター固有の設定
 }
 
 /**

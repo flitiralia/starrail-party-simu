@@ -730,6 +730,20 @@ const EffectList: React.FC<{ effects: EffectSummary[], title: string, stats?: { 
             <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
               <div className="bg-gray-800 dark:bg-gray-700 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-xl border border-gray-600">
                 {e.owner && <div className="font-semibold text-gray-300 mb-0.5">From: {e.owner}</div>}
+                {/* スタック数表示 */}
+                {e.stackCount !== undefined && e.stackCount > 0 && (
+                  <div className="flex gap-2 justify-between text-yellow-400">
+                    <span>層数:</span>
+                    <span className="font-bold">{e.stackCount}層</span>
+                  </div>
+                )}
+                {/* 蓄積値表示 */}
+                {e.value !== undefined && e.value > 0 && (
+                  <div className="flex gap-2 justify-between text-cyan-400">
+                    <span>蓄積値:</span>
+                    <span className="font-bold">{Math.floor(e.value)}</span>
+                  </div>
+                )}
                 {e.modifiers && e.modifiers.length > 0 ? (
                   <div className="flex flex-col gap-0.5">
                     {e.modifiers.map((m, idx) => (
@@ -740,7 +754,7 @@ const EffectList: React.FC<{ effects: EffectSummary[], title: string, stats?: { 
                     ))}
                   </div>
                 ) : (
-                  <div className="text-gray-400">効果なし</div>
+                  !e.stackCount && !e.value && <div className="text-gray-400">効果なし</div>
                 )}
               </div>
               {/* Arrow */}

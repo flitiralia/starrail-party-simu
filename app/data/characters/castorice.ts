@@ -190,7 +190,7 @@ export const castorice: Character = {
             description: '味方それぞれの残りHP30%分のHPを消費し、指定した敵単体にキャストリスの最大HP50%分の量子属性ダメージを与え、さらに隣接する敵にキャストリスの最大HP30%分の量子属性ダメージを与える。',
             targetType: 'blast',
             energyGain: 0,
-            spCost: 1,
+            spCost: 0,
             damage: {
                 type: 'blast',
                 scaling: 'hp',
@@ -327,7 +327,10 @@ export const castorice: Character = {
             { stat: 'spd', value: 10 }
         ],
         rotationMode: 'spam_skill',
-        ultStrategy: 'immediate'
+        ultStrategy: 'immediate',
+        customConfig: {
+            siryuBreathCount: 1 // 死竜の「晦冥焼き払う息吹」発動回数 (デフォルト: 1)
+        }
     }
 };
 
@@ -695,7 +698,7 @@ const onTurnStart = (
         const owner = newState.registry.get(createUnitId(sourceUnitId));
 
         if (siryuUnit && owner) {
-            const breathCount = (owner.config as any)?.siryuBreathCount ?? 1;
+            const breathCount = owner.config?.customConfig?.siryuBreathCount ?? 1;
             if (breathCount > 0) {
                 newState = executeSiryuBreath(newState, sourceUnitId, siryu.id as string, breathCount, eidolonLevel);
 

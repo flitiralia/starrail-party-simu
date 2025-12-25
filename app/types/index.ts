@@ -277,6 +277,8 @@ export interface CharacterDefaultConfig {
   ultCooldown?: number;
   /** 可変EPコストキャラ用（アルジェンティ等） */
   ultEpOption?: 'argenti_90' | 'argenti_180';
+  /** キャラクター固有の設定 */
+  customConfig?: Record<string, any>;
 }
 
 /**
@@ -333,6 +335,7 @@ export interface CharacterRotationConfig {
   ultCooldown: number; // 必殺技のクールダウン（ターン数）
   ultEpOption?: 'argenti_90' | 'argenti_180'; // 可変EPコストキャラ用
   useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
+  customConfig?: Record<string, any>; // キャラクター固有の設定
 }
 
 /**
@@ -543,6 +546,7 @@ export interface EffectSummary {
   name: string;
   duration: number | '∞';
   stackCount?: number;
+  value?: number; // 蓄積値（アキュムレーターなど）
   modifiers?: { stat: string; value: number }[];
   owner?: string;
   sourceType?: string; // 'self' | 'target'

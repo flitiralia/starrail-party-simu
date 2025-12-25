@@ -412,6 +412,30 @@ export default function PartySlotCard({
                     </select>
                 </div>
             )}
+            {/* キャストリス専用設定 */}
+            {config && character.id === 'castorice' && (
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                    <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>死竜行動回数:</label>
+                    <input
+                        type="number"
+                        style={{ ...selectorStyle, width: '60px', padding: '2px 4px' }}
+                        value={config.customConfig?.siryuBreathCount ?? 1}
+                        onChange={(e) => {
+                            if (onConfigUpdate) {
+                                onConfigUpdate({
+                                    ...config,
+                                    customConfig: {
+                                        ...config.customConfig,
+                                        siryuBreathCount: Math.max(0, Number(e.target.value))
+                                    }
+                                });
+                            }
+                        }}
+                        min={0}
+                        placeholder="回数"
+                    />
+                </div>
+            )}
 
             <button
                 style={{ ...buttonStyle, marginTop: '4px', width: '100%' }}

@@ -316,7 +316,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
     return {
         handlerMetadata: {
             id: `tribbie-handler-${sourceUnitId}`,
-            subscribesTo: ['ON_DAMAGE_DEALT', 'ON_TURN_START', 'ON_BATTLE_START', 'ON_ULTIMATE_USED', 'ON_ACTION_COMPLETE', 'ON_FOLLOW_UP_ATTACK', 'ON_ENEMY_SPAWNED'],
+            subscribesTo: ['ON_DAMAGE_DEALT', 'ON_TURN_START', 'ON_BATTLE_START', 'ON_ULTIMATE_USED', 'ON_ATTACK', 'ON_FOLLOW_UP_ATTACK', 'ON_ENEMY_SPAWNED'],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
             const tribbieUnit = state.registry.get(createUnitId(sourceUnitId));
@@ -566,9 +566,9 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
             }
 
             // Additional Damage Logic (Field) & Trace 3 Energy Regen
-            // ON_ACTION_COMPLETEは攻撃アクション完了後に発火。event.valueに攻撃の総ダメージが含まれる。
+            // ON_ATTACKは攻撃アクション時のみ発火（回復・バフスキルでは発火しない）
             // 仕様: 「敵が味方の攻撃を受けた後」なのでトリビー自身の攻撃も含む
-            if (event.type === 'ON_ACTION_COMPLETE') {
+            if (event.type === 'ON_ATTACK') {
                 const sourceAlly = newState.registry.get(createUnitId(event.sourceId));
                 if (sourceAlly && !sourceAlly.isEnemy) {
                     // 攻撃対象数を取得（イベントから）

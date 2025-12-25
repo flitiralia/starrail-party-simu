@@ -172,7 +172,7 @@ export const evernight: Character = {
             description: '長夜月の残りHP10%分のHPを消費して、記憶の精霊「長夜」を召喚する。味方の記憶の精霊全体の会心ダメージ+24%、2ターン継続。',
             targetType: 'self',
             energyGain: 30,
-            spCost: 1,
+            spCost: 0,
         },
 
         ultimate: {

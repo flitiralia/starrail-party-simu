@@ -4,6 +4,7 @@ import { addEnergyToUnit } from '@/app/simulator/engine/energy';
 import { addSkillPoints } from '@/app/simulator/engine/sp';
 import { isSingleAllyTargetAction } from '@/app/simulator/engine/eventHelpers';
 import { ActionEvent } from '@/app/simulator/engine/types';
+import { createUnitId } from '@/app/simulator/engine/unitId';
 
 export const aGroundedAscent: ILightConeData = {
     id: 'a-grounded-ascent',
@@ -68,7 +69,9 @@ export const aGroundedAscent: ILightConeData = {
 
                 // 3. SP回復（2回発動ごと）
                 const trackerId = `grounded_ascent_tracker_${unit.id}`;
-                const tracker = unit.effects.find(e => e.id === trackerId);
+                // ★ 修正: unit.effects（古いスナップショット）ではなく、newState（最新の状態）からトラッカーを取得
+                const freshUnit = newState.registry.get(createUnitId(unit.id));
+                const tracker = freshUnit?.effects.find(e => e.id === trackerId);
                 const count = (tracker ? (tracker.stackCount || 0) : 0) + 1;
 
                 if (count % 2 === 0) { // 2回目、4回目……

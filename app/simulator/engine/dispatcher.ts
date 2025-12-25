@@ -210,7 +210,15 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
   // 1. unit.effectsからの抽出
   const effectSummaries = unit.effects.map(effect => {
     const stackCount = (effect as any).stackCount;
-    const name = stackCount && stackCount > 0 ? `${effect.name} (${stackCount})` : effect.name;
+    const effectValue = (effect as any).value; // 蓄積値（アキュムレーター用）
+
+    // 名前の生成: スタック数または蓄積値があれば括弧で表示
+    let name = effect.name;
+    if (stackCount && stackCount > 0) {
+      name = `${effect.name} (${stackCount}層)`;
+    } else if (effectValue !== undefined && effectValue > 0) {
+      name = `${effect.name} (${Math.floor(effectValue)})`;
+    }
 
     // modifiersの抽出
     let modifiers: { stat: string; value: number }[] = [];
@@ -244,6 +252,7 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
       name: name,
       duration: effect.durationType === 'PERMANENT' ? '∞' as const : effect.duration,
       stackCount: stackCount,
+      value: effectValue, // 蓄積値を追加
       modifiers: modifiers.length > 0 ? modifiers : undefined,
       owner: ownerName,
     };

@@ -17,6 +17,7 @@ import * as relicData from '../../data/relics';
 import * as ornamentData from '../../data/ornaments';
 import { registry } from '../registry';
 import { removeEffect, addEffect } from './effectManager';
+import { getAccumulatedValue } from './accumulator';
 
 // Create a lookup map for all relic/ornament sets
 import { RelicSet, OrnamentSet } from '../../types/relic';
@@ -239,6 +240,23 @@ function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
             if (char.config && char.ultCooldown === 0) {
                 const strategy = char.config.ultStrategy;
                 let shouldTrigger = false;
+
+                // max_ep が 0 のキャラクター（キャストリス等の新蕾システム使用者）
+                // 独自のリソースシステムで必殺技を管理する
+                if (char.stats.max_ep === 0) {
+                    // キャストリス専用: 新蕾システムによる必殺技発動判定
+                    const CASTORICE_CHARGE_KEY = 'castorice-charge';
+                    const CASTORICE_MAX_CHARGE = 34000;
+                    const chargeValue = getAccumulatedValue(newState, char.id, CASTORICE_CHARGE_KEY);
+
+                    if (strategy === 'immediate' && chargeValue >= CASTORICE_MAX_CHARGE) {
+                        const ultAction: Action = { type: 'ULTIMATE', sourceId: char.id };
+                        newState = dispatch(newState, ultAction);
+                        ultTriggered = true;
+                        break;
+                    }
+                    continue;
+                }
 
                 if (strategy === 'immediate' && char.ep >= char.stats.max_ep) {
                     shouldTrigger = true;
@@ -782,7 +800,9 @@ export function stepSimulation(state: GameState): GameState {
                 }
 
                 // 最新状態を取得
-                currentActingUnit = newState.registry.get(createUnitId(currentActingUnit!.id))!;
+                const freshUnit = newState.registry.get(createUnitId(currentActingUnit!.id));
+                if (!freshUnit) return newState; // ユニットが消失した場合は終了
+                currentActingUnit = freshUnit;
 
                 // ターン終了処理（Action Queueの更新）
                 newState = updateTurnEndState(newState, currentActingUnit, { type: 'TURN_SKIP', sourceId: currentActingUnit.id, reason: '残梅' });
@@ -807,10 +827,15 @@ export function stepSimulation(state: GameState): GameState {
         actionIterations++;
 
         // 最新のユニット状態を取得
-        currentActingUnit = newState.registry.get(currentActingUnit!.id)!;
+        const freshUnit = newState.registry.get(currentActingUnit!.id);
+        if (!freshUnit) {
+            // ユニットが存在しない（死亡または退場）場合はループ中断
+            break;
+        }
+        currentActingUnit = freshUnit;
 
         // 3. Determine Action
-        const action = determineNextAction(currentActingUnit!, newState);
+        const action = determineNextAction(currentActingUnit, newState);
         lastAction = action;
 
         // 4. Dispatch Action
