@@ -66,7 +66,8 @@ export const inTheNight: ILightConeData = {
                 const dmgVal = [0.06, 0.07, 0.08, 0.09, 0.10][superimposition - 1];
                 const cdVal = [0.12, 0.14, 0.16, 0.18, 0.20][superimposition - 1];
 
-                if (['BASIC_ATTACK', 'ENHANCED_BASIC_ATTACK', 'SKILL'].includes(actionType)) {
+                // 強化通常攻撃もBASIC_ATTACKとして来る
+                if (['BASIC_ATTACK', 'SKILL'].includes(actionType)) {
                     dmgBuff = stack * dmgVal;
                 } else if (actionType === 'ULTIMATE') {
                     critDmgBuff = stack * cdVal;

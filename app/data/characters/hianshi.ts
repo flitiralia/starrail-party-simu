@@ -263,6 +263,17 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string)
     // Refresh ikarun reference from state
     ikarun = newState.registry.get(createUnitId(ikarun.id))!;
 
+    // ★ Config設定: アクションループ用
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(ikarun.id), u => ({
+            ...u,
+            config: { ...u.config, rotation: ['s'], rotationMode: 'spam_skill' } as any
+        }))
+    };
+    ikarun = newState.registry.get(createUnitId(ikarun.id))!;
+
+
     // 2. Clear Debuff
     if (source.traces?.some(t => t.name === '優しい雷雨')) {
         newState.registry.getAliveAllies().forEach(u => {
@@ -335,6 +346,17 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
 
     // Refresh ikarun reference from state
     ikarun = newState.registry.get(createUnitId(ikarun.id))!;
+
+    // ★ Config設定: アクションループ用
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(ikarun.id), u => ({
+            ...u,
+            config: { ...u.config, rotation: ['s'], rotationMode: 'spam_skill' } as any
+        }))
+    };
+    ikarun = newState.registry.get(createUnitId(ikarun.id))!;
+
 
     if (source.traces?.some(t => t.name === '優しい雷雨')) {
         newState.registry.getAliveAllies().forEach(u => newState = cleanse(newState, u.id, 1));
@@ -455,27 +477,41 @@ const onActionComplete = (event: ActionEvent, state: GameState, sourceUnitId: st
         }
     }
 
-    // 2. Manual Ikarun Skill Logic (サモン専用) - サンデーのスキル等でターンが回った時
-    // ダメージ計算はdispatcherで行われるため、ここでは蓄積値消費と持続時間減少のみ
-    const ikarunRef = getActiveSummon(state, sourceUnitId, SUMMON_ID_PREFIX);
-    if (event.type === 'ON_ACTION_COMPLETE' &&
-        event.subType === 'SKILL' &&
-        ikarunRef &&
-        event.sourceId === ikarunRef.id
-    ) {
-        let newState = state;
-
-        // 蓄積値を消費
-        const clearRate = ((source?.eidolonLevel || 0) >= 6) ? 0.12 : SPIRIT_SKILL_CLEAR_PCT;
-        newState = consumeAccumulatedValue(newState, sourceUnitId, 'healing', clearRate, 'percent');
-
-        // 持続時間を減少
-        newState = reduceIkarunDuration(newState, ikarunRef.id);
-
-        return newState;
-    }
+    // 2. Manual Ikarun Skill Logic (削除: ON_SKILL_USED/onIkarunSkill に移行)
+    // Legacy support removed
 
     return state;
+};
+
+// ★ イカルンスキル用ハンドラ
+const onIkarunSkill = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
+    // sourceUnitId: ヒアンシーのID
+    // event.sourceId: イカルンのID
+    const ikarunId = event.sourceId;
+    let newState = state;
+    const source = newState.registry.get(createUnitId(sourceUnitId));
+
+    // 1. 蓄積値消費
+    const clearRate = ((source?.eidolonLevel || 0) >= 6) ? 0.12 : SPIRIT_SKILL_CLEAR_PCT;
+
+    // 消費前の値をログ用に取得
+    const currentAcc = getAccumulatedValue(newState, sourceUnitId, 'healing');
+    const consumed = currentAcc * clearRate;
+
+    newState = consumeAccumulatedValue(newState, sourceUnitId, 'healing', clearRate, 'percent');
+
+    // 2. 持続時間を減少
+    newState = reduceIkarunDuration(newState, ikarunId);
+
+    // 3. ログ詳細追記
+    if (newState.currentActionLog) {
+        const prefix = newState.currentActionLog.details ? '\n' : '';
+        newState.currentActionLog.details = (newState.currentActionLog.details || '') +
+            `${prefix}[イカルン] 蓄積治療量: ${Math.floor(currentAcc)} -> 消費: ${Math.floor(consumed)} (消費率: ${(clearRate * 100).toFixed(0)}%)`;
+    }
+
+    return newState;
+
 };
 
 const onDamageDealt = (event: DamageDealtEvent, state: GameState, sourceUnitId: string): GameState => {
@@ -882,7 +918,12 @@ export const hianshiHandlerFactory: import('../../simulator/engine/types').IEven
         },
         handlerLogic: (event, state, handlerId) => {
             if (event.type === 'ON_SKILL_USED') {
-                return onSkillUsed(event, state, sourceUnitId);
+                if (event.sourceId === sourceUnitId) return onSkillUsed(event, state, sourceUnitId);
+                // イカルンの行動かどうかチェック
+                const source = state.registry.get(createUnitId(event.sourceId));
+                if (source?.isSummon && source.ownerId === sourceUnitId) {
+                    return onIkarunSkill(event, state, sourceUnitId);
+                }
             } else if (event.type === 'ON_ULTIMATE_USED') {
                 return onUltimateUsed(event, state, sourceUnitId);
             } else if (event.type === 'ON_ACTION_COMPLETE') {

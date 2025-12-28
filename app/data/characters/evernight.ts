@@ -182,11 +182,7 @@ export const evernight: Character = {
             description: '記憶の精霊「長夜」を召喚し、敵全体に長夜の最大HP200%分の氷属性ダメージを与え、「至暗の謎」状態に入る。',
             energyGain: 5,
             targetType: 'all_enemies',
-            damage: {
-                type: 'aoe',
-                scaling: 'hp',
-                hits: [{ multiplier: 2.00, toughnessReduction: 30 }]
-            }
+            // ダメージは長夜が与える（onUltimateUsedで実装）
         },
 
         talent: {
@@ -694,11 +690,22 @@ const onUltimateUsed = (
         const result = applyUnifiedDamage(newState, choya, enemy, dmgResult.damage, {
             damageType: 'ULTIMATE',
             details: '眠れぬ世界に永き眠りを',
-            skipLog: false,
+            skipLog: true,  // 統合ログに追加するため
             isCrit: dmgResult.isCrit,
             breakdownMultipliers: dmgResult.breakdownMultipliers
         });
         newState = result.state;
+
+        // 統合ログに追加
+        newState = appendAdditionalDamage(newState, {
+            source: choya.name,
+            name: '眠れぬ世界に永き眠りを',
+            damage: result.totalDamage,
+            target: enemy.name,
+            damageType: 'normal',
+            isCrit: result.isCrit,
+            breakdownMultipliers: result.breakdownMultipliers
+        });
     }
 
     // 長夜月と長夜に与ダメージアップ
@@ -715,7 +722,8 @@ const onUltimateUsed = (
             target: 'all_type_dmg_boost' as StatKey,
             value: ultValues.selfDmgBoost,
             type: 'add' as const,
-            source: '至暗の謎'
+            source: '至暗の謎',
+            scalingStrategy: 'fixed'
         }],
         apply: (t: Unit, s: GameState) => s,
         remove: (t: Unit, s: GameState) => s
@@ -962,7 +970,8 @@ const executeRainAttack = (
     const baseDmg = spirit.stats.hp * rainValues.base;
 
     // 憶質4につき追加ダメージ
-    const memoriaBonus = Math.floor(currentMemoria / 4) * rainValues.perMemoria * spirit.stats.hp;
+    const memoriaStacks = Math.floor(currentMemoria / 4);
+    const memoriaBonus = memoriaStacks * rainValues.perMemoria * spirit.stats.hp;
 
     // E1: 敵数に応じたダメージ倍率
     let e1Mult = 1.0;
@@ -974,22 +983,54 @@ const executeRainAttack = (
         else e1Mult = E1_DMG_MULT_1;
     }
 
-    const totalDmg = (baseDmg + memoriaBonus) * e1Mult;
+    // 基礎ダメージ適用
+    const baseDmgWithMult = baseDmg * e1Mult;
+    const baseDmgResult = calculateNormalAdditionalDamageWithCritInfo(spirit, target, baseDmgWithMult);
+    const baseResult = applyUnifiedDamage(newState, spirit, target, baseDmgResult.damage, {
+        damageType: 'SPIRIT_SKILL',
+        details: '雨のように降る記憶',
+        skipLog: true,
+        isCrit: baseDmgResult.isCrit,
+        breakdownMultipliers: baseDmgResult.breakdownMultipliers
+    });
+    newState = baseResult.state;
 
-    // ダメージ適用（5ヒット）
-    const hitCount = 5;
-    const dmgPerHit = totalDmg / hitCount;
+    // 基礎ダメージログを追加
+    newState = appendAdditionalDamage(newState, {
+        source: spirit.name,
+        name: '雨のように降る記憶',
+        damage: baseResult.totalDamage,
+        target: target.name,
+        damageType: 'normal',
+        isCrit: baseResult.isCrit,
+        breakdownMultipliers: baseResult.breakdownMultipliers
+    });
 
-    for (let i = 0; i < hitCount; i++) {
-        const dmgResult = calculateNormalAdditionalDamageWithCritInfo(spirit, target, dmgPerHit);
-        const result = applyUnifiedDamage(newState, spirit, target, dmgResult.damage, {
+    // 憶質による追加ダメージ（憶質4以上の場合のみ）
+    if (memoriaStacks > 0) {
+        const memoriaDmgWithMult = memoriaBonus * e1Mult;
+        // 最新のターゲット状態を取得
+        const updatedTarget = newState.registry.get(createUnitId(target.id as string)) || target;
+        const memoriaDmgResult = calculateNormalAdditionalDamageWithCritInfo(spirit, updatedTarget, memoriaDmgWithMult);
+        const memoriaResult = applyUnifiedDamage(newState, spirit, updatedTarget, memoriaDmgResult.damage, {
             damageType: 'SPIRIT_SKILL',
-            details: `雨のように降る記憶 (${i + 1}/${hitCount})`,
+            details: `雨のように降る記憶 (憶質${currentMemoria})`,
             skipLog: true,
-            isCrit: dmgResult.isCrit,
-            breakdownMultipliers: dmgResult.breakdownMultipliers
+            isCrit: memoriaDmgResult.isCrit,
+            breakdownMultipliers: memoriaDmgResult.breakdownMultipliers
         });
-        newState = result.state;
+        newState = memoriaResult.state;
+
+        // 憶質追加ダメージログを追加
+        newState = appendAdditionalDamage(newState, {
+            source: spirit.name,
+            name: `追加ダメージ (憶質${memoriaStacks}×4=${memoriaStacks * 4})`,
+            damage: memoriaResult.totalDamage,
+            target: updatedTarget.name,
+            damageType: 'normal',
+            isCrit: memoriaResult.isCrit,
+            breakdownMultipliers: memoriaResult.breakdownMultipliers
+        });
     }
 
     // 発動後、憶質1獲得
@@ -1015,17 +1056,6 @@ const executeRainAttack = (
         };
         newState = addMemoria(newState, ownerId, 1, eidolonLevel);
     }
-
-    // ログ追加
-    newState = {
-        ...newState,
-        log: [...newState.log, {
-            actionType: '精霊スキル',
-            sourceId: spiritId,
-            characterName: spirit.name,
-            details: `雨のように降る記憶: ${target.name}に${Math.round(totalDmg)}ダメージ (憶質${currentMemoria})`
-        }]
-    };
 
     return newState;
 };
@@ -1081,6 +1111,17 @@ const executeDreamAttack = (
     });
     newState = result.state;
 
+    // 統合ログに追加（メインターゲット）
+    newState = appendAdditionalDamage(newState, {
+        source: spirit.name,
+        name: `露のように儚い夢 (憶質${consumedMemoria})`,
+        damage: result.totalDamage,
+        target: mainTarget.name,
+        damageType: 'normal',
+        isCrit: result.isCrit,
+        breakdownMultipliers: result.breakdownMultipliers
+    });
+
     // 隣接ターゲットにダメージ
     for (const adjTarget of adjacentTargets) {
         const adjDmgResult = calculateNormalAdditionalDamageWithCritInfo(spirit, adjTarget, adjDmg);
@@ -1092,6 +1133,17 @@ const executeDreamAttack = (
             breakdownMultipliers: adjDmgResult.breakdownMultipliers
         });
         newState = result.state;
+
+        // 統合ログに追加（隣接ターゲット）
+        newState = appendAdditionalDamage(newState, {
+            source: spirit.name,
+            name: '露のように儚い夢 (隣接)',
+            damage: result.totalDamage,
+            target: adjTarget.name,
+            damageType: 'normal',
+            isCrit: result.isCrit,
+            breakdownMultipliers: result.breakdownMultipliers
+        });
     }
 
     // 至暗の謎チャージ消費
@@ -1148,17 +1200,6 @@ const executeDreamAttack = (
 
     // 即座行動フラグリセット
     newState = removeEffect(newState, ownerId, EFFECT_IDS.INSTANT_ACTION_USED(ownerId));
-
-    // ログ追加
-    newState = {
-        ...newState,
-        log: [...newState.log, {
-            actionType: '精霊スキル',
-            sourceId: spiritId,
-            characterName: spirit.name,
-            details: `露のように儚い夢: 憶質${consumedMemoria}消費、${Math.round(mainDmg)}ダメージ`
-        }]
-    };
 
     return newState;
 };

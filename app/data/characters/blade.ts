@@ -1,4 +1,4 @@
-import { Character, StatKey } from '../../types/index';
+import { Character, StatKey, IAbility } from '../../types/index';
 import { IEventHandlerFactory, IEvent, GameState, Unit, DamageDealtEvent, ActionEvent, HealEvent, FollowUpAttackAction, HpConsumeEvent } from '../../simulator/engine/types';
 import { UnitId, createUnitId } from '../../simulator/engine/unitId';
 
@@ -9,7 +9,7 @@ import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { publishEvent } from '../../simulator/engine/dispatcher';
 import { applyHealing, consumeHp } from '../../simulator/engine/utils';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
-import { calculateHeal, calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
+import { calculateHeal, calculateDamageWithCritInfo } from '../../simulator/damage';
 import { recalculateUnitStats } from '../../simulator/statBuilder';
 
 // --- 定数定義 ---
@@ -825,7 +825,7 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
         hitMultipliers.forEach((hitMult, hitIdx) => {
             const hitBaseDamage = baseDamage * hitMult;
 
-            // ON_BEFORE_DAMAGE_CALCULATIONイベントを発火（A6のfua_dmg_boostを適用）
+            // ON_BEFORE_DAMAGE_CALCULATIONイベントを発火
             newState = publishEvent(newState, {
                 type: 'ON_BEFORE_DAMAGE_CALCULATION',
                 sourceId: sourceUnitId,
@@ -835,12 +835,36 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
             });
             const modifiers = newState.damageModifiers;
 
+            // 追加攻撃アクション定義
+            const fuaAction = {
+                type: 'FOLLOW_UP_ATTACK' as const,
+                sourceId: sourceUnitId,
+                targetId: currentEnemy.id
+            };
+
+            // ダミーアビリティ（倍率0、計算済みダメージをbaseDmgAddで渡す）
+            const fuaAbility: IAbility = {
+                id: `blade-fua-hit-${hitIdx}`,
+                name: '倏忽の恩賜',
+                type: 'Talent',
+                description: '',
+                damage: { type: 'simple', scaling: 'hp', hits: [{ multiplier: 0, toughnessReduction: 0 }] }
+            };
+
             // ダメージ計算（breakdownMultipliersを取得）
-            const dmgResult = calculateNormalAdditionalDamageWithCritInfo(
+            // hitBaseDamageをbaseDmgAddとして渡すことで、計算済みの基礎ダメージを使用しつつ、
+            // 追加攻撃ダメージブーストなどの補正を適用する
+            const modifiersWithBase = {
+                ...modifiers,
+                baseDmgAdd: hitBaseDamage
+            };
+
+            const dmgResult = calculateDamageWithCritInfo(
                 currentBlade,
                 currentEnemy,
-                hitBaseDamage,
-                modifiers
+                fuaAbility,
+                fuaAction,
+                modifiersWithBase
             );
 
             // ダメージを適用
@@ -1124,8 +1148,7 @@ export const bladeHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
             subscribesTo: [
                 'ON_BATTLE_START',
                 'ON_SKILL_USED',
-                'ON_BASIC_ATTACK',
-                'ON_ENHANCED_BASIC_ATTACK', // 強化通常攻撃
+                'ON_BASIC_ATTACK',  // 強化通常攻撃はisEnhancedフラグでチェック
                 'ON_DAMAGE_DEALT', // ダメージを受けた時（targetIdチェック）
                 'ON_FOLLOW_UP_ATTACK',
                 'ON_ULTIMATE_USED',
@@ -1147,14 +1170,14 @@ export const bladeHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
                 return onSkillUsed(event, state, sourceUnitId, eidolonLevel);
             }
 
-            // 通常攻撃後
+            // 通常攻撃/強化通常攻撃後
             if (event.type === 'ON_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
-                return onBasicAttack(event, state, sourceUnitId, eidolonLevel);
-            }
-
-            // 強化通常攻撃時
-            if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
-                return onEnhancedBasicAttack(event, state, sourceUnitId, eidolonLevel);
+                const basicEvent = event as typeof event & { isEnhanced?: boolean };
+                if (basicEvent.isEnhanced) {
+                    return onEnhancedBasicAttack(event, state, sourceUnitId, eidolonLevel);
+                } else {
+                    return onBasicAttack(event, state, sourceUnitId, eidolonLevel);
+                }
             }
 
             // ダメージを受けた時（自分がターゲット）

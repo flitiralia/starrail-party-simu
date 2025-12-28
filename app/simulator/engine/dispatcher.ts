@@ -22,6 +22,7 @@ import { getEquipmentNameById } from '../../data/equipment-names';
 
 /**
  * 新しいアクションログを初期化
+ * EP・蓄積値のスナップショットを取得して、アクション終了時の変化を追跡
  */
 export function initializeCurrentActionLog(
   state: GameState,
@@ -29,6 +30,31 @@ export function initializeCurrentActionLog(
   sourceName: string,
   actionType: string
 ): GameState {
+  // === リソーススナップショットの取得 ===
+  const epSnapshot = new Map<string, { unitName: string; value: number }>();
+  const accumulatorSnapshot = new Map<string, { unitName: string; key: string; value: number }>();
+
+  // 全ユニットのEPと蓄積値を収集
+  for (const unit of state.registry.toArray()) {
+    // 敵はEP追跡しない
+    if (!unit.isEnemy) {
+      epSnapshot.set(unit.id, { unitName: unit.name, value: unit.ep });
+    }
+
+    // 蓄積値エフェクトを収集（名前が「蓄積: 」で始まるエフェクト）
+    for (const effect of unit.effects) {
+      if (effect.name.startsWith('蓄積: ')) {
+        const keyName = effect.name.replace('蓄積: ', '');
+        const effectValue = (effect as any).value || 0;
+        accumulatorSnapshot.set(`${unit.id}:${keyName}`, {
+          unitName: unit.name,
+          key: keyName,
+          value: effectValue
+        });
+      }
+    }
+  }
+
   const currentActionLog: CurrentActionLog = {
     actionId: `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     primarySourceId: sourceId,
@@ -44,7 +70,13 @@ export function initializeCurrentActionLog(
     healing: [],
     shields: [],
     dotDetonations: [],
-    equipmentEffects: []
+    equipmentEffects: [],
+    resourceChanges: [],
+    resourceSnapshot: {
+      ep: epSnapshot,
+      accumulators: accumulatorSnapshot,
+      sp: state.skillPoints
+    }
   };
 
   return { ...state, currentActionLog };
@@ -88,6 +120,62 @@ export function finalizeEnemyTurnLog(state: GameState): GameState {
     damageDealt: 0,
     healingDone: 0,
     shieldApplied: 0,
+  };
+
+  return {
+    ...state,
+    log: [...state.log, logEntry],
+    currentActionLog: undefined
+  };
+}
+
+/**
+ * 精霊のターン用のログ最終化
+ * ダメージを与えた場合のみログを生成
+ */
+export function finalizeSpiritTurnLog(state: GameState): GameState {
+  const currentActionLog = state.currentActionLog;
+
+  if (!currentActionLog) {
+    return state;
+  }
+
+  // ダメージがない場合はログを生成しない
+  const totalAdditionalDamage = currentActionLog.additionalDamage.reduce((sum, e) => sum + e.damage, 0);
+  const totalPrimaryDamage = currentActionLog.primaryDamage?.totalDamage || 0;
+  const totalDamageDealt = totalAdditionalDamage + totalPrimaryDamage;
+
+  if (totalDamageDealt === 0 && currentActionLog.healing.length === 0) {
+    return { ...state, currentActionLog: undefined };
+  }
+
+  const totalHealing = currentActionLog.healing.reduce((sum, e) => sum + e.amount, 0);
+
+  const logEntry: SimulationLogEntry = {
+    characterName: currentActionLog.primarySourceName,
+    actionTime: currentActionLog.startTime,
+    actionType: currentActionLog.primaryActionType,
+    skillPointsAfterAction: state.skillPoints,
+
+    // 集計値
+    totalDamageDealt,
+    totalDamageTaken: 0,
+    totalHealing,
+    totalShieldGiven: currentActionLog.shields.reduce((sum, e) => sum + e.amount, 0),
+
+    // 詳細情報（トグル内）
+    logDetails: {
+      additionalDamage: currentActionLog.additionalDamage.length > 0 ? currentActionLog.additionalDamage : undefined,
+      healing: currentActionLog.healing.length > 0 ? currentActionLog.healing : undefined,
+      shields: currentActionLog.shields.length > 0 ? currentActionLog.shields : undefined,
+    },
+
+    details: currentActionLog.details,
+
+    // 後方互換性
+    damageDealt: totalDamageDealt,
+    healingDone: totalHealing,
+    shieldApplied: currentActionLog.shields.reduce((sum, e) => sum + e.amount, 0),
   };
 
   return {
@@ -728,13 +816,23 @@ function stepPayCost(context: ActionContext): ActionContext {
   // 召喚ユニットはコストを支払わない
   if (source.isSummon) return context;
 
-  if (action.type === 'BASIC_ATTACK') {
-    // 通常攻撃: 味方のみSP+1
-    const spGain = source.isEnemy ? 0 : 1;
-    newState = addSkillPoints(newState, spGain, source.id);
-  } else if (action.type === 'ENHANCED_BASIC_ATTACK') {
-    // 強化通常攻撃: SP回復なし（キャラクターによってはハンドラで個別管理）
-    // デフォルトではSP回復なし
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    // ENHANCED_BASICタグがあるかチェック
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+
+    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
+      // 強化通常攻撃: SP回復なし（デフォルト）
+      // アビリティにspGainが設定されていればそれを使用
+      const ability = source.abilities.enhancedBasic;
+      const spGain = ability?.spGain ?? 0;
+      if (spGain !== 0) {
+        newState = addSkillPoints(newState, spGain, source.id);
+      }
+    } else {
+      // 通常攻撃: 味方のみSP+1
+      const spGain = source.isEnemy ? 0 : 1;
+      newState = addSkillPoints(newState, spGain, source.id);
+    }
   } else if (action.type === 'SKILL') {
     // スキル: SP消費
     const skillAbility = source.abilities.skill;
@@ -752,6 +850,13 @@ function stepPayCost(context: ActionContext): ActionContext {
     } else {
       // 通常: 全消費
       updatedSource = { ...updatedSource, ep: 0 };
+    }
+  } else if (action.type === 'FOLLOW_UP_ATTACK') {
+    // 追加攻撃: spGainがあれば適用
+    const ability = source.abilities.talent;
+    const spGain = ability?.spGain ?? 0;
+    if (spGain !== 0) {
+      newState = addSkillPoints(newState, spGain, source.id);
     }
   }
 
@@ -777,9 +882,24 @@ function stepGenerateHits(context: ActionContext): ActionContext {
   if (!source) return context;
 
   let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK') ability = source.abilities.basic;
-  else if (action.type === 'ENHANCED_BASIC_ATTACK') ability = source.abilities.enhancedBasic; // 強化通常攻撃
-  else if (action.type === 'SKILL') ability = source.abilities.skill;
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    // ENHANCED_BASICタグがあるかチェック
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
+      ability = source.abilities.enhancedBasic; // 強化通常攻撃
+    } else {
+      ability = source.abilities.basic;
+    }
+  }
+  else if (action.type === 'SKILL') {
+    // abilityIdが指定されている場合はそのアビリティを使用
+    const skillAction = action as SkillAction;
+    if (skillAction.abilityId && (source.abilities as any)[skillAction.abilityId.replace('murion-', '')]) {
+      ability = (source.abilities as any)[skillAction.abilityId.replace('murion-', '')];
+    } else {
+      ability = source.abilities.skill;
+    }
+  }
   else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
   else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent;
 
@@ -936,8 +1056,14 @@ function stepProcessHits(context: ActionContext): ActionContext {
 
   // Determine Ability (Needed for toughness reduction calculation)
   let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK') ability = source.abilities.basic;
-  else if (action.type === 'ENHANCED_BASIC_ATTACK') ability = source.abilities.enhancedBasic; // 強化通常攻撃
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
+      ability = source.abilities.enhancedBasic;
+    } else {
+      ability = source.abilities.basic;
+    }
+  }
   else if (action.type === 'SKILL') ability = source.abilities.skill;
   else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
   else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent;
@@ -1240,8 +1366,14 @@ function stepApplyShield(context: ActionContext): ActionContext {
 function stepEnergyGain(context: ActionContext): ActionContext {
   const { source, action, state } = context;
   let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK') ability = source.abilities.basic;
-  else if (action.type === 'ENHANCED_BASIC_ATTACK') ability = source.abilities.enhancedBasic; // 強化通常攻撃
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
+      ability = source.abilities.enhancedBasic;
+    } else {
+      ability = source.abilities.basic;
+    }
+  }
   else if (action.type === 'SKILL') ability = source.abilities.skill;
   else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
   else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent; // FuA support
@@ -1335,6 +1467,14 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
 
   // デバッグログ
   console.log(`[stepFinalizeActionLog] action=${action.type}, hitDetails count=${currentActionLog.primaryDamage.hitDetails.length}, totalDamage=${currentActionLog.primaryDamage.totalDamage.toFixed(2)}`);
+
+  // アクションキュー情報をログ出力
+  const queueInfo = state.actionQueue.slice(0, 6).map(e => {
+    const unit = state.registry.get(createUnitId(e.unitId));
+    return `${unit?.name || e.unitId}:${e.actionValue.toFixed(1)}`;
+  }).join(' > ');
+  console.log(`[ActionQueue] ${queueInfo}`);
+
   currentActionLog.primaryDamage.hitDetails.forEach((hit, i) => {
     console.log(`  [hitDetail ${i}] index=${hit.hitIndex}, name=${hit.targetName}, damage=${hit.damage.toFixed(2)}`);
   });
@@ -1383,6 +1523,107 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
   const sourceFinalStats = recalculateUnitStats(updatedSource, state.registry.toArray());
   const targetFinalStats = recalculateUnitStats(updatedTarget, state.registry.toArray());
 
+  // === リソース変化の計算 ===
+  const resourceChanges: import('../../types/index').ResourceChangeEntry[] = [];
+  const snapshot = currentActionLog.resourceSnapshot;
+
+  if (snapshot) {
+    // EP変化を計算
+    for (const [unitId, snapshotData] of snapshot.ep) {
+      const currentUnit = state.registry.get(createUnitId(unitId));
+      if (currentUnit) {
+        const before = snapshotData.value;
+        const after = currentUnit.ep;
+        const change = after - before;
+        // 変化がある場合のみ追加
+        if (Math.abs(change) > 0.01) {
+          resourceChanges.push({
+            unitId,
+            unitName: snapshotData.unitName,
+            resourceType: 'ep',
+            resourceName: 'EP',
+            before,
+            after,
+            change
+          });
+        }
+      }
+    }
+
+    // 蓄積値変化を計算（新規追加・変化・削除）
+    const currentAccumulators = new Map<string, { unitName: string; key: string; value: number }>();
+
+    // 現在の蓄積値を収集
+    for (const unit of state.registry.toArray()) {
+      for (const effect of unit.effects) {
+        if (effect.name.startsWith('蓄積: ')) {
+          const keyName = effect.name.replace('蓄積: ', '');
+          const effectValue = (effect as any).value || 0;
+          currentAccumulators.set(`${unit.id}:${keyName}`, {
+            unitName: unit.name,
+            key: keyName,
+            value: effectValue
+          });
+        }
+      }
+    }
+
+    // スナップショットと現在を比較
+    // 既存の蓄積値の変化をチェック
+    for (const [accKey, snapshotData] of snapshot.accumulators) {
+      const currentData = currentAccumulators.get(accKey);
+      const before = snapshotData.value;
+      const after = currentData ? currentData.value : 0;
+      const change = after - before;
+
+      if (Math.abs(change) > 0.01) {
+        resourceChanges.push({
+          unitId: accKey.split(':')[0],
+          unitName: snapshotData.unitName,
+          resourceType: 'accumulator',
+          resourceName: snapshotData.key,
+          before,
+          after,
+          change
+        });
+      }
+    }
+
+    // 新規追加された蓄積値をチェック
+    for (const [accKey, currentData] of currentAccumulators) {
+      if (!snapshot.accumulators.has(accKey)) {
+        resourceChanges.push({
+          unitId: accKey.split(':')[0],
+          unitName: currentData.unitName,
+          resourceType: 'accumulator',
+          resourceName: currentData.key,
+          before: 0,
+          after: currentData.value,
+          change: currentData.value
+        });
+      }
+    }
+
+    // SP変化を計算
+    if (snapshot.sp !== undefined) {
+      const before = snapshot.sp;
+      const after = state.skillPoints;
+      const change = after - before;
+
+      if (change !== 0) {
+        resourceChanges.push({
+          unitId: 'party',
+          unitName: 'Party',
+          resourceType: 'sp',
+          resourceName: 'SP',
+          before,
+          after,
+          change
+        });
+      }
+    }
+  }
+
   // 集計
   const totalDamageDealt = currentActionLog.primaryDamage.totalDamage
     + currentActionLog.additionalDamage.reduce((sum, e) => sum + e.damage, 0)
@@ -1415,6 +1656,7 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
       shields: currentActionLog.shields.length > 0 ? currentActionLog.shields : undefined,
       dotDetonations: currentActionLog.dotDetonations.length > 0 ? currentActionLog.dotDetonations : undefined,
       equipmentEffects: currentActionLog.equipmentEffects.length > 0 ? currentActionLog.equipmentEffects : undefined,
+      resourceChanges: resourceChanges.length > 0 ? resourceChanges : undefined,
     },
 
     // 後方互換性
@@ -1437,6 +1679,13 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
     sourceId: updatedSource.id,
     targetId: primaryTarget.id,
     hitDetails: currentActionLog.primaryDamage.hitDetails,
+    // アクションキュー情報
+    actionQueue: state.actionQueue.slice(0, 8).map(e => {
+      const unit = state.registry.get(createUnitId(e.unitId));
+      return { unitName: unit?.name || e.unitId, actionValue: e.actionValue };
+    }),
+
+    details: currentActionLog.details,
   };
 
   // ログに追加し、currentActionLogをリセット
@@ -1727,26 +1976,34 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
     if (source.abilities.ultimate?.damage) {
       isAttackAction = true;
     }
-  } else if (action.type === 'BASIC_ATTACK') {
+  } else if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
     targetId = (action as BasicAttackAction).targetId;
+    // ENHANCED_BASICタグがあるかチェック
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    const isEnhanced = hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK';
+    const ability = isEnhanced ? source.abilities.enhancedBasic : source.abilities.basic;
+
+    // 後方互換性のため、強化通常の場合はON_ENHANCED_BASIC_ATTACKも発行
+    if (isEnhanced) {
+      newState = publishEvent(newState, {
+        type: 'ON_ENHANCED_BASIC_ATTACK',
+        sourceId: source.id,
+        targetId: targetId,
+        targetType: ability?.targetType,
+        value: 0
+      });
+    }
+
+    // ON_BASIC_ATTACKは常に発行（isEnhancedフラグ付き）
     newState = publishEvent(newState, {
       type: 'ON_BASIC_ATTACK',
       sourceId: source.id,
       targetId: targetId,
-      targetType: source.abilities.basic?.targetType,
-      value: 0
-    });
-    isAttackAction = true; // 通常攻撃は常に攻撃
-  } else if (action.type === 'ENHANCED_BASIC_ATTACK') {
-    targetId = (action as EnhancedBasicAttackAction).targetId;
-    newState = publishEvent(newState, {
-      type: 'ON_ENHANCED_BASIC_ATTACK',
-      sourceId: source.id,
-      targetId: targetId,
-      targetType: source.abilities.enhancedBasic?.targetType,
-      value: 0
-    });
-    isAttackAction = true; // 強化通常攻撃も攻撃
+      targetType: ability?.targetType,
+      value: 0,
+      isEnhanced: isEnhanced
+    } as any);
+    isAttackAction = true;
   } else if (action.type === 'SKILL') {
     targetId = (action as SkillAction).targetId;
     newState = publishEvent(newState, {
@@ -1778,7 +2035,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       type: 'ON_ATTACK',
       sourceId: source.id,
       targetId: targetId,
-      value: 0,
+      value: context.totalDamage, // 攻撃のトータルダメージをイベントに含める
       subType: action.type, // どの攻撃タイプかを含める
       targetCount: targets.length
     });
@@ -1866,8 +2123,8 @@ function resolveAction(state: GameState, action: Action): GameState {
     isBroken: false
   };
 
-  // Validation: Check Skill Points for Skill Actions
-  if (action.type === 'SKILL') {
+  // Validation: Check Skill Points for Skill Actions (召喚ユニットはSP不要)
+  if (action.type === 'SKILL' && !source.isSummon) {
     const skillAbility = source.abilities.skill;
     const cost = skillAbility?.spCost ?? 1; // Default cost is 1
     if (state.skillPoints < cost) {
@@ -1877,11 +2134,17 @@ function resolveAction(state: GameState, action: Action): GameState {
   }
 
   // アクションログを初期化
-  const actionTypeName = action.type === 'BASIC_ATTACK' ? '通常攻撃'
-    : action.type === 'ENHANCED_BASIC_ATTACK' ? '強化通常攻撃'
-      : action.type === 'SKILL' ? 'スキル'
-        : action.type === 'ULTIMATE' ? '必殺技'
-          : '追加攻撃';
+  let actionTypeName: string;
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    actionTypeName = (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') ? '強化通常攻撃' : '通常攻撃';
+  } else if (action.type === 'SKILL') {
+    actionTypeName = 'スキル';
+  } else if (action.type === 'ULTIMATE') {
+    actionTypeName = '必殺技';
+  } else {
+    actionTypeName = '追加攻撃';
+  }
 
   // ★敵のターン開始時に蓄積したDoTダメージ（additionalDamage）を保存
   const previousAdditionalDamage = context.state.currentActionLog?.additionalDamage || [];

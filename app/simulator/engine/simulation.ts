@@ -1,6 +1,6 @@
 import { Character, Enemy, Element, SimulationLogEntry } from '../../types';
 import { createInitialGameState } from './gameState';
-import { dispatch, publishEvent, applyDamage, applyUnifiedDamage, appendDamageTaken, appendAdditionalDamage, initializeCurrentActionLog, finalizeEnemyTurnLog } from './dispatcher';
+import { dispatch, publishEvent, applyDamage, applyUnifiedDamage, appendDamageTaken, appendAdditionalDamage, initializeCurrentActionLog, finalizeEnemyTurnLog, finalizeSpiritTurnLog } from './dispatcher';
 import { GameState, Unit, CharacterConfig, IEventHandler, IEventHandlerLogic, SimulationConfig, IEventHandlerFactory, Action, RegisterHandlersAction, EventType, IEvent, DoTDamageEvent } from './types';
 import { UnitId, createUnitId } from './unitId';
 import { initializeActionQueue, updateActionQueue, advanceTimeline, calculateActionValue, addActionValue, resetUnitActionValue, setUnitActionValue } from './actionValue';
@@ -18,6 +18,7 @@ import * as ornamentData from '../../data/ornaments';
 import { registry } from '../registry';
 import { removeEffect, addEffect } from './effectManager';
 import { getAccumulatedValue } from './accumulator';
+import { recalculateUnitStats } from '../statBuilder';
 
 // Create a lookup map for all relic/ornament sets
 import { RelicSet, OrnamentSet } from '../../types/relic';
@@ -117,10 +118,62 @@ function selectTarget(units: Unit[]): UnitId | '' {
 function determineNextAction(unit: Unit, state: GameState): Action {
     const { config } = unit;
 
+    console.log(`[determineNextAction Debug] unit=${unit.name}, isSummon=${unit.isSummon}, hasConfig=${!!config}`);
+
     if (!config) { // It's an enemy or has no config
-        // 召喚物（記憶の精霊など）はターン時に精霊スキルを発動
+        // 召喚物（記憶の精霊など）の処理
         if (unit.isSummon) {
+            // ★ ENHANCED_SKILL チェック ★
+            // エフェクトに 'ENHANCED_SKILL' タグがある場合、強化スキル（味方対象）を発動
+            const enhancedSkillEffect = unit.effects.find(e => e.tags?.includes('ENHANCED_SKILL'));
+            if (enhancedSkillEffect) {
+                // 味方対象の強化スキルを発動
+                const aliveAllies = state.registry.getAliveAllies().filter(u => u.id !== unit.id && !u.isEnemy);
+                let allyTargetId = aliveAllies[0]?.id || unit.ownerId || unit.id;
+
+                // オーナーのconfig.skillTargetIdを参照
+                console.log(`[Simulation Debug] unit.ownerId=${unit.ownerId}`);
+                const owner = unit.ownerId ? state.registry.get(createUnitId(unit.ownerId)) : null;
+                console.log(`[Simulation Debug] owner=${owner?.name}, owner.config=${JSON.stringify(owner?.config)}`);
+                const ownerSkillTargetId = owner?.config?.skillTargetId;
+                console.log(`[Simulation Debug] ownerSkillTargetId=${ownerSkillTargetId}`);
+
+                if (ownerSkillTargetId) {
+                    // ユーザー指定のターゲットを使用
+                    const manualTarget = state.registry.get(createUnitId(ownerSkillTargetId));
+                    if (manualTarget && manualTarget.hp > 0 && !manualTarget.isEnemy) {
+                        allyTargetId = manualTarget.id;
+                        console.log(`[Simulation] ${unit.name} (Summon) using ENHANCED_SKILL targeting user-specified ${allyTargetId}`);
+                    } else {
+                        // 指定ターゲットが無効な場合、最もATKが高い味方をフォールバック
+                        const sortedAllies = [...aliveAllies].sort((a, b) => b.stats.atk - a.stats.atk);
+                        if (sortedAllies.length > 0) {
+                            allyTargetId = sortedAllies[0].id;
+                        }
+                        console.log(`[Simulation] ${unit.name} (Summon) using ENHANCED_SKILL targeting highest ATK ${allyTargetId} (manual target invalid)`);
+                    }
+                } else {
+                    // 指定なし：最もATKが高い味方をターゲット
+                    const sortedAllies = [...aliveAllies].sort((a, b) => b.stats.atk - a.stats.atk);
+                    if (sortedAllies.length > 0) {
+                        allyTargetId = sortedAllies[0].id;
+                    }
+                    console.log(`[Simulation] ${unit.name} (Summon) using ENHANCED_SKILL targeting highest ATK ${allyTargetId} (no manual target)`);
+                }
+
+                return {
+                    type: 'SKILL',
+                    sourceId: unit.id,
+                    targetId: allyTargetId,
+                    abilityId: 'murion-support-skill',
+                    isAdditional: true,
+                    skipTalentTrigger: true
+                };
+            }
+
+            // 通常の精霊スキル（敵対象）
             const aliveEnemies = state.registry.getAliveEnemies();
+            console.log(`[Simulation] ${unit.name} (Summon) using normal SKILL targeting enemy`);
             return { type: 'SKILL', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
         }
 
@@ -171,6 +224,8 @@ function determineNextAction(unit: Unit, state: GameState): Action {
     const rotation = config.rotation;
     const actionChar = rotation[unit.rotationIndex % rotation.length];
 
+
+
     let targetId = aliveEnemies[0]?.id; // Default to enemy
 
     // ★ SKILL_SILENCE チェック ★
@@ -181,12 +236,61 @@ function determineNextAction(unit: Unit, state: GameState): Action {
     // エフェクトに 'ENHANCED_BASIC' タグがある場合、通常攻撃が強化通常攻撃に置き換わる
     const hasEnhancedBasic = unit.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
 
+    // ★ ENHANCED_SKILL チェック ★
+    // エフェクトに 'ENHANCED_SKILL' タグがある場合、スキルが強化スキル（support-skill等）に切り替わる
+    const enhancedSkillEffect = unit.effects.find(e => e.tags?.includes('ENHANCED_SKILL'));
+
     if (isSkillSilenced) {
         console.log(`[Simulation] ${unit.name} is silenced (SKILL_SILENCE). Forcing ${hasEnhancedBasic ? 'Enhanced ' : ''}Basic Attack.`);
-        if (hasEnhancedBasic && unit.abilities.enhancedBasic) {
-            return { type: 'ENHANCED_BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
-        }
+        // ENHANCED_BASICタグがあればdispatcher側でenhancedBasicアビリティが使用される
         return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
+    }
+
+    // ENHANCED_SKILL がある場合、強化スキルを発動（味方対象）
+    if (enhancedSkillEffect && (state.skillPoints > 0 || unit.isSummon)) {
+        // 強化スキルのターゲット（味方）を決定
+        const aliveAllies = state.registry.getAliveAllies().filter(u => u.id !== unit.id);
+        let allyTargetId = aliveAllies[0]?.id || unit.id;
+
+        // ★召喚物の場合はオーナーのskillTargetIdを参照
+        let effectiveSkillTargetId: string | undefined = config?.skillTargetId;
+        if (unit.isSummon && unit.ownerId) {
+            const owner = state.registry.get(createUnitId(unit.ownerId));
+            effectiveSkillTargetId = owner?.config?.skillTargetId;
+            console.log(`[Simulation Debug] Summon ${unit.name} owner=${owner?.name}, ownerSkillTargetId=${effectiveSkillTargetId}`);
+        }
+
+        // skillTargetId が設定されていればそれを使用
+        if (effectiveSkillTargetId) {
+            const manualTarget = state.registry.get(createUnitId(effectiveSkillTargetId));
+            if (manualTarget && manualTarget.hp > 0 && !manualTarget.isEnemy) {
+                allyTargetId = manualTarget.id;
+                console.log(`[Simulation] ${unit.name} using ENHANCED_SKILL targeting user-specified ${allyTargetId}`);
+            } else {
+                // フォールバック: 最もATKが高い味方
+                const sortedAllies = [...aliveAllies].sort((a, b) => b.stats.atk - a.stats.atk);
+                if (sortedAllies.length > 0) {
+                    allyTargetId = sortedAllies[0].id;
+                }
+                console.log(`[Simulation] ${unit.name} using ENHANCED_SKILL targeting highest ATK ${allyTargetId} (manual target invalid)`);
+            }
+        } else {
+            // フォールバック: 最もATKが高い味方
+            const sortedAllies = [...aliveAllies].sort((a, b) => b.stats.atk - a.stats.atk);
+            if (sortedAllies.length > 0) {
+                allyTargetId = sortedAllies[0].id;
+            }
+            console.log(`[Simulation] ${unit.name} using ENHANCED_SKILL targeting highest ATK ${allyTargetId} (no manual target)`);
+        }
+
+        return {
+            type: 'SKILL',
+            sourceId: unit.id,
+            targetId: allyTargetId,
+            abilityId: 'murion-support-skill', // カスタムスキルID
+            isAdditional: true,
+            skipTalentTrigger: true
+        };
     }
 
     if (actionChar === 's' && (state.skillPoints > 0 || unit.isSummon)) {
@@ -215,10 +319,7 @@ function determineNextAction(unit: Unit, state: GameState): Action {
         };
     }
 
-    // Default to Basic Attack (or Enhanced Basic if tag is present)
-    if (hasEnhancedBasic && unit.abilities.enhancedBasic) {
-        return { type: 'ENHANCED_BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
-    }
+    // Default to Basic Attack (ENHANCED_BASICタグがあればdispatcher側でenhancedBasicアビリティが使用される)
     return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
 }
 
@@ -495,6 +596,9 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
         }
     }
 
+    // ★ ターン終了時にステータスを再計算（エフェクト変更を反映）
+    unitInNewState.stats = recalculateUnitStats(unitInNewState, state.registry.toArray());
+
     // Update state with modified unit
     // Update state with modified unit
     const nextState = {
@@ -503,7 +607,8 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
             ...u,
             rotationIndex: unitInNewState.rotationIndex,
             ultCooldown: unitInNewState.ultCooldown,
-            effects: unitInNewState.effects
+            effects: unitInNewState.effects,
+            stats: unitInNewState.stats  // ★ statsも更新（速度バフ等の反映）
         }))
     };
 
@@ -519,19 +624,36 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
 }
 
 export function stepSimulation(state: GameState): GameState {
+    console.log(`[stepSimulation] === START === actionQueue length: ${state.actionQueue.length}, time: ${state.time.toFixed(2)}`);
+
     // 1. Advance Timeline
     // Find the unit with the lowest Action Value
     if (state.actionQueue.length === 0) {
+        console.log(`[stepSimulation] Initializing action queue`);
         state = { ...state, actionQueue: initializeActionQueue(state.registry.toArray()) };
     }
 
     const nextEntry = state.actionQueue[0];
-    if (!nextEntry) return state;
+    if (!nextEntry) {
+        console.log(`[stepSimulation] No next entry, returning`);
+        return state;
+    }
+
+    // ★デバッグ: actionQueue全体を表示
+    const queueBefore = state.actionQueue.map(e => `${e.unitId}(${e.actionValue.toFixed(1)})`).join(', ');
+    console.log(`[stepSimulation] ActionQueue BEFORE advance: ${queueBefore}`);
+
+    console.log(`[stepSimulation] Next unit: ${nextEntry.unitId}, AV: ${nextEntry.actionValue.toFixed(2)}`);
 
     const avDelta = nextEntry.actionValue;
 
     // Advance timeline
     let newState = advanceTimeline(state, avDelta);
+    console.log(`[stepSimulation] Advanced timeline by ${avDelta.toFixed(2)}, new time: ${newState.time.toFixed(2)}`);
+
+    // ★デバッグ: advanceTimeline後のactionQueueを表示
+    const queueAfter = newState.actionQueue.map(e => `${e.unitId}(${e.actionValue.toFixed(1)})`).join(', ');
+    console.log(`[stepSimulation] ActionQueue AFTER advance: ${queueAfter}`);
 
     // ★ 割り込みチェックフェーズ (Start of Turn) ★
     // Check for Immediate Ultimates (e.g. at start of battle or ready since last turn)
@@ -560,9 +682,52 @@ export function stepSimulation(state: GameState): GameState {
     // リセット後のユニットを再取得
     currentActingUnit = newState.registry.get(currentActingUnit.id as UnitId)!;
 
+    // ★デバッグ: ターン開始ログ
+    console.log(`[stepSimulation] Turn start: ${currentActingUnit.name} (${currentActingUnit.id}), time=${newState.time.toFixed(2)}, AV=${currentActingUnit.actionValue.toFixed(2)}`);
+
+    // ★精霊（召喚物）のターンの場合、アクションログを初期化（精霊スキルのダメージを記録するため）
+    // 精霊のアクションはON_TURN_STARTイベントハンドラ内で実行されるため、
+    // イベント発火前にログを初期化しておく必要がある
+    const isSpiritTurn = currentActingUnit.isSummon && !currentActingUnit.isEnemy;
+    if (isSpiritTurn) {
+        newState = initializeCurrentActionLog(newState, currentActingUnit.id, currentActingUnit.name, '精霊スキル');
+    }
+
     // 1. Trigger ON_TURN_START (DoTs trigger here)
     // IMPORTANT: This must fire for ALL units, not just frozen ones
     newState = publishEvent(newState, { type: 'ON_TURN_START', sourceId: currentActingUnit.id, value: 0 });
+
+    // ★精霊のターン: ON_TURN_STARTで精霊スキルが実行されたので、ログを最終化
+    if (isSpiritTurn) {
+        newState = finalizeSpiritTurnLog(newState);
+    }
+
+    // ★ユニットが削除された場合のチェック（カウントダウン等のシステムユニット用）
+    // ON_TURN_STARTイベントハンドラ内でユニットが削除される可能性がある
+    const refreshedUnit = newState.registry.get(currentActingUnit.id as UnitId);
+    if (!refreshedUnit) {
+        // ユニットが削除された - ターン終了
+        console.log(`[stepSimulation] Unit ${currentActingUnit.id} was deleted during ON_TURN_START. Adding log entry.`);
+
+        // ★カウントダウン削除時のログを追加
+        newState = {
+            ...newState,
+            log: [...newState.log, {
+                characterName: currentActingUnit.name,
+                actionTime: newState.time,
+                actionType: 'システム',
+                details: `${currentActingUnit.name}のターン終了 - ユニット削除`,
+                skillPointsAfterAction: newState.skillPoints,
+                damageDealt: 0,
+                healingDone: 0,
+                shieldApplied: 0,
+                currentEp: 0
+            } as SimulationLogEntry]
+        };
+
+        return updateActionQueue(newState);
+    }
+    currentActingUnit = refreshedUnit;
 
     // ★敵のターンの場合、アクションログを初期化（DoT被ダメージを記録するため）
     if (currentActingUnit.isEnemy) {
@@ -823,6 +988,13 @@ export function stepSimulation(state: GameState): GameState {
     const MAX_ACTION_ITERATIONS = 20; // 無限ループ防止（アーチャーは最大5回）
     let lastAction: Action | null = null;
 
+    // ★ 精霊（召喚物）のターン処理
+    // isSpiritTurnバイパスを削除し、すべての召喚物が標準のアクションループを使用するように変更
+    // これにより、龍霊や長夜などの設定（config）を持つ召喚物が正しく行動決定（determineNextAction）を行えるようになる
+
+    // (旧ロジック削除跡地)
+    // if (isSpiritTurn && !currentActingUnit!.id.includes('dragon-spirit')) { ... }
+
     while (continueAction && actionIterations < MAX_ACTION_ITERATIONS) {
         actionIterations++;
 
@@ -835,6 +1007,7 @@ export function stepSimulation(state: GameState): GameState {
         currentActingUnit = freshUnit;
 
         // 3. Determine Action
+
         const action = determineNextAction(currentActingUnit, newState);
         lastAction = action;
 

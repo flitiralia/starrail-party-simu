@@ -51,6 +51,10 @@ export interface Modifier { // NOTE: This interface might be deprecated in favor
   dynamicValue?: (target: import('../simulator/engine/types').Unit, allUnits: import('../simulator/engine/types').Unit[]) => number;
   // 参照元ユニットID（動的計算で使用）
   sourceUnitId?: string;
+  // スケーリング戦略（デフォルトは 'stack'）
+  // 'stack': stackCount 倍する
+  // 'fixed': stackCount に関わらず固定値（1倍）
+  scalingStrategy?: 'fixed' | 'stack';
 }
 
 /**

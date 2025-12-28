@@ -43,10 +43,22 @@ export function initializeActionQueue(units: Unit[]): ActionQueueEntry[] {
 export function updateActionQueue(state: GameState): GameState {
     const newQueue = state.registry.toArray()
         .filter(u => u.hp > 0) // Filter out dead units
-        .map(unit => ({
-            unitId: unit.id,
-            actionValue: unit.actionValue
-        }))
+        .map(unit => {
+            // ★デバッグ: NaN検出
+            if (isNaN(unit.actionValue)) {
+                console.warn(`[updateActionQueue] NaN detected for ${unit.id}! unit.actionValue=${unit.actionValue}, unit.stats.spd=${unit.stats?.spd}`);
+                // フォールバック: speedから再計算
+                const fallbackAV = unit.stats?.spd > 0 ? BASE_ACTION_VALUE / unit.stats.spd : BASE_ACTION_VALUE;
+                return {
+                    unitId: unit.id,
+                    actionValue: fallbackAV
+                };
+            }
+            return {
+                unitId: unit.id,
+                actionValue: unit.actionValue
+            };
+        })
         .sort((a, b) => a.actionValue - b.actionValue);
 
     return {

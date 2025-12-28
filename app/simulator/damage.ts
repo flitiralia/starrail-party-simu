@@ -75,7 +75,7 @@ function calculateDmgBoost(source: Unit, action: Action, modifiers: DamageCalcul
   const elementalDmgBoost = source.stats[elementalDmgBoostKey] || 0;
 
   let typeSpecificDmgBoost = 0;
-  if (action.type === 'BASIC_ATTACK') {
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
     typeSpecificDmgBoost = source.stats.basic_atk_dmg_boost || 0;
   }
   if (action.type === 'SKILL') {

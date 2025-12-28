@@ -1,4 +1,4 @@
-import { Character, StatKey, HitDetail } from '../../types';
+import { Character, StatKey, HitDetail, IAbility } from '../../types';
 import {
     IEventHandlerFactory,
     GameState,
@@ -16,7 +16,7 @@ import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { applyUnifiedDamage, publishEvent } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { SimulationLogEntry } from '../../types';
-import { calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
+import { calculateDamageWithCritInfo } from '../../simulator/damage';
 
 // =============================================================================
 // 定数定義
@@ -921,6 +921,12 @@ const onUltimateUsed = (
     }
     console.log(`[onUltimateUsed] targetId=${targetId}, will execute teisou loop: ${!!targetId}`);
 
+    const ultimateAction = {
+        type: 'ULTIMATE' as const,
+        sourceId: sourceUnitId,
+        targetId: targetId ?? ''
+    };
+
     if (targetId) {
         for (let i = 0; i < 3; i++) {
             console.log(`[onUltimateUsed] Teisou loop iteration ${i + 1}/3`);
@@ -930,12 +936,19 @@ const onUltimateUsed = (
             if (!targetUnit || targetUnit.hp <= 0) continue;
 
             // 1. 単体ダメージ (ATK × Z%)
-            const teisouFlatDamage = atk * ultValues.teisouFlat;
-            // ダメージ計算の詳細を取得
-            const dmgCalcResult1 = calculateNormalAdditionalDamageWithCritInfo(
+            const teisouAbility: IAbility = {
+                id: `acheron-ult-teisou-${i}`,
+                name: `啼沢斬り${i + 1}回目`,
+                type: 'Ultimate',
+                description: '',
+                damage: { type: 'simple', scaling: 'atk', hits: [{ multiplier: ultValues.teisouFlat, toughnessReduction: 0 }] }
+            };
+
+            const dmgCalcResult1 = calculateDamageWithCritInfo(
                 acheronUnit,
                 targetUnit,
-                teisouFlatDamage
+                teisouAbility,
+                ultimateAction
             );
             const result1 = applyUnifiedDamage(
                 newState,
@@ -968,14 +981,23 @@ const onUltimateUsed = (
 
             // 3. 集真赤ボーナス単体ダメージ (removed × ATK × Y%)
             if (removed > 0) {
-                const bonusDamage = atk * ultValues.teisouBonus * removed;
+                const bonusMult = ultValues.teisouBonus * removed;
+                const bonusAbility: IAbility = {
+                    id: `acheron-ult-teisou-bonus-${i}`,
+                    name: `啼沢斬り${i + 1}回目ボーナス`,
+                    type: 'Ultimate',
+                    description: '',
+                    damage: { type: 'simple', scaling: 'atk', hits: [{ multiplier: bonusMult, toughnessReduction: 0 }] }
+                };
+
                 const updatedTarget = newState.registry.get(createUnitId(targetId));
                 acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
                 if (updatedTarget && updatedTarget.hp > 0) {
-                    const dmgCalcResult2 = calculateNormalAdditionalDamageWithCritInfo(
+                    const dmgCalcResult2 = calculateDamageWithCritInfo(
                         acheronUnit,
                         updatedTarget,
-                        bonusDamage
+                        bonusAbility,
+                        ultimateAction
                     );
                     const result2 = applyUnifiedDamage(
                         newState,
@@ -995,7 +1017,7 @@ const onUltimateUsed = (
                     // ログに記録
                     newState = appendPrimaryHit(newState, {
                         hitIndex: i * 3 + 1,  // 集真赤ボーナス
-                        multiplier: ultValues.teisouBonus * removed,
+                        multiplier: bonusMult,
                         damage: result2.totalDamage,
                         isCrit: result2.isCrit || false,
                         targetName: `${updatedTarget.name} - 啼沢斬り${i + 1}回目 集真赤ボーナス(${removed}層)`,
@@ -1004,14 +1026,23 @@ const onUltimateUsed = (
                 }
 
                 // 4. 集真赤ボーナス全体ダメージ (removed × ATK × X%)
-                const aoeBonusDamage = atk * ultValues.teisouAoe * removed;
+                const aoeBonusMult = ultValues.teisouAoe * removed;
+                const aoeAbility: IAbility = {
+                    id: `acheron-ult-teisou-aoe-${i}`,
+                    name: `啼沢斬り${i + 1}回目全体`,
+                    type: 'Ultimate',
+                    description: '',
+                    damage: { type: 'simple', scaling: 'atk', hits: [{ multiplier: aoeBonusMult, toughnessReduction: 0 }] }
+                };
+
                 enemies = newState.registry.getAliveEnemies();
                 for (const enemy of enemies) {
                     acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
-                    const dmgCalcResult3 = calculateNormalAdditionalDamageWithCritInfo(
+                    const dmgCalcResult3 = calculateDamageWithCritInfo(
                         acheronUnit,
                         enemy,
-                        aoeBonusDamage
+                        aoeAbility,
+                        ultimateAction
                     );
                     const result3 = applyUnifiedDamage(
                         newState,
@@ -1031,7 +1062,7 @@ const onUltimateUsed = (
                     // ログに記録
                     newState = appendPrimaryHit(newState, {
                         hitIndex: i * 3 + 2,  // 全体追加ダメージ
-                        multiplier: ultValues.teisouAoe * removed,
+                        multiplier: aoeBonusMult,
                         damage: result3.totalDamage,
                         isCrit: result3.isCrit || false,
                         targetName: `${enemy.name} - 啼沢斬り${i + 1}回目 全体追加`,
@@ -1041,6 +1072,7 @@ const onUltimateUsed = (
             }
 
             // A6: 集真赤持ちの敵に命中時、与ダメ+30%（最大3層、3ターン）
+            // 注意: removed > 0 の条件は集真赤を持っていたことを意味する
             if (acheronUnit.traces?.some(t => t.id === TRACE_IDS.A6_RAISHIN) && removed > 0) {
                 const a6EffectId = EFFECT_IDS.A6_DMG_BOOST(sourceUnitId);
                 const existingA6 = newState.registry.get(createUnitId(sourceUnitId))?.effects.find(e => e.id === a6EffectId);
@@ -1094,14 +1126,30 @@ const onUltimateUsed = (
 
     // === 黄泉返り ===
     // 全体ダメージ (ATK × z%)
-    const yomigaeriDamage = atk * ultValues.yomigaeri;
+    // yomigaeriDamage変数は使用せず、倍率を直接使用
+    const yomigaeriAbility: IAbility = {
+        id: 'acheron-ult-yomigaeri',
+        name: '黄泉返り',
+        type: 'Ultimate',
+        description: '',
+        damage: { type: 'simple', scaling: 'atk', hits: [{ multiplier: ultValues.yomigaeri, toughnessReduction: 0 }] }
+    };
+
+    // アクション定義（ターゲットなし全体攻撃用、sourceIdのみ必須）
+    const yomigaeriAction = {
+        type: 'ULTIMATE' as const,
+        sourceId: sourceUnitId,
+        targetId: ''
+    };
+
     enemies = newState.registry.getAliveEnemies();
     for (const enemy of enemies) {
         acheronUnit = newState.registry.get(createUnitId(sourceUnitId))!;
-        const dmgCalcResult4 = calculateNormalAdditionalDamageWithCritInfo(
+        const dmgCalcResult4 = calculateDamageWithCritInfo(
             acheronUnit,
             enemy,
-            yomigaeriDamage
+            yomigaeriAbility,
+            yomigaeriAction
         );
         const result4 = applyUnifiedDamage(
             newState,

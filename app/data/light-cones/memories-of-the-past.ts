@@ -46,17 +46,9 @@ export const memoriesOfThePast: ILightConeData = {
           publishEventFn: publishEvent
         });
 
-        // ログ
-        return {
-          ...newState,
-          log: [...newState.log, {
-            actionType: 'EP回復',
-            sourceId: unit.id,
-            characterName: unit.name,
-            targetId: unit.id,
-            details: `記憶の中の姿発動: EP +${epValue}`
-          }]
-        };
+        // EP回復は統合ログのresourceChangesで自動的に表示されるため、
+        // 個別ログは削除（方針: 1アクションのログは統合）
+        return newState;
       }
     }
   ]

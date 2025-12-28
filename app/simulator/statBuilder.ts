@@ -346,10 +346,52 @@ export function recalculateUnitStats(unit: import('./engine/types').Unit, allUni
     const owner = allUnits.find(u => u.id === unit.ownerId);
     if (owner) {
       // Ownerのステータスをコピー（参照ではなく値コピー）
-      const inheritedStats = { ...owner.stats };
+      const finalStats = { ...owner.stats };
       // 速度はSummon固有のBase SPDを使用（固定）
-      inheritedStats.spd = unit.baseStats.spd;
-      return inheritedStats;
+      finalStats.spd = unit.baseStats.spd;
+
+      // ★ Apply Modifiers to Summon (e.g. Speed Buffs)
+      for (const mod of unit.modifiers) {
+        const value = mod.value;
+        if (mod.type === 'base' || mod.type === 'add') {
+          finalStats[mod.target] += value;
+        } else if (mod.type === 'pct') {
+          // %バフは召喚ユニットのBaseステータスにかかると仮定
+          // (HP/ATK/DEFなどはOwner依存だが、SPDなどは独自)
+          const base = unit.baseStats[mod.target] || 0;
+          finalStats[mod.target] += base * value;
+        }
+      }
+
+      // ★ Apply Effect Modifiers to Summon
+      for (const effect of unit.effects || []) {
+        if ('modifiers' in effect && effect.modifiers) {
+          const stackCount = effect.stackCount || 1;
+          for (const mod of effect.modifiers as import('../types').Modifier[]) {
+            let baseValue = mod.value;
+            // dynamicValue対応
+            if (mod.dynamicValue && allUnits) {
+              try {
+                baseValue = mod.dynamicValue(unit, allUnits);
+              } catch (e) {
+                baseValue = mod.value;
+              }
+            }
+            // スケーリング戦略の確認
+            const effectiveStackCount = (mod.scalingStrategy === 'fixed') ? 1 : stackCount;
+            const effectiveValue = baseValue * effectiveStackCount;
+
+            if (mod.type === 'base' || mod.type === 'add') {
+              finalStats[mod.target] += effectiveValue;
+            } else if (mod.type === 'pct') {
+              const base = unit.baseStats[mod.target] || 0;
+              finalStats[mod.target] += base * effectiveValue; // statBuilder.ts:326
+            }
+          }
+        }
+      }
+
+      return finalStats;
     }
   }
 
@@ -431,8 +473,9 @@ export function recalculateUnitStats(unit: import('./engine/types').Unit, allUni
           }
         }
 
-        // スタック数を掛けた値を適用
-        const effectiveValue = baseValue * stackCount;
+        // スケーリング戦略の確認
+        const effectiveStackCount = (mod.scalingStrategy === 'fixed') ? 1 : stackCount;
+        const effectiveValue = baseValue * effectiveStackCount;
 
         console.log(`[StatBuilder] Applying effect modifier: ${mod.target} += ${effectiveValue} (${mod.type}) from ${mod.source} (stack: ${stackCount})`);
 

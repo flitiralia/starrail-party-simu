@@ -693,21 +693,26 @@ const onTurnStart = (
     // 死竜のターン開始時
     const siryu = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
     if (siryu && event.sourceId === siryu.id) {
-        // 精霊スキル「晦冥焼き払う息吹」発動
         const siryuUnit = newState.registry.get(createUnitId(siryu.id as string));
         const owner = newState.registry.get(createUnitId(sourceUnitId));
 
         if (siryuUnit && owner) {
             const breathCount = owner.config?.customConfig?.siryuBreathCount ?? 1;
+
             if (breathCount > 0) {
+                // 精霊スキル「晦冥焼き払う息吹」発動
                 newState = executeSiryuBreath(newState, sourceUnitId, siryu.id as string, breathCount, eidolonLevel);
 
                 // 精霊スキル発動後、死竜が消えている可能性があるため再チェック
                 const siryuAfterBreath = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
                 if (!siryuAfterBreath) {
-                    // 死竜が消えた場合はターンカウント処理をスキップ
+                    // 死竜が消えた場合（幽墟奪略の晦翼が発動）はターンカウント処理をスキップ
                     return newState;
                 }
+                // 晦冥焼き払う息吹が発動し、幽墟奪略の晦翼も発動しなかった場合は冥茫裂く爪痕を発動しない
+            } else {
+                // breathCount = 0 の場合は「冥茫裂く爪痕」を発動
+                newState = executeSiryuClaw(newState, sourceUnitId, siryu.id as string, eidolonLevel);
             }
         }
 
@@ -1070,7 +1075,63 @@ const applyA6BreathBuff = (state: GameState, siryuId: string): GameState => {
 };
 
 /**
+ * 精霊スキル「冥茫裂く爪痕」を実行
+ * 「晦冥焼き払う息吹」を発動しない場合に発動する
+ */
+const executeSiryuClaw = (
+    state: GameState,
+    ownerId: string,
+    siryuId: string,
+    eidolonLevel: number
+): GameState => {
+    let newState = state;
+
+    const siryu = newState.registry.get(createUnitId(siryuId));
+    const owner = newState.registry.get(createUnitId(ownerId));
+    if (!siryu || !owner) return state;
+
+    // 精霊スキルレベル（E5: 精霊スキルLv+1）
+    const spiritSkillLevel = calculateAbilityLevel(eidolonLevel, 5, 'Skill');
+    const multiplier = getLeveledValue(ABILITY_VALUES.spiritSkillDmg, spiritSkillLevel);
+
+    // 敵全体にダメージ
+    const enemies = newState.registry.getAliveEnemies();
+    for (const enemy of enemies) {
+        const baseDmg = owner.stats.hp * multiplier;
+        const dmgResult = calculateNormalAdditionalDamageWithCritInfo(owner, enemy, baseDmg);
+
+        const result = applyUnifiedDamage(newState, owner, enemy, dmgResult.damage, {
+            damageType: '精霊スキル',
+            details: '冥茫裂く爪痕',
+            skipLog: true,
+            isCrit: dmgResult.isCrit,
+            breakdownMultipliers: dmgResult.breakdownMultipliers
+        });
+        newState = result.state;
+
+        // ログ追加
+        newState = appendAdditionalDamage(newState, {
+            source: siryu.name,
+            name: '冥茫裂く爪痕',
+            damage: result.totalDamage,
+            target: enemy.name,
+            damageType: 'normal',
+            isCrit: result.isCrit || false,
+            breakdownMultipliers: result.breakdownMultipliers
+        });
+    }
+
+    return newState;
+};
+
+/**
  * 精霊スキル「晦冥焼き払う息吹」を実行
+ * 
+ * 仕様:
+ * - 死竜の最大HP25%を消費
+ * - 死竜の残りHPが最大HPの25%以下の時に発動すると、HPが1になり、
+ *   ダメージを与えた後、精霊天賦「幽墟奪略の晦翼」と同じスキル効果が発動
+ * - HP100%から最大4回発動可能（100%→75%→50%→25%→1で幽墟発動）
  */
 const executeSiryuBreath = (
     state: GameState,
@@ -1080,6 +1141,7 @@ const executeSiryuBreath = (
     eidolonLevel: number
 ): GameState => {
     let newState = state;
+    let shouldDismissAfterLoop = false;  // ループ終了後に幽墟奪略の晦翼を発動するかどうか
 
     for (let i = 0; i < count; i++) {
         const siryu = newState.registry.get(createUnitId(siryuId));
@@ -1091,25 +1153,32 @@ const executeSiryuBreath = (
         const shiiEffect = canUseShii ? owner.effects.find(e => e.id === EFFECT_IDS.E2_SHII(ownerId)) : undefined;
         const hasShii = shiiEffect && (shiiEffect.stackCount || 0) > 0;
 
+        let isLastBreath = false; // このブレスが最後の発動かどうか
+
         if (hasShii) {
-            // 熾意を1層消費
+            // 熾意を1層消費（HP消費なし）
             newState = consumeShiiStack(newState, ownerId);
         } else {
-            // 死竜のHP25%消費
-            const hpCost = siryu.stats.hp * SIRYU_BREATH_HP_COST;
-            const newHp = Math.max(0, siryu.hp - hpCost);
+            // HP消費前に「HPが最大HPの25%以下か」をチェック
+            const hpPct = siryu.hp / siryu.stats.hp;
 
-            // HP更新
-            newState = {
-                ...newState,
-                registry: newState.registry.update(createUnitId(siryuId), u => ({ ...u, hp: newHp }))
-            };
+            if (hpPct <= SIRYU_BREATH_HP_COST) {
+                // HP25%以下で発動 → HPを1にして、このダメージ発動後に幽墟奪略の晦翼発動
+                newState = {
+                    ...newState,
+                    registry: newState.registry.update(createUnitId(siryuId), u => ({ ...u, hp: 1 }))
+                };
+                isLastBreath = true;
+                shouldDismissAfterLoop = true;
+            } else {
+                // 通常のHP25%消費
+                const hpCost = siryu.stats.hp * SIRYU_BREATH_HP_COST;
+                const newHp = Math.max(1, siryu.hp - hpCost);
 
-            // HP0またはHP1以下になったら死竜退場
-            // HP0またはHP1以下になったら死竜退場
-            if (newHp <= 1) {
-                newState = dismissSiryuWithWing(newState, ownerId, siryuId, eidolonLevel);
-                break;
+                newState = {
+                    ...newState,
+                    registry: newState.registry.update(createUnitId(siryuId), u => ({ ...u, hp: newHp }))
+                };
             }
         }
 
@@ -1146,11 +1215,21 @@ const executeSiryuBreath = (
                 name: `晦冥焼き払う息吹 (${i + 1}回目)`,
                 damage: result.totalDamage,
                 target: enemy.name,
-                damageType: 'additional',
+                damageType: 'normal',
                 isCrit: result.isCrit || false,
                 breakdownMultipliers: result.breakdownMultipliers
             });
         }
+
+        // HP25%以下で発動した場合、ダメージ発動後にループを抜ける
+        if (isLastBreath) {
+            break;
+        }
+    }
+
+    // ループ終了後に幽墟奪略の晦翼を発動
+    if (shouldDismissAfterLoop) {
+        newState = dismissSiryuWithWing(newState, ownerId, siryuId, eidolonLevel);
     }
 
     return newState;
@@ -1353,7 +1432,7 @@ const dismissSiryuWithWing = (
                 name: '幽墟奪略の晦翼',
                 damage: result.totalDamage,
                 target: randomEnemy.name,
-                damageType: 'additional',
+                damageType: 'normal',
                 isCrit: result.isCrit || false,
                 breakdownMultipliers: result.breakdownMultipliers
             });

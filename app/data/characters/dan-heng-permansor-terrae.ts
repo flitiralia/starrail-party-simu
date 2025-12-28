@@ -3,6 +3,7 @@ import { IEventHandlerLogic, GameState, Unit, IEventHandlerFactory, DamageDealtE
 import { createUnitId } from '../../simulator/engine/unitId';
 
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { calculateDamageWithCritInfo } from '../../simulator/damage';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { FinalStats, Modifier } from '../../types/stats';
 import { cleanse, advanceAction, applyShield } from '../../simulator/engine/utils';
@@ -127,8 +128,8 @@ function ensureDragonSpirit(state: GameState, source: Unit, linkedTargetId: stri
             baseSpd: DRAGON_SPIRIT_BASE_SPD,
             element: 'Physical',
             abilities: {
-                basic: { id: 'ds-basic', name: 'Wait', type: 'Basic ATK', description: 'Wait' },
-                skill: { id: 'ds-action', name: 'Dragon Spirit Action', type: 'Talent', description: 'Dragon Spirit Action' },
+                basic: { id: 'ds-basic', name: '待機', type: 'Basic ATK', description: '待機' },
+                skill: { id: 'ds-action', name: '龍霊の行動', type: 'Skill', description: '龍霊の行動', targetType: 'self' },
                 ultimate: { id: 'ds-ult', name: 'None', type: 'Ultimate', description: 'None' },
                 talent: { id: 'ds-talent', name: 'None', type: 'Talent', description: 'None' },
                 technique: { id: 'ds-tech', name: 'None', type: 'Technique', description: 'None' },
@@ -136,6 +137,11 @@ function ensureDragonSpirit(state: GameState, source: Unit, linkedTargetId: stri
         });
         // リンクID設定
         summon.linkedUnitId = createUnitId(linkedTargetId);
+        // スキル連打設定
+        summon.config = {
+            rotation: ['s'],
+            rotationMode: 'spam_skill'
+        } as any;
         newState = { ...newState, registry: newState.registry.add(summon) };
     } else {
         const s = summon!;
@@ -246,21 +252,86 @@ const onUltimateUsed: IEventHandlerLogic = (event, state, _handlerId) => {
     const enemies = newState.registry.getAliveEnemies();
     const ultLevel = calculateAbilityLevel(source.eidolonLevel || 0, 5, 'Ultimate');
     const ultDmgMult = getLeveledValue(ABILITY_VALUES.ultDamage, ultLevel);
-    enemies.forEach(enemy => {
-        newState = applyUnifiedDamage(newState, source, enemy, source.stats.atk * ultDmgMult, {
-            damageType: '必殺技',
-            // events: [{ type: 'ON_ULTIMATE_USED' }] // 再帰防止のため削除
-        }).state;
+
+    enemies.forEach((enemy, index) => {
+        // 1. ダメージ計算
+        const tempAbility: any = {
+            damage: { scaling: 'atk', type: 'simple', hits: [{ multiplier: ultDmgMult, toughnessReduction: 20 }] }
+        };
+        const tempAction: any = { type: 'ULTIMATE' };
+
+        const { damage, isCrit, breakdownMultipliers } = calculateDamageWithCritInfo(
+            source,
+            enemy,
+            tempAbility,
+            tempAction,
+            {
+                ultDmg: 0
+            }
+        );
+
+        // 2. 靭性削り
+        const breakEfficiency = (source.stats as any).break_efficiency || 0;
+        const toughnessReduction = 20 * (1 + breakEfficiency);
+
+        const currentEnemy = newState.registry.get(createUnitId(enemy.id));
+        if (currentEnemy && currentEnemy.toughness > 0) {
+            const newToughness = Math.max(0, currentEnemy.toughness - toughnessReduction);
+            newState = {
+                ...newState,
+                registry: newState.registry.update(createUnitId(enemy.id), u => ({ ...u, toughness: newToughness }))
+            };
+        }
+
+        // 3. ダメージ適用
+        const damageResult = applyUnifiedDamage(newState, source, enemy, damage, {
+            damageType: '悔いなき亢龍、天地を拓く',
+            skipLog: true,
+            isCrit: isCrit,
+            breakdownMultipliers: breakdownMultipliers
+        });
+        newState = damageResult.state;
+
+        // 4. ログ記録 (プライマリダメージ)
+        if (newState.currentActionLog) {
+            newState.currentActionLog.primaryDamage.hitDetails.push({
+                hitIndex: index,
+                multiplier: ultDmgMult,
+                damage: damage,
+                isCrit: isCrit,
+                targetName: enemy.name,
+                breakdownMultipliers: breakdownMultipliers
+            });
+            newState.currentActionLog.primaryDamage.totalDamage += damage;
+        }
     });
 
     // 2. 味方全体バリア (必殺技のバリアもスキルと同じ値) (E3でスキルLv12)
     const skillLevel = calculateAbilityLevel(source.eidolonLevel || 0, 3, 'Skill');
     const skillBarrier = getLeveledValue(ABILITY_VALUES.skillBarrier, skillLevel);
-    const skillCap = (skillBarrier.pct * source.stats.atk + skillBarrier.flat) * 3.0;
+    const skillBase = skillBarrier.pct * source.stats.atk + skillBarrier.flat;
+    const skillCap = skillBase * 3.0;
     const allies = newState.registry.toArray().filter(u => !u.isEnemy && !u.isSummon);
 
     for (const ally of allies) {
         newState = applyDanHengShield(newState, source, ally.id, skillBarrier.pct, skillBarrier.flat, skillCap);
+
+        // バリアログ追加
+        if (newState.currentActionLog) {
+            newState.currentActionLog.shields.push({
+                source: source.name,
+                name: '悔いなき亢龍、天地を拓く (バリア)',
+                amount: skillBase,
+                target: ally.name,
+                breakdownMultipliers: {
+                    baseShield: skillBase,
+                    scalingStat: 'ATK',
+                    multiplier: skillBarrier.pct,
+                    flat: skillBarrier.flat,
+                    cap: skillCap
+                }
+            });
+        }
     }
 
     // 3. 龍霊強化
@@ -336,6 +407,8 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
     const owner = state.registry.get(createUnitId(handlerId));
     if (!owner) return newState;
 
+
+
     const allies = newState.registry.toArray().filter(u => !u.isEnemy && !u.isSummon);
 
     // 1. デバフ解除 (Asc4で+1)
@@ -351,6 +424,7 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
     let talentFlat = talentBarrierVals.flat;
 
     const enhancedBuff = source.effects.find(e => e.id === EFFECT_IDS.ENHANCED_DRAGON(source.id));
+
     const e2 = (owner.eidolonLevel || 0) >= 2;
     if (enhancedBuff && e2) {
         talentMultiplier *= 2.0;
@@ -363,8 +437,28 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
     const skillBase = skillBarrier.pct * owner.stats.atk + skillBarrier.flat;
     const skillCap = skillBase * 3.0;
 
+    // バリア計算（ログ用）
+    const baseBarrierAmount = owner.stats.atk * talentMultiplier + talentFlat;
+
     for (const ally of allies) {
         newState = applyDanHengShield(newState, source, ally.id, talentMultiplier, talentFlat, skillCap);
+
+        // ログ詳細追加
+        if (newState.currentActionLog) {
+            newState.currentActionLog.shields.push({
+                source: source.name,
+                name: '龍霊の行動 (天賦バリア)',
+                amount: baseBarrierAmount,
+                target: ally.name,
+                breakdownMultipliers: {
+                    baseShield: baseBarrierAmount,
+                    scalingStat: 'ATK',
+                    multiplier: talentMultiplier,
+                    flat: talentFlat,
+                    cap: skillCap
+                }
+            });
+        }
     }
 
     // 軌跡「屹立」: HP最低の味方に追加バリア
@@ -376,7 +470,25 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
             if (pct < minHpPct) { minHpPct = pct; lowestUnit = a; }
         });
         if (lowestUnit) {
+            const yiliAmount = owner.stats.atk * YILI_BARRIER_PCT + YILI_BARRIER_FLAT;
             newState = applyDanHengShield(newState, source, lowestUnit.id, YILI_BARRIER_PCT, YILI_BARRIER_FLAT, skillCap);
+
+            // ログ詳細追加
+            if (newState.currentActionLog) {
+                newState.currentActionLog.shields.push({
+                    source: source.name,
+                    name: '屹立 (追加バリア)',
+                    amount: yiliAmount,
+                    target: lowestUnit.name,
+                    breakdownMultipliers: {
+                        baseShield: yiliAmount,
+                        scalingStat: 'ATK',
+                        multiplier: YILI_BARRIER_PCT,
+                        flat: YILI_BARRIER_FLAT,
+                        cap: skillCap
+                    }
+                });
+            }
         }
     }
 
@@ -398,11 +510,25 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
             for (const enemy of enemies) {
                 // Hit 1: 丹恒攻撃力参照
                 newState = applyUnifiedDamage(newState, source, enemy, owner.stats.atk * dhMult, {
-                    damageType: 'FOLLOW_UP_ATTACK', events: [{ type: 'ON_FOLLOW_UP_ATTACK' }]
+                    damageType: 'FOLLOW_UP_ATTACK',
+                    events: [{ type: 'ON_FOLLOW_UP_ATTACK' }],
+                    skipLog: true,
+                    additionalDamageEntry: {
+                        source: source.name,
+                        name: '龍霊の行動 (丹恒)',
+                        damageType: 'normal'
+                    }
                 }).state;
                 // Hit 2: 同袍攻撃力参照
                 newState = applyUnifiedDamage(newState, source, enemy, comrade.stats.atk * cmMult, {
-                    damageType: 'FOLLOW_UP_ATTACK', events: [{ type: 'ON_FOLLOW_UP_ATTACK', payload: { element: comrade.element } }]
+                    damageType: 'FOLLOW_UP_ATTACK',
+                    events: [{ type: 'ON_FOLLOW_UP_ATTACK', payload: { element: comrade.element } }],
+                    skipLog: true,
+                    additionalDamageEntry: {
+                        source: source.name,
+                        name: '龍霊の行動 (同袍)',
+                        damageType: 'normal'
+                    }
                 }).state;
             }
 
@@ -414,8 +540,15 @@ const onDragonSpiritSkill: IEventHandlerLogic = (event, state, handlerId) => {
 
                 if (highestEnemy) {
                     newState = applyUnifiedDamage(newState, source, highestEnemy, comrade.stats.atk * YILI_DMG_MULT, {
-                        damageType: 'FOLLOW_UP_ATTACK', details: 'Yi Li Extra Dmg',
-                        events: [{ type: 'ON_FOLLOW_UP_ATTACK', payload: { element: comrade.element } }]
+                        damageType: 'FOLLOW_UP_ATTACK',
+                        details: 'Yi Li Extra Dmg',
+                        events: [{ type: 'ON_FOLLOW_UP_ATTACK', payload: { element: comrade.element } }],
+                        skipLog: true,
+                        additionalDamageEntry: {
+                            source: source.name,
+                            name: '屹立 (追加ダメージ)',
+                            damageType: 'additional'
+                        }
                     }).state;
                 }
             }
@@ -553,9 +686,8 @@ export const DanHengToukou: Character = {
             spCost: 1, energyGain: 30,
         },
         ultimate: {
-            id: 'ult', name: 'Ultimate', type: 'Ultimate', description: '全体攻撃 + バリア + 龍霊強化',
+            id: 'ult', name: '悔いなき亢龍、天地を拓く', type: 'Ultimate', description: '全体攻撃 + バリア + 龍霊強化',
             targetType: 'all_enemies',
-            damage: { type: 'aoe', scaling: 'atk', hits: [{ multiplier: ABILITY_VALUES.ultDamage[10], toughnessReduction: 20 }] },
             energyGain: 5,
         },
         talent: { id: 'talent', name: 'Talent', type: 'Talent', description: '龍霊召喚' },
@@ -589,7 +721,13 @@ export const danHengToukouHandlerFactory: IEventHandlerFactory = (sourceUnitId, 
         handlerLogic: (event, state, handlerId) => {
             if (event.type === 'ON_SKILL_USED') {
                 if (event.sourceId === sourceUnitId) return onSkillUsed(event as ActionEvent, state, handlerId);
+
                 const source = state.registry.get(createUnitId(event.sourceId));
+                // Debug logging for summon skill detection
+                if (source?.isSummon) {
+
+                }
+
                 if (source && source.isSummon && source.ownerId === sourceUnitId) return onDragonSpiritSkill(event as ActionEvent, state, sourceUnitId);
             } else if (event.type === 'ON_ULTIMATE_USED') {
                 if (event.sourceId === sourceUnitId) return onUltimateUsed(event as ActionEvent, state, handlerId);

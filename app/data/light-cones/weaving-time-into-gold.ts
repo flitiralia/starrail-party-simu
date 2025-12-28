@@ -55,58 +55,65 @@ export const weavingTimeIntoGold: ILightConeData = {
                 const basicAtkBoost = [0.09, 0.105, 0.12, 0.135, 0.15][superimposition - 1];
                 const maxStacks = 6;
 
-                // 通常攻撃バフが適用されるか判断するために現在のスタックを取得
-                const existing = unit.effects.find(e => e.id === `weaving-stack-${unit.id}`);
+                // 装備キャラと精霊を取得
+                const targets = [source]; // source is wearer if isWearer is true, otherwise unit
+                if (!isWearer) {
+                    // source is spirit, so wearer is unit
+                    // actually unit is always wearer in handler context (passed from registerLightConeEventHandlers)
+                }
+
+                // ターゲットリスト：装備者 + その精霊
+                const wearer = unit;
+                const spirits = state.registry.toArray().filter(u => u.isSummon && u.ownerId === wearer.id);
+                const allTargets = [wearer, ...spirits];
+
+                // 次のスタック数を計算（装備者の状態を基準にする）
+                const existing = wearer.effects.find(e => e.id === `weaving-stack-${wearer.id}`);
                 const currentStack = existing ? (existing.stackCount || 0) : 0;
                 const nextStack = Math.min(currentStack + 1, maxStacks);
 
-                // 通常攻撃バフは最大スタック時のみ有効？
-                // テキスト：「『錦を織って』の層数が上限に達すると、1層につき、追加で通常攻撃ダメージ+X%」
-                // 解釈：スタック == 6 の場合、+6 * X% 通常攻撃ダメージ。
-                // それとも「上限に達したら、任意のスタックで通常攻撃ダメージを与える」？
-                // 日本語：「『錦を織って』の層数が上限に達すると、1層につき、追加で通常攻撃ダメージ+9.0%。」
-                // 英語（参考）: "When stack count reaches upper limit, for each 1 stack, additionally Basic ATK DMG +9.0%."
-                // これは通常攻撃バフがスタックに依存するが、最大スタックに達した場合のみトリガーされることを意味する。
-                // 実装：スタック数に基づく動的な値だが、スタック数 == 6 を条件とする。
+                let newState = state;
 
-                return addEffect(state, unit.id, {
-                    id: `weaving-stack-${unit.id}`,
-                    name: '錦を織って',
-                    category: 'BUFF',
-                    sourceUnitId: unit.id,
-                    type: 'BUFF',
-                    // 戦闘終了まで永続？ テキストには持続時間の記載なし。永続と仮定。
-                    durationType: 'PERMANENT',
-                    duration: -1,
-                    stackCount: nextStack,
-                    maxStacks: maxStacks,
-                    modifiers: [
-                        {
-                            target: 'crit_dmg',
-                            value: critDmgBoost, // statBuilder内でスタック数で乗算される
-                            type: 'add',
-                            source: '光陰を織り黄金と成す'
-                        },
-                        {
-                            target: 'basic_atk_dmg_boost',
-                            value: 0, // プレースホルダー、動的に計算されるか dynamicValue を使用できる
-                            type: 'add',
-                            source: '光陰を織り黄金と成す',
-                            dynamicValue: (target, allUnits) => {
-                                // スタック数が最大の場合、値を返す。そうでなければ0。
-                                // ターゲット上の効果を見つけてスタック数を取得する必要がある。
-                                const eff = target.effects.find(e => e.id === `weaving-stack-${unit.id}`);
-                                const stacks = eff ? (eff.stackCount || 1) : 1;
-                                if (stacks >= maxStacks) {
-                                    return basicAtkBoost;
+                for (const target of allTargets) {
+                    newState = addEffect(newState, target.id, {
+                        id: `weaving-stack-${target.id}`,
+                        name: '錦を織って',
+                        category: 'BUFF',
+                        sourceUnitId: wearer.id,
+                        type: 'BUFF',
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        stackCount: nextStack,
+                        maxStacks: maxStacks,
+                        modifiers: [
+                            {
+                                target: 'crit_dmg',
+                                value: critDmgBoost,
+                                type: 'add',
+                                source: '光陰を織り黄金と成す'
+                            },
+                            {
+                                target: 'basic_atk_dmg_boost',
+                                value: 0,
+                                type: 'add',
+                                source: '光陰を織り黄金と成す',
+                                dynamicValue: (t, allUnits) => {
+                                    // ターゲット上の効果を見つけてスタック数を取得
+                                    const eff = t.effects.find(e => e.id === `weaving-stack-${t.id}`);
+                                    const stacks = eff ? (eff.stackCount || 1) : 1;
+                                    if (stacks >= maxStacks) {
+                                        return basicAtkBoost;
+                                    }
+                                    return 0;
                                 }
-                                return 0;
                             }
-                        }
-                    ],
-                    apply: (u, s) => s,
-                    remove: (u, s) => s
-                });
+                        ],
+                        apply: (u, s) => s,
+                        remove: (u, s) => s
+                    });
+                }
+
+                return newState;
             }
         }
     ]

@@ -697,7 +697,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                             additionalDamageEntry: {
                                                 source: 'トリビー',
                                                 name: 'E1確定ダメージ',
-                                                damageType: 'additional',
+                                                damageType: 'true_damage',
                                                 isCrit: trueDamageResult.isCrit,
                                                 breakdownMultipliers: trueDamageResult.breakdownMultipliers
                                             }

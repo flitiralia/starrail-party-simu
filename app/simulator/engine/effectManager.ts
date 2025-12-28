@@ -1,7 +1,7 @@
 import { GameState, Unit, IEventHandler, IEffectEvent } from './types';
 import { UnitId, createUnitId } from './unitId';
 
-import { adjustActionValueForSpeedChange } from './actionValue';
+import { adjustActionValueForSpeedChange, updateActionQueue } from './actionValue';
 import { IEffect } from '../effect/types';
 import { recalculateUnitStats } from '../statBuilder';
 import { publishEvent } from './dispatcher';
@@ -128,6 +128,11 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
             ...newState,
             registry: newState.registry.update(createUnitId(targetId), u => updatedTarget)
         };
+
+        // ★ 速度が変わった場合は ActionQueue も同期
+        if (freshTarget.stats.spd !== updatedTarget.stats.spd) {
+            newState = updateActionQueue(newState);
+        }
 
         // Propagate to Summons
         newState = propagateStatsToSummons(newState, targetId);

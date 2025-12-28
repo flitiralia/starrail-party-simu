@@ -87,16 +87,9 @@ export const solitudeAndHealing: ILightConeData = {
           publishEventFn: publishEvent
         });
 
-        return {
-          ...newState,
-          log: [...newState.log, {
-            actionType: 'EP回復',
-            sourceId: unit.id,
-            characterName: unit.name,
-            targetId: unit.id,
-            details: `孤独の癒し発動: EP +${epValue}`
-          }]
-        };
+        // EP回復は統合ログのresourceChangesで自動的に表示されるため、
+        // 個別ログは削除（方針: 1アクションのログは統合）
+        return newState;
       }
     }
   ]

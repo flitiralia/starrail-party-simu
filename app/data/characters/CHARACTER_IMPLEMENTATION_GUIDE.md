@@ -38,6 +38,7 @@
 17. [DoT/状態異常の実装パターン](#17-dot状態異常の実装パターン)
 18. [強化通常攻撃の実装パターン](#18-強化通常攻撃の実装パターン)
 19. [代表実装例へのリンク集](#19-代表実装例へのリンク集)
+20. [カウントダウン（タイマー）システムユニットの実装パターン](#20-カウントダウンタイマーシステムユニットの実装パターン)
 
 ---
 
@@ -1055,22 +1056,28 @@ const hellscapeEffect: IEffect = {
 };
 ```
 
-### ON_ENHANCED_BASIC_ATTACK イベント
+### ON_BASIC_ATTACK で強化通常攻撃を処理
 
-強化通常攻撃実行後の追加処理には `ON_ENHANCED_BASIC_ATTACK` を使用します。
+強化通常攻撃実行後の追加処理は、`ON_BASIC_ATTACK` イベントの `isEnhanced` フラグで判別します。
 
 ```typescript
-subscribesTo: ['ON_ENHANCED_BASIC_ATTACK'],
+subscribesTo: ['ON_BASIC_ATTACK'],
 
 // ハンドラー
-if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
-    // HP消費処理など
-    const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, 0.10, '無間剣樹');
-    newState = afterConsume;
+if (event.type === 'ON_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
+    const basicEvent = event as ActionEvent & { isEnhanced?: boolean };
+    if (basicEvent.isEnhanced) {
+        // 強化通常攻撃時の処理
+        // HP消費処理など
+        const { state: afterConsume, consumed } = consumeHp(newState, sourceUnitId, sourceUnitId, 0.10, '無間剣樹');
+        newState = afterConsume;
+    } else {
+        // 通常の通常攻撃時の処理
+    }
 }
 ```
 
-> **参照実装:** [blade.ts](./blade.ts)
+> **注意:** `ON_ENHANCED_BASIC_ATTACK` イベントは後方互換性のために引き続き発火されますが、非推奨です。新規実装では `ON_BASIC_ATTACK` + `isEnhanced` を使用してください。
 
 ---
 
@@ -1105,4 +1112,154 @@ if (event.type === 'ON_ENHANCED_BASIC_ATTACK' && event.sourceId === sourceUnitId
 - [ ] ハンドラーファクトリ（`subscribesTo`、各イベントハンドラー）
 - [ ] エクスポート（`index.ts` に追加）
 - [ ] テスト（`scenarios/` にテストファイル作成）
+
+---
+
+## 20. カウントダウン（タイマー）システムユニットの実装パターン
+
+アグライアの「至高の姿」のような、一定時間後に効果が解除されるカウントダウンシステムの実装パターンです。
+
+### 基本概念
+
+カウントダウンは「速度100のシステムユニット」として実装します。カウントダウンのターンが来た時に、`ON_TURN_START` イベントハンドラで効果解除処理を実行します。
+
+### カウントダウンユニットの定義
+
+> [!CAUTION]
+> **`baseStats` を必ず完全に設定してください。**
+> 
+> シミュレーション中に `calculateFinalStats` が呼ばれると、`baseStats` から `stats` が再計算されます。
+> `baseStats` が空オブジェクト `{}` の場合、`spd` が `undefined` となりAVが `NaN` または `10000` になり、
+> カウントダウンのターンが正しく来なくなります。
+
+```typescript
+const COUNTDOWN_ID_PREFIX = 'aglaea-countdown';
+
+const getCountdownId = (sourceUnitId: string): string => {
+    return `${COUNTDOWN_ID_PREFIX}-${sourceUnitId}`;
+};
+
+const insertCountdown = (state: GameState, sourceUnitId: string): GameState => {
+    const countdownId = getCountdownId(sourceUnitId);
+    const countdownAV = calculateActionValue(100);  // 速度100固定 → AV=100
+
+    // 既存のカウントダウンがあれば何もしない
+    if (state.registry.get(createUnitId(countdownId))) {
+        return state;
+    }
+
+    // ★重要: stats と baseStats の両方に同じ値を設定
+    const countdownUnit: Unit = {
+        id: createUnitId(countdownId),
+        name: 'カウントダウン',
+        element: 'Physical',
+        path: 'Remembrance',
+        // ★stats設定
+        stats: {
+            hp: 1, atk: 0, def: 999999, spd: 100,
+            crit_rate: 0, crit_dmg: 0, max_ep: 0,
+            aggro: 0, break_effect: 0, effect_hit_rate: 0, effect_res: 0,
+            energy_regen_rate: 0, outgoing_healing_boost: 0
+        } as Unit['stats'],
+        // ★baseStatsにも同じ値を設定（calculateFinalStats対策）
+        baseStats: {
+            hp: 1, atk: 0, def: 999999, spd: 100,
+            crit_rate: 0, crit_dmg: 0, max_ep: 0,
+            aggro: 0, break_effect: 0, effect_hit_rate: 0, effect_res: 0,
+            energy_regen_rate: 0, outgoing_healing_boost: 0
+        } as Unit['baseStats'],
+        hp: 1,
+        isEnemy: false,
+        isSummon: true,       // 召喚物として登録
+        untargetable: true,   // ターゲット不可
+        level: 80,
+        ep: 0,
+        effects: [],
+        modifiers: [],
+        shield: 0,
+        toughness: 0,
+        maxToughness: 0,
+        weaknesses: new Set(),
+        actionValue: countdownAV,
+        abilities: { /* 空のアビリティ */ },
+        linkedUnitId: createUnitId(sourceUnitId),
+        ownerId: createUnitId(sourceUnitId),
+        rotationIndex: 0,
+        ultCooldown: 0
+    };
+
+    // カウントダウンをレジストリに追加
+    let newState = insertSummonAfterOwner(state, countdownUnit, sourceUnitId);
+
+    // actionQueueに追加
+    newState = updateActionQueue(newState);
+
+    return newState;
+};
+```
+
+### カウントダウン発動時の処理
+
+`ON_TURN_START` イベントで、`event.sourceId` がカウントダウンのIDと一致した場合に効果解除処理を実行します。
+
+```typescript
+const onTurnStart = (
+    event: GeneralEvent,
+    state: GameState,
+    sourceUnitId: string,
+    eidolonLevel: number
+): GameState => {
+    const countdownId = getCountdownId(sourceUnitId);
+    
+    // カウントダウンのターンが来た場合
+    if (event.sourceId === countdownId) {
+        let newState = state;
+
+        // 効果解除処理
+        newState = removeEffect(newState, sourceUnitId, EFFECT_IDS.SUPREME_STANCE(sourceUnitId));
+
+        // カウントダウン削除
+        newState = removeCountdown(newState, sourceUnitId);
+
+        return newState;
+    }
+
+    return state;
+};
+```
+
+### シミュレーションエンジンでの自動処理
+
+カウントダウンユニットがターンを迎えた時：
+
+1. `ON_TURN_START` イベントが発火される
+2. キャラクターのハンドラーがイベントを受け取り、カウントダウン削除を実行
+3. シミュレーションエンジンがユニットの削除を検知し、ターン終了処理をスキップ
+
+```typescript
+// simulation.ts の処理
+const refreshedUnit = newState.registry.get(currentActingUnit.id as UnitId);
+if (!refreshedUnit) {
+    // ユニットが削除された - ターン終了処理をスキップ
+    return updateActionQueue(newState);
+}
+```
+
+### カウントダウンリセット
+
+必殺技を再発動した場合にカウントダウンをリセットするパターン：
+
+```typescript
+const resetCountdown = (state: GameState, sourceUnitId: string): GameState => {
+    const countdownId = getCountdownId(sourceUnitId);
+    const countdown = state.registry.get(createUnitId(countdownId));
+    if (!countdown) return state;
+
+    // AVをリセット（速度100 → AV=100）
+    const newAV = calculateActionValue(100);
+    return setUnitActionValue(state, countdownId, newAV);
+};
+```
+
+> **参照実装:** [aglaea.ts](./aglaea.ts)
 

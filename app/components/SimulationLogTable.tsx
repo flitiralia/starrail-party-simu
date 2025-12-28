@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SimulationLogEntry, HitDetail, AdditionalDamageEntry, HealingEntry, ShieldEntry, DotDetonationEntry, DamageTakenEntry, EquipmentEffectEntry, EffectSummary } from '@/app/types';
+import { SimulationLogEntry, HitDetail, AdditionalDamageEntry, HealingEntry, ShieldEntry, DotDetonationEntry, DamageTakenEntry, EquipmentEffectEntry, EffectSummary, ResourceChangeEntry } from '@/app/types';
 
 interface SimulationLogTableProps {
   logs: SimulationLogEntry[];
@@ -180,10 +180,12 @@ const UnifiedActionDetails: React.FC<{
               // ダメージ種別に基づくラベルと色
               const getDamageTypeLabel = (type?: string) => {
                 switch (type) {
+                  case 'normal': return { label: '', color: 'text-gray-600 dark:text-gray-300', bg: 'bg-gray-200 dark:bg-gray-700' };
                   case 'break': return { label: '[撃破]', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/50 border-orange-400' };
                   case 'break_additional': return { label: '[撃破付加]', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/50 border-red-400' };
                   case 'super_break': return { label: '[超撃破]', color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/50 border-purple-400' };
                   case 'dot': return { label: '[DoT]', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/50 border-green-400' };
+                  case 'true_damage': return { label: '[確定]', color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-100 dark:bg-pink-900/50 border-pink-400' };
                   case 'additional':
                   default: return { label: '[付加]', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/50 border-blue-400' };
                 }
@@ -608,6 +610,128 @@ const EquipmentEffectDetails: React.FC<{ entries: EquipmentEffectEntry[] }> = ({
   );
 };
 
+// リソース変化詳細コンポーネント（EP・蓄積値）
+const ResourceChangesDetails: React.FC<{ entries: ResourceChangeEntry[] }> = ({ entries }) => {
+  if (!entries || entries.length === 0) return null;
+
+  // EP変化と蓄積値変化に分類
+  const epChanges = entries.filter(e => e.resourceType === 'ep');
+  const accumulatorChanges = entries.filter(e => e.resourceType === 'accumulator');
+  const spChanges = entries.filter(e => e.resourceType === 'sp');
+
+  const formatChange = (change: number) => {
+    if (change > 0) return `+${change.toFixed(1)}`;
+    if (change < 0) return change.toFixed(1);
+    return '0';
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* SP変化 */}
+      {spChanges.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+            ✨ SP変化:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {spChanges.map((entry, idx) => (
+              <div
+                key={`sp-${idx}`}
+                className={`flex items-center gap-2 px-2 py-1 rounded text-xs border-l-2 ${entry.change > 0
+                  ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-400'
+                  : entry.change < 0
+                    ? 'bg-zinc-100 dark:bg-zinc-900/50 border-zinc-400'
+                    : 'bg-gray-100 dark:bg-gray-900/50 border-gray-400'
+                  }`}
+              >
+                <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[80px]">
+                  {entry.unitName}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {entry.before.toFixed(0)} → {entry.after.toFixed(0)}
+                </span>
+                <span className={`font-bold ${entry.change > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-600 dark:text-zinc-400'
+                  }`}>
+                  ({formatChange(entry.change)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* EP変化 */}
+      {epChanges.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+            ⚡ EP変化:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {epChanges.map((entry, idx) => (
+              <div
+                key={`ep-${idx}`}
+                className={`flex items-center gap-2 px-2 py-1 rounded text-xs border-l-2 ${entry.change > 0
+                  ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400'
+                  : entry.change < 0
+                    ? 'bg-orange-100 dark:bg-orange-900/50 border-orange-400'
+                    : 'bg-gray-100 dark:bg-gray-900/50 border-gray-400'
+                  }`}
+              >
+                <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[80px]">
+                  {entry.unitName}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {entry.before.toFixed(1)} → {entry.after.toFixed(1)}
+                </span>
+                <span className={`font-bold ${entry.change > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-orange-600 dark:text-orange-400'
+                  }`}>
+                  ({formatChange(entry.change)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 蓄積値変化 */}
+      {accumulatorChanges.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-teal-600 dark:text-teal-400">
+            📊 蓄積値変化:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {accumulatorChanges.map((entry, idx) => (
+              <div
+                key={`acc-${idx}`}
+                className={`flex items-center gap-2 px-2 py-1 rounded text-xs border-l-2 ${entry.change > 0
+                  ? 'bg-teal-100 dark:bg-teal-900/50 border-teal-400'
+                  : entry.change < 0
+                    ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-400'
+                    : 'bg-gray-100 dark:bg-gray-900/50 border-gray-400'
+                  }`}
+              >
+                <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[60px]" title={entry.unitName}>
+                  {entry.unitName}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400 truncate max-w-[40px]" title={entry.resourceName}>
+                  [{entry.resourceName}]
+                </span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {entry.before.toFixed(0)} → {entry.after.toFixed(0)}
+                </span>
+                <span className={`font-bold ${entry.change > 0 ? 'text-teal-600 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                  ({formatChange(entry.change)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // 統計名のフォーマット関数（共通）
 const formatStatName = (key: string) => {
   const map: { [key: string]: string } = {
@@ -790,7 +914,8 @@ const SimulationLogTable: React.FC<SimulationLogTableProps> = ({ logs }) => {
       (log.logDetails.healing && log.logDetails.healing.length > 0) ||
       (log.logDetails.shields && log.logDetails.shields.length > 0) ||
       (log.logDetails.damageTaken && log.logDetails.damageTaken.length > 0) ||
-      (log.logDetails.equipmentEffects && log.logDetails.equipmentEffects.length > 0)
+      (log.logDetails.equipmentEffects && log.logDetails.equipmentEffects.length > 0) ||
+      (log.logDetails.resourceChanges && log.logDetails.resourceChanges.length > 0)
     );
     const hasEffects = !!((log.sourceEffects && log.sourceEffects.length > 0) || (log.targetEffects && log.targetEffects.length > 0) || (log.activeEffects && log.activeEffects.length > 0));
     return hasHitDetails || !!hasDetails || hasEffects;
@@ -895,6 +1020,25 @@ const SimulationLogTable: React.FC<SimulationLogTableProps> = ({ logs }) => {
                       {/* 装備効果 */}
                       {log.logDetails?.equipmentEffects && (
                         <EquipmentEffectDetails entries={log.logDetails.equipmentEffects} />
+                      )}
+
+                      {/* リソース変化（EP・蓄積値） */}
+                      {log.logDetails?.resourceChanges && (
+                        <ResourceChangesDetails entries={log.logDetails.resourceChanges} />
+                      )}
+
+                      {/* アクションキュー表示 */}
+                      {log.actionQueue && log.actionQueue.length > 0 && (
+                        <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-700">
+                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">アクションキュー</div>
+                          <div className="flex flex-wrap gap-1 text-xs">
+                            {log.actionQueue.map((entry, idx) => (
+                              <span key={idx} className={`px-1.5 py-0.5 rounded ${idx === 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                                {entry.unitName}: {entry.actionValue.toFixed(1)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {/* 効果・ステータス詳細（トグル） */}

@@ -103,14 +103,25 @@ export const soTheRainbowDoesntFade: ILightConeData = {
                     registry: state.registry.update(createUnitId(targetId), u => ({ ...u, hp: newHp }))
                 };
 
-                newState.log = [...newState.log, {
-                    actionType: '付加ダメージ',
-                    sourceId: unit.id,
-                    characterName: source.name,
-                    targetId: targetId,
+                // 統合ログに付加ダメージを追記
+                const { appendAdditionalDamage } = require('../../simulator/engine/dispatcher');
+                newState = appendAdditionalDamage(newState, {
+                    source: source.name,
+                    name: '空の虹が消えぬように',
                     damage: damageAmount,
-                    details: `空の虹が消えぬように (蓄積HP: ${storedHp})`
-                }];
+                    target: targetUnit.name,
+                    damageType: 'additional',
+                    isCrit: false,
+                    breakdownMultipliers: {
+                        baseDmg: damageAmount,
+                        critMult: 1,
+                        dmgBoostMult: 1,
+                        defMult: 1,
+                        resMult: 1,
+                        vulnMult: 1,
+                        brokenMult: 1
+                    }
+                });
 
                 newState = removeEffect(newState, unit.id, storageId);
 

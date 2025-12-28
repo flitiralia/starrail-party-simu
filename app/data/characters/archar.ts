@@ -141,6 +141,7 @@ export const archar: Character = {
                 hits: [{ multiplier: 2.0, toughnessReduction: 10 }],
             },
             energyGain: 5,
+            spGain: 1,
         },
         technique: {
             id: 'archar-tech',
@@ -547,8 +548,10 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 const sourceUnit = newState.registry.get(createUnitId(event.sourceId));
                 const targetUnit = event.targetId ? newState.registry.get(createUnitId(event.targetId)) : undefined;
 
-                // 発動条件: ソースが味方で、ターゲットが敵
-                if (sourceUnit && !sourceUnit.isEnemy && targetUnit?.isEnemy) {
+                // 発動条件: ソースが味方で、ターゲットが敵 (AoEの場合はtargetCountで判定)
+                const isEnemyTarget = targetUnit?.isEnemy || (!targetUnit && (event.targetCount || 0) > 0);
+
+                if (sourceUnit && !sourceUnit.isEnemy && isEnemyTarget) {
                     // Check Charge
                     const chargeBuff = archarUnit.effects.find(e => e.id === `archar-charge-${sourceUnitId}`);
                     const chargeCount = (chargeBuff as any)?.stackCount || 0;
@@ -583,9 +586,8 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                                 pendingActions: [...newState.pendingActions, followUpAction]
                             };
 
-                            // SP Recovery (Talent)
-                            newState = addSkillPoints(newState, 1);
-                            console.log('[Archer] Talent triggered: Charge consumed, FuA queued, SP +1');
+                            // SP Recovery (Talent) handled by spGain in ability definition
+                            console.log('[Archer] Talent triggered: Charge consumed, FuA queued');
                         }
                     }
                 }

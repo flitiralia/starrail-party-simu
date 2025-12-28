@@ -59,16 +59,16 @@ export const weWillMeetAgain: ILightConeData = {
 
                 const dmg = unit.stats.atk * multiplier; // 簡易版（ここでは防御/耐性計算なし）
 
-                return {
-                    ...state,
-                    log: [...state.log, {
-                        actionType: 'ADDITIONAL_DAMAGE',
-                        sourceId: unit.id,
-                        targetId: event.targetId,
-                        characterName: unit.name,
-                        details: `またお会いしましょう: 追加ダメージ ${Math.floor(dmg)} (推定)`
-                    }]
-                };
+                // 統合ログに付加ダメージを追記
+                const { appendAdditionalDamage } = require('@/app/simulator/engine/dispatcher');
+                return appendAdditionalDamage(state, {
+                    source: unit.name,
+                    name: 'またお会いしましょう',
+                    damage: dmg,
+                    target: state.registry.get(require('@/app/simulator/engine/unitId').createUnitId(event.targetId))?.name || event.targetId,
+                    damageType: 'additional',
+                    isCrit: false
+                });
             }
         }
     ]

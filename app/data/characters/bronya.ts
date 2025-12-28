@@ -1,4 +1,4 @@
-import { Character, StatKey } from '../../types/index';
+import { Character, StatKey, IAbility } from '../../types/index';
 import { IEventHandlerFactory, IEvent, GameState, Unit, ActionEvent, GeneralEvent, BeforeDamageCalcEvent } from '../../simulator/engine/types';
 import { UnitId, createUnitId } from '../../simulator/engine/unitId';
 
@@ -8,7 +8,7 @@ import { advanceAction, cleanse } from '../../simulator/engine/utils';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { publishEvent, applyUnifiedDamage, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
-import { calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
+import { calculateDamageWithCritInfo } from '../../simulator/damage';
 
 
 // --- 定数定義 ---
@@ -726,11 +726,27 @@ const onBasicAttackForE4 = (event: ActionEvent, state: GameState, sourceUnitId: 
     const followUpMult = basicMult * E4_DMG_MULT;
 
     // ダメージ計算
-    const baseDamage = unit.stats.atk * followUpMult;
-    const dmgCalcResult = calculateNormalAdditionalDamageWithCritInfo(
+    const fuaAction = {
+        type: 'FOLLOW_UP_ATTACK' as const,
+        sourceId: sourceUnitId,
+        targetId: target.id
+    };
+
+    const fuaAbility: IAbility = {
+        id: `bronya-e4-fua`,
+        name: '不意打ち',
+        type: 'Talent',
+        description: '',
+        damage: { type: 'simple', scaling: 'atk', hits: [{ multiplier: followUpMult, toughnessReduction: 0 }] }
+    };
+
+    // ブローニャのE4削靭値は通常攻撃と同じ（30）であることが多いが、ここでは0にしておく（既存実装維持）
+
+    const dmgCalcResult = calculateDamageWithCritInfo(
         unit,
         target,
-        baseDamage
+        fuaAbility,
+        fuaAction
     );
 
     // ダメージ適用

@@ -163,6 +163,19 @@ export interface GameState {
 }
 
 /**
+ * リソース変化エントリ（EP・蓄積値のbefore/after）
+ */
+export interface ResourceChangeEntry {
+    unitId: string;
+    unitName: string;
+    resourceType: 'ep' | 'accumulator' | 'sp';
+    resourceName: string; // EPの場合は'EP'、蓄積値の場合はキー名
+    before: number;
+    after: number;
+    change: number; // after - before
+}
+
+/**
  * 現在実行中アクションのログ蓄積用インターフェース
  */
 export interface CurrentActionLog {
@@ -185,6 +198,18 @@ export interface CurrentActionLog {
     shields: ShieldEntry[];
     dotDetonations: DotDetonationEntry[];
     equipmentEffects: EquipmentEffectEntry[];
+
+    // リソース変化（EP・蓄積値）
+    resourceChanges: ResourceChangeEntry[];
+
+    // アクション開始時のスナップショット（終了時の比較用）
+    resourceSnapshot?: {
+        ep: Map<string, { unitName: string; value: number }>;           // unitId -> EP
+        accumulators: Map<string, { unitName: string; key: string; value: number }>;  // effectId -> { key, value }
+        sp: number; // アクション開始時のSP
+    };
+
+    details?: string; // ログ詳細追記用
 }
 
 /**
@@ -233,7 +258,7 @@ export interface DamageOptions {
     additionalDamageEntry?: {
         source: string;        // ダメージ源（キャラクター名）
         name: string;          // ダメージ名
-        damageType?: 'additional' | 'break' | 'break_additional' | 'super_break' | 'dot';
+        damageType?: 'additional' | 'normal' | 'break' | 'break_additional' | 'super_break' | 'dot' | 'true_damage';
         isCrit?: boolean;      // 会心したか
         breakdownMultipliers?: {
             baseDmg: number;
@@ -441,6 +466,10 @@ export interface SkillAction {
     type: 'SKILL';
     sourceId: string;
     targetId: string;
+    // Optional properties for custom skills
+    abilityId?: string;
+    isAdditional?: boolean;
+    skipTalentTrigger?: boolean;
     flags?: {
         skipTurnEnd?: boolean;
     };

@@ -1,6 +1,7 @@
 import { GameState, Unit } from './types';
 import { addEffect, removeEffect } from './effectManager';
 import { UnitId, createUnitId } from './unitId';
+import { appendShield } from './dispatcher';
 
 
 /**
@@ -93,15 +94,24 @@ export function applyStackableShield(state: GameState, params: StackableShieldPa
                 ...newState.result.characterStats,
                 [source.id]: { ...currentStats, shieldProvided: currentStats.shieldProvided + finalValue }
             }
-        },
-        log: [...newState.log, {
-            actionType: 'シールド',
-            sourceId: source.id,
-            targetId: targetId,
-            shieldApplied: finalValue,
-            details: `${shieldName} (累積)`
-        }]
+        }
     };
+
+    // 統合ログにシールドを追記（個別ログは削除）
+    const targetUnit = newState.registry.get(createUnitId(targetId));
+    newState = appendShield(newState, {
+        source: source.name,
+        name: `${shieldName} (累積)`,
+        amount: finalValue,
+        target: targetUnit?.name || targetId,
+        breakdownMultipliers: {
+            baseShield: finalValue,
+            scalingStat: 'custom',
+            multiplier: 1,
+            flat: 0,
+            cap: cap
+        }
+    });
 
     return newState;
 }

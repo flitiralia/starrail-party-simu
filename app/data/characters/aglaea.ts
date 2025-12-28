@@ -12,13 +12,16 @@ import { IEffect } from '../../simulator/effect/types';
 import { Modifier } from '../../types/stats';
 import { createUnitId, UnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { applyUnifiedDamage, publishEvent } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, publishEvent, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { summonOrRefreshSpirit, getActiveSpirit, IMemorySpiritDefinition, dismissSpirit } from '../../simulator/engine/memorySpiritManager';
 import { applyHealing, advanceAction } from '../../simulator/engine/utils';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { insertSummonAfterOwner, removeSummon, createSummon } from '../../simulator/engine/summonManager';
-import { setUnitActionValue, updateActionQueue, calculateActionValue } from '../../simulator/engine/actionValue';
+import { setUnitActionValue, updateActionQueue, calculateActionValue, adjustActionValueForSpeedChange } from '../../simulator/engine/actionValue';
+import { calculateDamageWithCritInfo } from '../../simulator/damage';
+import { IAbility } from '../../types/index';
+import { recalculateUnitStats } from '../../simulator/statBuilder';
 
 // =============================================================================
 // 定数定義
@@ -190,6 +193,18 @@ export const aglaea: Character = {
             name: '星を纏いし烈剣',
             type: 'Technique',
             description: 'ラフトラを召喚し、敵全体に雷属性ダメージ。EP30回復。',
+        },
+
+        // 強化通常攻撃（至高の姿状態時）
+        enhancedBasic: {
+            id: 'aglaea-enhanced-basic',
+            name: '剣先より千の口付けを',
+            type: 'Basic ATK',
+            description: 'アグライアとラフトラが連携攻撃。単体にアグライア攻撃力200%+ラフトラ攻撃力200%、隣接に90%+90%の雷属性ダメージ。SPを回復しない。',
+            // ダメージはハンドラーで計算（アグライア+ラフトラの攻撃力を参照するため）
+            // 注意: SPを回復しない（ディスパッチャーでnoSpRecoverフラグを使用）
+            energyGain: 20,
+            targetType: 'blast',
         }
     },
 
@@ -435,27 +450,46 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
 
     const modifiers: Modifier[] = [{
         target: 'spd' as StatKey,
-        value: spdPerStack * newStacks,
+        value: spdPerStack,
         type: 'add' as const,
-        source: '精霊天賦'
+        source: '涙で鍛えし匠の躯'
     }];
 
     if (existingEffect) {
         const updatedEffect: IEffect = {
             ...existingEffect,
             stackCount: newStacks,
-            name: `速度アップ (${newStacks}/${maxStacks})`,
+            name: `涙で鍛えし匠の躯 (${newStacks}/${maxStacks})`,
             modifiers
         };
         const updatedEffects = spirit.effects.map(e => e.id === effectId ? updatedEffect : e);
-        return {
+
+        // ★ 古い速度を先に取得（元のspiritから）
+        const oldSpd = spirit.stats.spd;
+
+        let updatedSpirit = { ...spirit, effects: updatedEffects };
+
+        // Recalculate stats
+        updatedSpirit.stats = recalculateUnitStats(updatedSpirit, state.registry.toArray());
+
+        // Adjust AV if speed changed
+        if (oldSpd !== updatedSpirit.stats.spd) {
+            updatedSpirit = adjustActionValueForSpeedChange(updatedSpirit, oldSpd, updatedSpirit.stats.spd);
+        }
+
+        let newState = {
             ...state,
-            registry: state.registry.update(createUnitId(spiritId), u => ({ ...u, effects: updatedEffects }))
+            registry: state.registry.update(createUnitId(spiritId), u => updatedSpirit)
         };
+
+        // ★ ActionQueue も同期
+        newState = updateActionQueue(newState);
+
+        return newState;
     } else {
         const speedStackEffect: IEffect = {
             id: effectId,
-            name: `速度アップ (${newStacks}/${maxStacks})`,
+            name: `涙で鍛えし匠の躯 (${newStacks}/${maxStacks})`,
             category: 'BUFF',
             sourceUnitId: spiritId,
             durationType: 'PERMANENT',
@@ -485,8 +519,11 @@ const insertCountdown = (state: GameState, sourceUnitId: string): GameState => {
     const countdownId = getCountdownId(sourceUnitId);
     const countdownAV = calculateActionValue(100);  // 速度100固定
 
+    console.log(`[Aglaea Countdown] Inserting countdown. ID: ${countdownId}, AV: ${countdownAV}, CurrentTime: ${state.time}`);
+
     // 既存のカウントダウンがあれば何もしない
     if (state.registry.get(createUnitId(countdownId))) {
+        console.log(`[Aglaea Countdown] Countdown already exists, skipping`);
         return state;
     }
 
@@ -502,7 +539,13 @@ const insertCountdown = (state: GameState, sourceUnitId: string): GameState => {
             aggro: 0, break_effect: 0, effect_hit_rate: 0, effect_res: 0,
             energy_regen_rate: 0, outgoing_healing_boost: 0
         } as Unit['stats'],
-        baseStats: {} as Unit['baseStats'],
+        // ★baseStatsにもspdを設定（calculateFinalStats対策）
+        baseStats: {
+            hp: 1, atk: 0, def: 999999, spd: 100,
+            crit_rate: 0, crit_dmg: 0, max_ep: 0,
+            aggro: 0, break_effect: 0, effect_hit_rate: 0, effect_res: 0,
+            energy_regen_rate: 0, outgoing_healing_boost: 0
+        } as Unit['baseStats'],
         hp: 1,
         isEnemy: false,
         isSummon: true,  // 召喚物として登録
@@ -533,8 +576,23 @@ const insertCountdown = (state: GameState, sourceUnitId: string): GameState => {
     // カウントダウンをレジストリに追加
     let newState = insertSummonAfterOwner(state, countdownUnit, sourceUnitId);
 
+    // レジストリにカウントダウンが追加されたか確認
+    const insertedCountdown = newState.registry.get(createUnitId(countdownId));
+    console.log(`[Aglaea Countdown] Countdown in registry: ${!!insertedCountdown}, AV: ${insertedCountdown?.actionValue}`);
+
     // actionQueueに追加
     newState = updateActionQueue(newState);
+
+    // デバッグ: actionQueueを出力
+    console.log(`[Aglaea Countdown] ActionQueue length: ${newState.actionQueue.length}`);
+    const queueStr = newState.actionQueue.map((entry, idx) =>
+        `${idx}: ${entry.unitId} (AV: ${entry.actionValue.toFixed(2)})`
+    ).join(' | ');
+    console.log(`[Aglaea Countdown] ActionQueue: ${queueStr}`);
+
+    // カウントダウンがキューに含まれているか確認
+    const countdownInQueue = newState.actionQueue.find(e => e.unitId === countdownId || e.unitId.toString().includes('countdown'));
+    console.log(`[Aglaea Countdown] Countdown in queue: ${!!countdownInQueue}, ID searched: ${countdownId}`);
 
     return newState;
 };
@@ -590,6 +648,89 @@ const onBattleStart = (
         }
     }
 
+    // 秘技「星を纏いし烈剣」
+    const useTechnique = unit.config?.useTechnique !== false;
+    if (useTechnique) {
+        // 最新のユニット情報を取得
+        const source = newState.registry.get(createUnitId(sourceUnitId));
+        if (!source) return newState;
+
+        // 1. EP30回復
+        newState = addEnergyToUnit(newState, sourceUnitId, 30);
+
+        // 2. ラフトラを召喚
+        const definition = createRaftraDefinition(source, eidolonLevel);
+        const summonResult = summonOrRefreshSpirit(newState, source, definition);
+        newState = summonResult.state;
+
+        // ★ Config設定: アクションループを使用させるため
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(summonResult.spirit.id), u => ({
+                ...u,
+                config: {
+                    ...u.config,
+                    rotation: ['s'],
+                    rotationMode: 'spam_skill'
+                } as any
+            }))
+        };
+        const raftra = newState.registry.get(createUnitId(summonResult.spirit.id))!;
+
+        if (summonResult.isNew) {
+            // 精霊天賦「過ぎ去りし夏影」: 召喚時、行動順100%短縮
+            newState = advanceAction(newState, raftra.id as string, 1.0, 'percent');
+
+            // A4: 保持された速度スタックを適用
+            const preservedEffect = source.effects.find(e => e.id === EFFECT_IDS.PRESERVED_STACK(sourceUnitId));
+            if (preservedEffect && preservedEffect.stackCount && preservedEffect.stackCount > 0) {
+                for (let i = 0; i < preservedEffect.stackCount; i++) {
+                    newState = addSpeedStack(newState, raftra.id as string, eidolonLevel);
+                }
+                newState = removeEffect(newState, sourceUnitId, EFFECT_IDS.PRESERVED_STACK(sourceUnitId));
+            }
+        }
+
+        // 3. 敵全体に攻撃力100%分の雷属性ダメージを与える（削靭値20）
+        const enemies = newState.registry.getAliveEnemies();
+        const updatedSource = newState.registry.get(createUnitId(sourceUnitId));
+        if (updatedSource) {
+            const techniqueDmg = updatedSource.stats.atk * 1.0;  // 攻撃力100%
+
+            for (const enemy of enemies) {
+                // ダメージ適用
+                const result = applyUnifiedDamage(newState, updatedSource, enemy, techniqueDmg, {
+                    damageType: '秘技',
+                    details: '星を纏いし烈剣'
+                });
+                newState = result.state;
+
+                // 削靭値20を適用
+                const breakEfficiency = updatedSource.stats.break_effect || 0;
+                const toughnessReduction = 20 * (1 + breakEfficiency);
+                const updatedEnemy = newState.registry.get(createUnitId(enemy.id as string));
+                if (updatedEnemy && updatedEnemy.toughness > 0) {
+                    const newToughness = Math.max(0, updatedEnemy.toughness - toughnessReduction);
+                    newState = {
+                        ...newState,
+                        registry: newState.registry.update(createUnitId(enemy.id as string), e => ({
+                            ...e,
+                            toughness: newToughness
+                        }))
+                    };
+                }
+            }
+        }
+
+        // 4. ランダムな敵に「隙を縫う糸」を付与
+        const aliveEnemies = newState.registry.getAliveEnemies();
+        if (aliveEnemies.length > 0) {
+            const randomIndex = Math.floor(Math.random() * aliveEnemies.length);
+            const randomEnemy = aliveEnemies[randomIndex];
+            newState = applyThreadingPeril(newState, sourceUnitId, randomEnemy.id as string, eidolonLevel);
+        }
+    }
+
     return newState;
 };
 
@@ -618,7 +759,20 @@ const onSkillUsed = (
     const definition = createRaftraDefinition(source, eidolonLevel);
     const summonResult = summonOrRefreshSpirit(newState, source, definition);
     newState = summonResult.state;
-    const raftra = summonResult.spirit;
+
+    // ★ Config設定: アクションループを使用させるため
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(summonResult.spirit.id), u => ({
+            ...u,
+            config: {
+                ...u.config,
+                rotation: ['s'],
+                rotationMode: 'spam_skill'
+            } as any
+        }))
+    };
+    const raftra = newState.registry.get(createUnitId(summonResult.spirit.id))!;
 
     if (summonResult.isNew) {
         // 精霊天賦「過ぎ去りし夏影」: 召喚時、行動順100%短縮
@@ -689,7 +843,20 @@ const onUltimateUsed = (
         // 新規召喚
         const summonResult = summonOrRefreshSpirit(newState, source, definition);
         newState = summonResult.state;
-        const raftra = summonResult.spirit;
+
+        // ★ Config設定: アクションループを使用させるため
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(summonResult.spirit.id), u => ({
+                ...u,
+                config: {
+                    ...u.config,
+                    rotation: ['s'],
+                    rotationMode: 'spam_skill'
+                } as any
+            }))
+        };
+        const raftra = newState.registry.get(createUnitId(summonResult.spirit.id))!;
 
         // 精霊天賦「過ぎ去りし夏影」: 召喚時、行動順100%短縮
         newState = advanceAction(newState, raftra.id as string, 1.0, 'percent');
@@ -719,10 +886,28 @@ const onUltimateUsed = (
         durationType: 'PERMANENT',
         duration: -1,
         modifiers: spdModifiers,
+        tags: ['ENHANCED_BASIC', 'SKILL_SILENCE'],  // 強化通常攻撃使用、スキル発動不可
         apply: (t: Unit, s: GameState) => s,
         remove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, supremeStanceEffect);
+
+    // ラフトラに行動制限系デバフ抵抗を付与（至高の姿中）
+    if (raftra) {
+        const ccImmuneEffect: IEffect = {
+            id: `aglaea-raftra-cc-immune-${sourceUnitId}`,
+            name: 'デバフ抵抗（至高の姿）',
+            category: 'BUFF',
+            sourceUnitId: sourceUnitId,
+            durationType: 'LINKED',
+            duration: 0,
+            linkedEffectId: EFFECT_IDS.SUPREME_STANCE(sourceUnitId),
+            tags: ['CC_IMMUNE'],  // 行動制限系デバフに抵抗
+            apply: (t: Unit, s: GameState) => s,
+            remove: (t: Unit, s: GameState) => s
+        };
+        newState = addEffect(newState, raftra.id as string, ccImmuneEffect);
+    }
 
     // E6: 耐性貫通+20%
     if (eidolonLevel >= 6 && raftra) {
@@ -760,6 +945,13 @@ const onUltimateUsed = (
     // 即座に行動
     newState = advanceAction(newState, sourceUnitId, 1.0, 'percent');
 
+    // ★デバッグ: advanceAction後のカウントダウン状態を確認
+    const countdownId = getCountdownId(sourceUnitId);
+    const countdownAfterAdvance = newState.registry.get(createUnitId(countdownId));
+    console.log(`[Aglaea Ultimate] After advanceAction - Countdown AV in registry: ${countdownAfterAdvance?.actionValue}`);
+    const countdownInQueue = newState.actionQueue.find(e => e.unitId.toString().includes('countdown'));
+    console.log(`[Aglaea Ultimate] After advanceAction - Countdown AV in queue: ${countdownInQueue?.actionValue}`);
+
     return newState;
 };
 
@@ -774,7 +966,9 @@ const onTurnStart = (
 ): GameState => {
     // カウントダウンのターンが来た場合
     const countdownId = getCountdownId(sourceUnitId);
+    console.log(`[Aglaea onTurnStart] event.sourceId=${event.sourceId}, countdownId=${countdownId}, match=${event.sourceId === countdownId}, time=${state.time}`);
     if (event.sourceId === countdownId) {
+        console.log(`[Aglaea onTurnStart] Countdown turn detected at time ${state.time}! Removing Supreme Stance.`);
         let newState = state;
 
         // ラフトラ退場
@@ -829,56 +1023,21 @@ const onActionComplete = (
     eidolonLevel: number
 ): GameState => {
     const raftra = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
-    if (!raftra) return state;
+    if (!raftra && event.sourceId !== sourceUnitId) return state;
 
     // アグライアまたはラフトラの攻撃かチェック
-    const isAglaaeaAttack = event.sourceId === sourceUnitId && (event.subType === 'BASIC' || event.subType === 'SKILL');
-    const isRaftraAttack = event.sourceId === raftra.id;
+    // Action Completeでは subType は Action.type (BASIC_ATTACK, SKILL, etc)
+    const subType = event.subType || '';
+    const isAglaaeaAttack = event.sourceId === sourceUnitId &&
+        (subType === 'BASIC_ATTACK' || subType === 'ENHANCED_BASIC_ATTACK' || subType === 'SKILL');
+    const isRaftraAttack = raftra && event.sourceId === raftra.id;
 
     if (!isAglaaeaAttack && !isRaftraAttack) return state;
 
     let newState = state;
 
-    // 隙を縫う糸ターゲット確認
-    const threadingPerilTargetId = getThreadingPerilTarget(newState, sourceUnitId);
-
-    // 攻撃対象に隙を縫う糸を付与（アグライアの攻撃時）
-    if (isAglaaeaAttack && event.targetId) {
-        const target = newState.registry.get(createUnitId(event.targetId));
-        if (target?.isEnemy) {
-            newState = applyThreadingPeril(newState, sourceUnitId, event.targetId, eidolonLevel);
-        }
-    }
-
-    // 隙を縫う糸の敵を攻撃した場合
-    if (threadingPerilTargetId && event.targetId === threadingPerilTargetId) {
-        // 天賦: 付加ダメージ
-        // E5: 天賦Lv+2
-        const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
-        const additionalDmgMult = getLeveledValue(ABILITY_VALUES.talentAdditionalDmg, talentLevel);
-
-        const source = newState.registry.get(createUnitId(sourceUnitId));
-        const target = newState.registry.get(createUnitId(threadingPerilTargetId));
-        if (source && target) {
-            const additionalDmg = source.stats.atk * additionalDmgMult;
-            const result = applyUnifiedDamage(newState, source, target, additionalDmg, {
-                damageType: '付加ダメージ',
-                details: '天賦: 薔薇色の指先'
-            });
-            newState = result.state;
-        }
-
-        // 精霊天賦: 速度スタック獲得（隙を縫う糸の敵を攻撃後）
-        if (isRaftraAttack || (isAglaaeaAttack && eidolonLevel >= 4)) {
-            // E4: アグライア攻撃後もラフトラが速度スタック獲得
-            newState = addSpeedStack(newState, raftra.id as string, eidolonLevel);
-        }
-
-        // E1: EP+20
-        if (eidolonLevel >= 1) {
-            newState = addEnergyToUnit(newState, sourceUnitId, 20);
-        }
-    }
+    // Note: Threading Peril application and Additional Damage logic moved to ON_ATTACK
+    // because ON_ACTION_COMPLETE lacks targetId access.
 
     // E2: 防御無視スタック
     if (eidolonLevel >= 2 && (isAglaaeaAttack || isRaftraAttack)) {
@@ -926,34 +1085,36 @@ const onActionComplete = (
             }
 
             // ラフトラにも防御無視を適用
-            const raftraEffectId = `${effectId}-raftra`;
-            const raftraExistingEffect = raftra.effects.find(e => e.id === raftraEffectId);
-            if (raftraExistingEffect) {
-                const updatedEffect: IEffect = {
-                    ...raftraExistingEffect,
-                    stackCount: newStacks,
-                    modifiers: defIgnoreModifiers
-                };
-                const updatedEffects = raftra.effects.map(e => e.id === raftraEffectId ? updatedEffect : e);
-                newState = {
-                    ...newState,
-                    registry: newState.registry.update(createUnitId(raftra.id as string), u => ({ ...u, effects: updatedEffects }))
-                };
-            } else {
-                const raftraDefIgnoreEffect: IEffect = {
-                    id: raftraEffectId,
-                    name: `防御無視 (${newStacks}/${E2_MAX_STACKS})`,
-                    category: 'BUFF',
-                    sourceUnitId: sourceUnitId,
-                    durationType: 'PERMANENT',
-                    duration: -1,
-                    stackCount: newStacks,
-                    maxStacks: E2_MAX_STACKS,
-                    modifiers: defIgnoreModifiers,
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
-                };
-                newState = addEffect(newState, raftra.id as string, raftraDefIgnoreEffect);
+            if (raftra) {
+                const raftraEffectId = `${effectId}-raftra`;
+                const raftraExistingEffect = raftra.effects.find(e => e.id === raftraEffectId);
+                if (raftraExistingEffect) {
+                    const updatedEffect: IEffect = {
+                        ...raftraExistingEffect,
+                        stackCount: newStacks,
+                        modifiers: defIgnoreModifiers
+                    };
+                    const updatedEffects = raftra.effects.map(e => e.id === raftraEffectId ? updatedEffect : e);
+                    newState = {
+                        ...newState,
+                        registry: newState.registry.update(createUnitId(raftra.id as string), u => ({ ...u, effects: updatedEffects }))
+                    };
+                } else {
+                    const raftraDefIgnoreEffect: IEffect = {
+                        id: raftraEffectId,
+                        name: `防御無視 (${newStacks}/${E2_MAX_STACKS})`,
+                        category: 'BUFF',
+                        sourceUnitId: sourceUnitId,
+                        durationType: 'PERMANENT',
+                        duration: -1,
+                        stackCount: newStacks,
+                        maxStacks: E2_MAX_STACKS,
+                        modifiers: defIgnoreModifiers,
+                        apply: (t: Unit, s: GameState) => s,
+                        remove: (t: Unit, s: GameState) => s
+                    };
+                    newState = addEffect(newState, raftra.id as string, raftraDefIgnoreEffect);
+                }
             }
         }
     }
@@ -980,6 +1141,204 @@ const onOtherSkillUsed = (
     let newState = removeEffect(state, sourceUnitId, EFFECT_IDS.E2_DEF_IGNORE(sourceUnitId));
     if (raftra) {
         newState = removeEffect(newState, raftra.id as string, `${EFFECT_IDS.E2_DEF_IGNORE(sourceUnitId)}-raftra`);
+    }
+
+    return newState;
+};
+
+/**
+ * 強化通常攻撃「剣先より千の口付けを」
+ * アグライアとラフトラが連携攻撃を行う
+ * ログ統合: すべてのダメージを統合ログに追記
+ * 通常攻撃ダメージブースト適用: calculateDamageWithCritInfoを使用
+ */
+const onEnhancedBasicAttack = (
+    event: ActionEvent,
+    state: GameState,
+    sourceUnitId: string,
+    eidolonLevel: number
+): GameState => {
+    if (event.sourceId !== sourceUnitId) return state;
+
+    const source = state.registry.get(createUnitId(sourceUnitId));
+    if (!source) return state;
+
+    const raftra = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
+    if (!raftra) return state;
+
+    let newState = state;
+
+    // E3: 通常攻撃Lv+1
+    const basicLevel = calculateAbilityLevel(eidolonLevel, 3, 'Basic');
+    const dmgValues = getLeveledValue(ABILITY_VALUES.enhancedBasicDmg, basicLevel);
+
+    // メインターゲット
+    const mainTargetId = event.targetId;
+    if (!mainTargetId) return state;
+
+    const mainTarget = newState.registry.get(createUnitId(mainTargetId));
+    if (!mainTarget) return state;
+
+    // 強化通常攻撃アクション（通常攻撃ダメージブースト適用のため）
+    const enhancedBasicAction = {
+        type: 'ENHANCED_BASIC_ATTACK' as const,
+        sourceId: sourceUnitId,
+        targetId: mainTargetId
+    };
+
+    // 単体ダメージ: アグライア攻撃力200% + ラフトラ攻撃力200%
+    // アグライアのダメージを計算（通常攻撃ダメージブースト適用）
+    const aglaaeaMainAbility: IAbility = {
+        id: 'aglaea-enhanced-basic-main',
+        name: '剣先より千の口付けを',
+        type: 'Basic ATK',
+        description: '',
+        damage: {
+            type: 'simple',
+            scaling: 'atk',
+            hits: [{ multiplier: dmgValues.main, toughnessReduction: 0 }]
+        }
+    };
+    const aglaaeaMainCalc = calculateDamageWithCritInfo(source, mainTarget, aglaaeaMainAbility, enhancedBasicAction);
+    const aglaaeaResult = applyUnifiedDamage(newState, source, mainTarget, aglaaeaMainCalc.damage, {
+        damageType: '強化通常攻撃',
+        details: '剣先より千の口付けを（アグライア）',
+        skipLog: true, // 統合ログに追記するため個別ログはスキップ
+        additionalDamageEntry: {
+            source: 'アグライア',
+            name: '連携攻撃（単体）',
+            damageType: 'normal',
+            isCrit: aglaaeaMainCalc.isCrit,
+            breakdownMultipliers: aglaaeaMainCalc.breakdownMultipliers
+        }
+    });
+    newState = aglaaeaResult.state;
+
+    // ラフトラのダメージを適用
+    const updatedMainTarget = newState.registry.get(createUnitId(mainTargetId));
+    if (updatedMainTarget && updatedMainTarget.hp > 0) {
+        const raftraMainAbility: IAbility = {
+            id: 'raftra-enhanced-basic-main',
+            name: '剣先より千の口付けを',
+            type: 'Basic ATK',
+            description: '',
+            damage: {
+                type: 'simple',
+                scaling: 'atk',
+                hits: [{ multiplier: dmgValues.main, toughnessReduction: 0 }]
+            }
+        };
+        const raftraMainCalc = calculateDamageWithCritInfo(raftra, updatedMainTarget, raftraMainAbility, enhancedBasicAction);
+        const raftraResult = applyUnifiedDamage(newState, raftra, updatedMainTarget, raftraMainCalc.damage, {
+            damageType: '強化通常攻撃',
+            details: '剣先より千の口付けを（ラフトラ）',
+            skipLog: true, // 統合ログに追記するため個別ログはスキップ
+            additionalDamageEntry: {
+                source: 'ラフトラ',
+                name: '連携攻撃（単体）',
+                damageType: 'normal',
+                isCrit: raftraMainCalc.isCrit,
+                breakdownMultipliers: raftraMainCalc.breakdownMultipliers
+            }
+        });
+        newState = raftraResult.state;
+    }
+
+    // 削靭値（単体20）
+    const breakEfficiency = source.stats.break_effect || 0;
+    const mainToughnessReduction = 20 * (1 + breakEfficiency);
+    const freshMainTarget = newState.registry.get(createUnitId(mainTargetId));
+    if (freshMainTarget && freshMainTarget.toughness > 0) {
+        const newToughness = Math.max(0, freshMainTarget.toughness - mainToughnessReduction);
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(mainTargetId), e => ({
+                ...e,
+                toughness: newToughness
+            }))
+        };
+    }
+
+    // 隣接ターゲット
+    const enemies = newState.registry.getAliveEnemies();
+    const mainIndex = enemies.findIndex(e => e.id === mainTargetId);
+    const adjacentIndices = [mainIndex - 1, mainIndex + 1].filter(i => i >= 0 && i < enemies.length);
+
+    for (const adjIndex of adjacentIndices) {
+        const adjEnemy = enemies[adjIndex];
+        if (!adjEnemy) continue;
+
+        // 隣接ダメージ: アグライア攻撃力90% + ラフトラ攻撃力90%
+        // アグライアのダメージを計算（通常攻撃ダメージブースト適用）
+        const aglaaeaAdjAbility: IAbility = {
+            id: 'aglaea-enhanced-basic-adj',
+            name: '剣先より千の口付けを',
+            type: 'Basic ATK',
+            description: '',
+            damage: {
+                type: 'simple',
+                scaling: 'atk',
+                hits: [{ multiplier: dmgValues.adj, toughnessReduction: 0 }]
+            }
+        };
+        const aglaaeaAdjCalc = calculateDamageWithCritInfo(source, adjEnemy, aglaaeaAdjAbility, enhancedBasicAction);
+        const adjAglaaeaResult = applyUnifiedDamage(newState, source, adjEnemy, aglaaeaAdjCalc.damage, {
+            damageType: '強化通常攻撃',
+            details: '剣先より千の口付けを（アグライア・隣接）',
+            skipLog: true, // 統合ログに追記するため個別ログはスキップ
+            additionalDamageEntry: {
+                source: 'アグライア',
+                name: '連携攻撃（隣接）',
+                damageType: 'normal',
+                isCrit: aglaaeaAdjCalc.isCrit,
+                breakdownMultipliers: aglaaeaAdjCalc.breakdownMultipliers
+            }
+        });
+        newState = adjAglaaeaResult.state;
+
+        // ラフトラのダメージ
+        const updatedAdjEnemy = newState.registry.get(createUnitId(adjEnemy.id as string));
+        if (updatedAdjEnemy && updatedAdjEnemy.hp > 0) {
+            const raftraAdjAbility: IAbility = {
+                id: 'raftra-enhanced-basic-adj',
+                name: '剣先より千の口付けを',
+                type: 'Basic ATK',
+                description: '',
+                damage: {
+                    type: 'simple',
+                    scaling: 'atk',
+                    hits: [{ multiplier: dmgValues.adj, toughnessReduction: 0 }]
+                }
+            };
+            const raftraAdjCalc = calculateDamageWithCritInfo(raftra, updatedAdjEnemy, raftraAdjAbility, enhancedBasicAction);
+            const adjRaftraResult = applyUnifiedDamage(newState, raftra, updatedAdjEnemy, raftraAdjCalc.damage, {
+                damageType: '強化通常攻撃',
+                details: '剣先より千の口付けを（ラフトラ・隣接）',
+                skipLog: true, // 統合ログに追記するため個別ログはスキップ
+                additionalDamageEntry: {
+                    source: 'ラフトラ',
+                    name: '連携攻撃（隣接）',
+                    damageType: 'normal',
+                    isCrit: raftraAdjCalc.isCrit,
+                    breakdownMultipliers: raftraAdjCalc.breakdownMultipliers
+                }
+            });
+            newState = adjRaftraResult.state;
+        }
+
+        // 削靭値（隣接10）
+        const adjToughnessReduction = 10 * (1 + breakEfficiency);
+        const freshAdjEnemy = newState.registry.get(createUnitId(adjEnemy.id as string));
+        if (freshAdjEnemy && freshAdjEnemy.toughness > 0) {
+            const newToughness = Math.max(0, freshAdjEnemy.toughness - adjToughnessReduction);
+            newState = {
+                ...newState,
+                registry: newState.registry.update(createUnitId(adjEnemy.id as string), e => ({
+                    ...e,
+                    toughness: newToughness
+                }))
+            };
+        }
     }
 
     return newState;
@@ -1018,6 +1377,95 @@ const onBeforeDamageCalculation = (
     };
 };
 
+/**
+ * 攻撃時（ターゲットが存在するタイミングでの処理）
+ */
+const onAttack = (
+    event: IEvent,
+    state: GameState,
+    sourceUnitId: string,
+    eidolonLevel: number
+): GameState => {
+    const raftra = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
+
+    // Check Action Type
+    const evt = event as any;
+    const subType = evt.subType || '';
+
+    // アグライアの攻撃: 通常、強化通常、スキル
+    const isAglaaeaAttack = evt.sourceId === sourceUnitId &&
+        (subType === 'BASIC_ATTACK' || subType === 'ENHANCED_BASIC_ATTACK' || subType === 'SKILL');
+
+    // ラフトラの攻撃
+    const isRaftraAttack = raftra && evt.sourceId === raftra.id;
+
+    if (!isAglaaeaAttack && !isRaftraAttack) return state;
+
+    let newState = state;
+
+    // 1. 攻撃対象に隙を縫う糸を付与（アグライアの攻撃時）
+    if (isAglaaeaAttack && evt.targetId) {
+        const target = newState.registry.get(createUnitId(evt.targetId));
+        if (target?.isEnemy) {
+            newState = applyThreadingPeril(newState, sourceUnitId, evt.targetId, eidolonLevel);
+        }
+    }
+
+    // 2. 隙を縫う糸ターゲット確認（付与後の状態を取得）
+    const threadingPerilTargetId = getThreadingPerilTarget(newState, sourceUnitId);
+
+    // 隙を縫う糸の敵を攻撃した場合
+    if (threadingPerilTargetId && evt.targetId === threadingPerilTargetId) {
+        // 天賦: 付加ダメージ
+        // E5: 天賦Lv+2
+        const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
+        const additionalDmgMult = getLeveledValue(ABILITY_VALUES.talentAdditionalDmg, talentLevel);
+
+        const source = newState.registry.get(createUnitId(evt.sourceId || sourceUnitId)); // Use actual source (Aglaea or Raftra) - Wait, spec says Aglaea deals DMG?
+        // Spec: "Additionally deal Aglaea's ATK% Lightning Additional Dmg"
+        // So source is Aglaea always for the damage calculation?
+        // Line 995 in original: Check sourceUnitId
+        const damageSource = newState.registry.get(createUnitId(sourceUnitId));
+
+        if (damageSource) {
+            const target = newState.registry.get(createUnitId(threadingPerilTargetId));
+            if (target) {
+                const additionalDmg = damageSource.stats.atk * additionalDmgMult;
+                const result = applyUnifiedDamage(newState, damageSource, target, additionalDmg, {
+                    damageType: '付加ダメージ',
+                    details: '天賦: 薔薇色の指先',
+                    skipLog: true  // 統合ログはappendAdditionalDamageで追加するためスキップ
+                });
+                newState = result.state;
+
+                // ★ 統合ログに付加ダメージを追加
+                newState = appendAdditionalDamage(newState, {
+                    source: damageSource.name,
+                    name: '薔薇色の指先',
+                    damage: result.totalDamage,
+                    target: target.name,
+                    damageType: 'additional',
+                    isCrit: result.isCrit,
+                    breakdownMultipliers: result.breakdownMultipliers
+                });
+            }
+        }
+
+        // 精霊天賦: 速度スタック獲得（隙を縫う糸の敵を攻撃後）
+        if (raftra && (isRaftraAttack || (isAglaaeaAttack && eidolonLevel >= 4))) {
+            // E4: アグライア攻撃後もラフトラが速度スタック獲得
+            newState = addSpeedStack(newState, raftra.id as string, eidolonLevel);
+        }
+
+        // E1: EP+20 (Aglaea or Raftra attacks)
+        if (eidolonLevel >= 1) {
+            newState = addEnergyToUnit(newState, sourceUnitId, 20);
+        }
+    }
+
+    return newState;
+};
+
 // =============================================================================
 // ハンドラーファクトリ
 // =============================================================================
@@ -1037,6 +1485,8 @@ export const aglaeaHandlerFactory: IEventHandlerFactory = (
                 'ON_TURN_START',
                 'ON_ACTION_COMPLETE',
                 'ON_BEFORE_DAMAGE_CALCULATION',
+                'ON_ATTACK',
+                'ON_BASIC_ATTACK',  // 強化通常攻撃はisEnhancedフラグでチェック
             ],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
@@ -1062,6 +1512,7 @@ export const aglaeaHandlerFactory: IEventHandlerFactory = (
             }
 
             if (event.type === 'ON_TURN_START') {
+                console.log(`[Aglaea Handler] ON_TURN_START received. sourceUnitId=${sourceUnitId}, event.sourceId=${(event as GeneralEvent).sourceId}`);
                 return onTurnStart(event as GeneralEvent, state, sourceUnitId, eidolonLevel);
             }
 
@@ -1071,6 +1522,18 @@ export const aglaeaHandlerFactory: IEventHandlerFactory = (
 
             if (event.type === 'ON_BEFORE_DAMAGE_CALCULATION') {
                 return onBeforeDamageCalculation(event as BeforeDamageCalcEvent, state, sourceUnitId, eidolonLevel);
+            }
+
+            if (event.type === 'ON_ATTACK') {
+                return onAttack(event, state, sourceUnitId, eidolonLevel);
+            }
+
+            if (event.type === 'ON_BASIC_ATTACK') {
+                // isEnhancedフラグで強化通常攻撃かどうかをチェック
+                const basicEvent = event as ActionEvent & { isEnhanced?: boolean };
+                if (basicEvent.isEnhanced) {
+                    return onEnhancedBasicAttack(basicEvent, state, sourceUnitId, eidolonLevel);
+                }
             }
 
             return state;

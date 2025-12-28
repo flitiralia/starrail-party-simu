@@ -72,7 +72,8 @@ export const subscribeForMore: ILightConeData = {
                     actionType = (event as any).actionType;
                 }
 
-                if (actionType !== 'BASIC_ATTACK' && actionType !== 'SKILL' && actionType !== 'ENHANCED_BASIC_ATTACK') {
+                // 強化通常攻撃もBASIC_ATTACKとして来る
+                if (actionType !== 'BASIC_ATTACK' && actionType !== 'SKILL') {
                     return state;
                 }
 

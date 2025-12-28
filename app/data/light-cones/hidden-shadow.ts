@@ -58,18 +58,31 @@ export const hiddenShadow: ILightConeData = {
                     const dmg = unit.stats.atk * mult;
 
                     // バフを消費
-                    const cleanState = removeEffect(state, unit.id, buffId);
+                    let cleanState = removeEffect(state, unit.id, buffId);
 
-                    return {
-                        ...cleanState,
-                        log: [...cleanState.log, {
-                            actionType: 'ADDITIONAL_DAMAGE',
-                            sourceId: unit.id,
-                            targetId: (event as any).targetId,
-                            characterName: unit.name,
-                            details: `匿影: 追加ダメージ ${Math.floor(dmg)}`
-                        }]
-                    };
+                    // 統合ログに付加ダメージを追記
+                    const { appendAdditionalDamage } = require('@/app/simulator/engine/dispatcher');
+                    const { createUnitId } = require('@/app/simulator/engine/unitId');
+                    const targetUnit = cleanState.registry.get(createUnitId((event as any).targetId));
+                    cleanState = appendAdditionalDamage(cleanState, {
+                        source: unit.name,
+                        name: '匿影',
+                        damage: dmg,
+                        target: targetUnit?.name || (event as any).targetId,
+                        damageType: 'additional',
+                        isCrit: false,
+                        breakdownMultipliers: {
+                            baseDmg: dmg,
+                            critMult: 1,
+                            dmgBoostMult: 1,
+                            defMult: 1,
+                            resMult: 1,
+                            vulnMult: 1,
+                            brokenMult: 1
+                        }
+                    });
+
+                    return cleanState;
                 }
                 return state;
             }

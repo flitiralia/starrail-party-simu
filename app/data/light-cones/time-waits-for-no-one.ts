@@ -121,16 +121,28 @@ export const timeWaitsForNoOne: ILightConeData = {
                         const newHp = Math.max(0, targetUnit.hp - dmg);
                         newState = {
                             ...newState,
-                            registry: newState.registry.update(targetUnit.id, u => ({ ...u, hp: newHp })),
-                            log: [...newState.log, {
-                                actionType: '付加ダメージ',
-                                sourceId: unit.id,
-                                characterName: unit.name,
-                                targetId: targetUnit.id,
-                                damage: dmg,
-                                details: `時節は居らず: 治癒量(${Math.floor(recordedHealing)})の${multiplier * 100}% = ${Math.floor(dmg)}ダメージ`
-                            }]
+                            registry: newState.registry.update(targetUnit.id, u => ({ ...u, hp: newHp }))
                         };
+
+                        // 統合ログに付加ダメージを追記
+                        const { appendAdditionalDamage } = require('../../simulator/engine/dispatcher');
+                        newState = appendAdditionalDamage(newState, {
+                            source: unit.name,
+                            name: '時節は居らず',
+                            damage: dmg,
+                            target: targetUnit.name,
+                            damageType: 'additional',
+                            isCrit: false,
+                            breakdownMultipliers: {
+                                baseDmg: dmg,
+                                critMult: 1,
+                                dmgBoostMult: 1,
+                                defMult: 1,
+                                resMult: 1,
+                                vulnMult: 1,
+                                brokenMult: 1
+                            }
+                        });
                     }
 
                     // 治癒記録をリセット？

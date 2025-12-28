@@ -390,7 +390,10 @@ export default function PartySlotCard({
             {/* Skill Target (Conditional) */}
             {config && character.abilities.skill.manualTargeting && (
                 <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-                    <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>スキル対象:</label>
+                    <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>
+                        {/* 記憶開拓者向けにラベルをカスタマイズ */}
+                        {character.id === 'trailblazer-remembrance' ? 'あたしが助ける！対象:' : 'スキル対象:'}
+                    </label>
                     <select
                         style={selectorStyle}
                         value={config.skillTargetId || ''}
@@ -401,7 +404,7 @@ export default function PartySlotCard({
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <option value="">(自分/デフォルト)</option>
+                        <option value="">{character.id === 'trailblazer-remembrance' ? '(ATK最高の味方)' : '(自分/デフォルト)'}</option>
                         {partyMembers
                             .filter(m => m.id !== character.id) // Exclude self if desired, or keep? Usually targets other ally.
                             .map(m => (

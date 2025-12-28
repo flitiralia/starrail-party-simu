@@ -69,7 +69,7 @@ describe('Aglaea Scenario Test', () => {
         const partyConfig: PartyConfig = {
             members: characters.map(char => ({
                 character: char,
-                config: { rotation: [], rotationMode: 'sequence', ultStrategy: 'immediate', ultCooldown: 0 },
+                config: { rotation: [], rotationMode: 'sequence', ultStrategy: 'immediate', ultCooldown: 0, useTechnique: false },
                 enabled: true,
                 eidolonLevel: 0
             }))
@@ -249,6 +249,51 @@ describe('Aglaea Scenario Test', () => {
             // A6 trace should have recovered EP to 50%
             // Since initial EP is 0, it should be at 175 (50% of 350)
             expect(aglaeaUnit?.ep).toBeGreaterThanOrEqual(175);
+        });
+    });
+
+    describe('Countdown (Supreme Stance)', () => {
+        it('should trigger countdown turn and remove Supreme Stance', () => {
+            let state = initialState;
+
+            // Set EP to max
+            state = {
+                ...state,
+                registry: state.registry.update(createUnitId(AGLAEA_ID), u => ({ ...u, ep: 350 }))
+            };
+
+            // Use Ultimate
+            state = { ...state, currentTurnOwnerId: createUnitId(AGLAEA_ID) };
+            state = dispatch(state, { type: 'ULTIMATE', sourceId: AGLAEA_ID, targetId: AGLAEA_ID });
+
+            // Verify Supreme Stance is applied
+            const aglaeaAfterUlt = getAglaea(state);
+            expect(aglaeaAfterUlt?.effects.some(e => e.name === '至高の姿')).toBe(true);
+
+            // Verify countdown exists
+            const countdownId = `aglaea-countdown-${AGLAEA_ID}`;
+            const countdown = state.registry.get(createUnitId(countdownId));
+            expect(countdown).toBeDefined();
+
+            console.log('\n=== After Ultimate ===');
+            console.log('Action Queue:');
+            state.actionQueue.forEach((entry, idx) => {
+                console.log(`  ${idx}: ${entry.unitId} (AV: ${entry.actionValue.toFixed(2)})`);
+            });
+
+            // Simulate countdown turn by publishing ON_TURN_START with countdown sourceId
+            state = publishEvent(state, { type: 'ON_TURN_START', sourceId: countdownId, value: 0 });
+
+            console.log('\n=== After Countdown Turn ===');
+            const aglaeaAfterCountdown = getAglaea(state);
+            console.log('Supreme Stance effect:', aglaeaAfterCountdown?.effects.some(e => e.name === '至高の姿'));
+
+            // Verify Supreme Stance is removed
+            expect(aglaeaAfterCountdown?.effects.some(e => e.name === '至高の姿')).toBe(false);
+
+            // Verify countdown is removed
+            const countdownAfter = state.registry.get(createUnitId(countdownId));
+            expect(countdownAfter).toBeUndefined();
         });
     });
 });

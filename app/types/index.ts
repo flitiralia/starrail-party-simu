@@ -147,6 +147,7 @@ export interface IAbility {
   shield?: { multiplier: number, flat: number, scaling: 'atk' | 'def' | 'hp', duration?: number };
   energyGain?: number;
   spCost?: number; // SP cost for this ability (default: 1 for skills)
+  spGain?: number; // SP gain for this ability (default: 1 for basic, 0 for enhanced basic)
 
   // Ability Effects (Debuffs, Buffs, etc.)
   effects?: {
@@ -396,10 +397,12 @@ export interface HitDetail {
  */
 export type AdditionalDamageType =
   | 'additional'       // 付加ダメージ（会心あり、与ダメ適用）
+  | 'normal'           // 通常ダメージ（連携攻撃など）
   | 'break'            // 弱点撃破ダメージ（撃破特効適用）
   | 'break_additional' // 撃破付加ダメージ（凍結・もつれ、撃破特効適用）
   | 'super_break'      // 超撃破ダメージ
-  | 'dot';             // 持続ダメージ
+  | 'dot'              // 持続ダメージ
+  | 'true_damage';     // 確定ダメージ（防御・耐性・会心を無視）
 
 export interface AdditionalDamageEntry {
   source: string;        // "トリビー"
@@ -511,6 +514,19 @@ export interface EquipmentEffectEntry {
 }
 
 /**
+ * リソース変化エントリ（EP・蓄積値のbefore/after）
+ */
+export interface ResourceChangeEntry {
+  unitId: string;
+  unitName: string;
+  resourceType: 'ep' | 'accumulator' | 'sp';
+  resourceName: string; // EPの場合は'EP'、蓄積値の場合はキー名
+  before: number;
+  after: number;
+  change: number; // after - before
+}
+
+/**
  * アクションログの詳細情報（トグル内に表示）
  */
 export interface ActionLogDetails {
@@ -537,6 +553,9 @@ export interface ActionLogDetails {
 
   // 装備効果（光円錐、遺物、オーナメント）
   equipmentEffects?: EquipmentEffectEntry[];
+
+  // リソース変化（EP・蓄積値）
+  resourceChanges?: ResourceChangeEntry[];
 }
 
 /**
@@ -603,4 +622,7 @@ export interface SimulationLogEntry {
 
   // 各ヒットの詳細情報（後方互換性）
   hitDetails?: HitDetail[];
+
+  // アクションキュー情報（デバッグ用）
+  actionQueue?: Array<{ unitName: string; actionValue: number }>;
 }

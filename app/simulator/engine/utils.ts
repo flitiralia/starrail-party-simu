@@ -112,25 +112,18 @@ export function applyHealing(
         }
     };
 
-    if (!skipLog) {
-        newState.log = [...newState.log, {
-            actionType: '回復',
-            sourceId: sourceId,
-            characterName: source.name,
-            targetId: targetId,
-            healingDone: healAmount,
-            details: details === 'Heal' ? '回復' : details
-        }];
-    }
+    // 統合ログに回復を追記（個別ログは二重になるため削除）
+    // skipLogフラグは統合ログへの追記も制御
 
-    // 統合ログに回復を追記
-    newState = appendHealing(newState, {
-        source: source.name,
-        name: details === 'Heal' ? '回復' : details,
-        amount: healAmount,
-        target: target.name,
-        breakdownMultipliers
-    });
+    if (!skipLog) {
+        newState = appendHealing(newState, {
+            source: source.name,
+            name: details === 'Heal' ? '回復' : details,
+            amount: healAmount,
+            target: target.name,
+            breakdownMultipliers
+        });
+    }
 
     // ON_UNIT_HEALED イベント発行
     newState = publishEvent(newState, {
@@ -171,15 +164,13 @@ export function cleanse(
         const debuffToRemove = debuffs[i];
         newState = removeEffect(newState, targetId, debuffToRemove.id);
 
-        // Log the cleanse
-        const targetUnit2 = newState.registry.get(createUnitId(targetId));
-        newState.log = [...newState.log, {
-            actionType: 'デバフ解除',
-            sourceId: targetId,
-            characterName: targetUnit2?.name || targetId,
-            targetId: targetId,
-            details: `デバフ解除: ${debuffToRemove.name}`
-        }];
+        // 統合ログにデバフ解除を追記（個別ログは削除）
+        const { appendEquipmentEffect } = require('./dispatcher');
+        newState = appendEquipmentEffect(newState, {
+            source: targetUnit?.name || targetId,
+            name: `デバフ解除: ${debuffToRemove.name}`,
+            type: 'relic' // 効果系として表示
+        });
 
         removedCount++;
     }
@@ -217,18 +208,13 @@ export function dispelBuffs(
         const buffToRemove = buffs[i];
         newState = removeEffect(newState, targetId, buffToRemove.id);
 
-        // Log the dispel
-        const targetUnit2 = newState.registry.get(createUnitId(targetId));
-        newState = {
-            ...newState,
-            log: [...newState.log, {
-                actionType: 'バフ解除',
-                sourceId: targetId,
-                characterName: targetUnit2?.name || targetId,
-                targetId: targetId,
-                details: `バフ解除: ${buffToRemove.name}`
-            }]
-        };
+        // 統合ログにバフ解除を追記（個別ログは削除）
+        const { appendEquipmentEffect: appendEquipmentEffect2 } = require('./dispatcher');
+        newState = appendEquipmentEffect2(newState, {
+            source: targetUnit?.name || targetId,
+            name: `バフ解除: ${buffToRemove.name}`,
+            type: 'relic' // 効果系として表示
+        });
 
         removedCount++;
     }
@@ -396,25 +382,18 @@ export function applyShield(
         }
     };
 
-    if (!skipLog) {
-        newState.log = [...newState.log, {
-            actionType: 'シールド',
-            sourceId: sourceId,
-            characterName: source.name,
-            targetId: targetId,
-            shieldApplied: addedShieldValue, // 今回追加した分
-            details: options?.stackable ? `${name} (累積: 総計${Math.round(finalShieldValue)})` : name
-        }];
-    }
+    // 統合ログにシールドを追記（個別ログは二重になるため削除）
+    // skipLogフラグは統合ログへの追記も制御
 
-    // 統合ログにシールドを追記 (今回追加した分)
-    newState = appendShield(newState, {
-        source: source.name,
-        name: options?.stackable ? `${name} (累積)` : name,
-        amount: addedShieldValue,
-        target: target.name,
-        breakdownMultipliers
-    });
+    if (!skipLog) {
+        newState = appendShield(newState, {
+            source: source.name,
+            name: options?.stackable ? `${name} (累積)` : name,
+            amount: addedShieldValue,
+            target: target.name,
+            breakdownMultipliers
+        });
+    }
 
     return newState;
 }

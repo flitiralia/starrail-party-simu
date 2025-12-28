@@ -33,8 +33,8 @@
 |----------|---------------|------|
 | `ON_BEFORE_ACTION` | すべての行動前 | 通常/スキル/必殺技/追撃すべて |
 | `ON_BEFORE_ATTACK` | 攻撃行動前 | ダメージを伴う行動のみ |
-| `ON_BASIC_ATTACK` | 通常攻撃後 | |
-| `ON_ENHANCED_BASIC_ATTACK` | 強化通常攻撃後 | 刃の無間剣樹など |
+| `ON_BASIC_ATTACK` | 通常攻撃後 | `isEnhanced`フラグで強化通常攻撃を判別 |
+| `ON_ENHANCED_BASIC_ATTACK` | 強化通常攻撃後 | **非推奨**: `ON_BASIC_ATTACK` + `isEnhanced`を使用 |
 | `ON_SKILL_USED` | スキル使用後 | |
 | `ON_ULTIMATE_USED` | 必殺技使用後 | |
 | `ON_FOLLOW_UP_ATTACK` | 追加攻撃後 | |

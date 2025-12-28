@@ -42,11 +42,11 @@ export const sleepLikeTheDead: ILightConeData = {
                     return state;
                 }
 
-                // アクションタイプを確認
+                // アクションタイプを確認（強化通常攻撃もBASIC_ATTACKとして来る）
                 let actionType: string | undefined;
                 if ('actionType' in event) actionType = (event as any).actionType;
 
-                if (actionType !== 'BASIC_ATTACK' && actionType !== 'SKILL' && actionType !== 'ENHANCED_BASIC_ATTACK') {
+                if (actionType !== 'BASIC_ATTACK' && actionType !== 'SKILL') {
                     return state;
                 }
 

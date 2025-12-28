@@ -577,9 +577,9 @@ const applyShockToEnemy = (state: GameState, source: Unit, target: Unit, eidolon
     return addEffect(state, target.id, shockEffect);
 };
 
-// 4. スキル使用時: スタック+1、DoT起爆（メイン75%、隣接50%）
+// 4. スキル使用時: DoT起爆（メイン75%、隣接50%）
 const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
-    let newState = increaseTalentCharges(state, sourceUnitId);
+    let newState = state;
 
     // メインターゲットDoT起爆（75%）
     const targetId = event.targetId;

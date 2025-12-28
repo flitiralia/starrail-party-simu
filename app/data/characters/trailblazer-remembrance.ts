@@ -8,13 +8,13 @@ import { summonOrRefreshSpirit, getActiveSpirit, IMemorySpiritDefinition } from 
 import { addAccumulatedValue, getAccumulatedValue, consumeAccumulatedValue } from '../../simulator/engine/accumulator';
 import { TargetSelector } from '../../simulator/engine/selector';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
-import { calculateTrueDamage } from '../../simulator/damage';
+import { calculateTrueDamageWithBreakdown } from '../../simulator/damage';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'trailblazer-remembrance';
 const SUMMON_ID_PREFIX = 'murion';
-const CHARGE_KEY = 'murion-charge';
+const CHARGE_KEY = 'チャージ';
 
 const EFFECT_IDS = {
     MURION_SUPPORT: (targetId: string) => `murion-support-${targetId}`,
@@ -77,13 +77,14 @@ const SKILL_HEAL_MULT = 0.60;
 // --- 必殺技 ---
 const ULT_DMG_MULT = 2.40;
 
-// チャージ関連定数
-const CHARGE_ON_SKILL_REFRESH = 0.10; // スキル使用時（既存ミュリオン）
-const CHARGE_ON_ULT = 0.40; // 必殺技使用時
-const CHARGE_ON_SUMMON_A2 = 0.40; // A2: 初回召喚時
-const CHARGE_ON_SPIRIT_ATTACK_A4 = 0.05; // A4: 精霊攻撃時
-const CHARGE_PER_EP = 0.01; // 天賦: EP10回復ごとに1%
-const CHARGE_ON_SUMMON_INITIAL = 0.50; // 精霊天賦: 召喚時50%
+// チャージ関連定数（0〜100のパーセント値）
+const CHARGE_MAX = 100; // 最大チャージ
+const CHARGE_ON_SKILL_REFRESH = 10; // スキル使用時（既存ミュリオン）
+const CHARGE_ON_ULT = 40; // 必殺技使用時
+const CHARGE_ON_SUMMON_A2 = 40; // A2: 初回召喚時
+const CHARGE_ON_SPIRIT_ATTACK_A4 = 5; // A4: 精霊攻撃時
+const CHARGE_PER_EP = 1; // 天賦: EP10回復ごとに1%
+const CHARGE_ON_SUMMON_INITIAL = 50; // 精霊天賦: 召喚時50%
 
 // 秘技
 const TECHNIQUE_DMG_MULT = 1.0;
@@ -97,7 +98,7 @@ const E2_EP_RECOVERY = 8;
 const E2_COOLDOWN_TURNS = 1;
 
 // E4
-const E4_CHARGE_GAIN = 0.03;
+const E4_CHARGE_GAIN = 3; // E4: チャージ3%
 const E4_ADDITIONAL_DMG_BONUS = 0.06;
 
 // --- カスタムEffect型 ---
@@ -147,7 +148,19 @@ function createMurionDefinition(owner: Unit, eidolonLevel: number): IMemorySpiri
             },
             ultimate: { id: 'murion-ult', name: 'なし', type: 'Ultimate', description: 'なし' },
             talent: { id: 'murion-talent', name: 'なし', type: 'Talent', description: 'なし' },
-            technique: { id: 'murion-tech', name: 'なし', type: 'Technique', description: 'なし' }
+            technique: { id: 'murion-tech', name: 'なし', type: 'Technique', description: 'なし' },
+            // 隠しスキル: あたしが助ける！ (型定義外のためanyキャストで対応する場合があるが、ここではオブジェクトリテラル内なのでTSが厳格)
+            // IUnitData['abilities'] に型を合わせる必要がある。一時的に as any で回避
+            ...({
+                'support-skill': {
+                    id: 'murion-support-skill',
+                    name: 'あたしが助ける！',
+                    type: 'Skill',
+                    description: '味方に「ミュリオンの応援」を付与',
+                    targetType: 'ally',
+                    damage: { type: 'simple', scaling: 'atk', hits: [] }
+                }
+            } as any)
         }
     };
 }
@@ -157,13 +170,69 @@ function getMurionCharge(state: GameState, murionId: string): number {
     return getAccumulatedValue(state, murionId, CHARGE_KEY);
 }
 
-function addMurionCharge(state: GameState, murionId: string, amount: number): GameState {
-    return addAccumulatedValue(state, murionId, CHARGE_KEY, amount, 1.0); // 最大100%
+/**
+ * ミュリオンにチャージを追加する
+ * チャージが100%に達した場合：
+ * 1. ミュリオンの行動順を100%短縮して即時行動させる
+ * 2. ENHANCED_SKILLタグを付与して、次のスキルを「あたしが助ける！」に切り替える
+ */
+function addMurionCharge(
+    state: GameState,
+    murionId: string,
+    amount: number,
+    ownerId: string,
+    eidolonLevel: number
+): GameState {
+    const beforeCharge = getMurionCharge(state, murionId);
+    let newState = addAccumulatedValue(state, murionId, CHARGE_KEY, amount, CHARGE_MAX);
+    const afterCharge = getMurionCharge(newState, murionId);
+
+    // チャージが100%に達した場合
+    if (beforeCharge < CHARGE_MAX && afterCharge >= CHARGE_MAX) {
+        const murionBefore = newState.registry.get(createUnitId(murionId));
+        console.log(`[Murion] チャージ100%到達 (${beforeCharge} -> ${afterCharge})`);
+        console.log(`[Murion] 行動順短縮前 AV=${murionBefore?.actionValue?.toFixed(2)}, SPD=${murionBefore?.stats.spd}`);
+
+        // 行動順100%短縮
+        newState = advanceAction(newState, murionId, 1.0, 'percent');
+
+        const murionAfter = newState.registry.get(createUnitId(murionId));
+        console.log(`[Murion] 行動順短縮後 AV=${murionAfter?.actionValue?.toFixed(2)}`);
+
+        // ENHANCED_SKILLタグを付与（スキルが「あたしが助ける！」に切り替わる）
+        // スキル発動（consumeMurionCharge）時に削除される
+        newState = addEffect(newState, murionId, {
+            id: `murion-enhanced-skill-${murionId}`,
+            name: 'あたしが助ける！準備',
+            category: 'BUFF',
+            sourceUnitId: murionId,
+            durationType: 'TURN_END_BASED',
+            skipFirstTurnDecrement: true,
+            duration: 1,
+            modifiers: [],
+            tags: ['ENHANCED_SKILL'],
+            apply: (t: Unit, s: GameState) => s,
+            remove: (t: Unit, s: GameState) => s
+        });
+    }
+
+    return newState;
+}
+
+/**
+ * チャージを追加するが、100%到達時の即時行動をトリガーしない（内部用）
+ */
+function addMurionChargeRaw(state: GameState, murionId: string, amount: number): GameState {
+    return addAccumulatedValue(state, murionId, CHARGE_KEY, amount, CHARGE_MAX);
 }
 
 function consumeMurionCharge(state: GameState, murionId: string): GameState {
-    return consumeAccumulatedValue(state, murionId, CHARGE_KEY, 1.0, 'percent');
+    // チャージを消費する（100%から0%に）
+    // ENHANCED_SKILLエフェクトはTURN_END_BASEDでターン終了時に自動削除される
+    return consumeAccumulatedValue(state, murionId, CHARGE_KEY, CHARGE_MAX, 'fixed');
 }
+
+
 
 // --- ハンドラーロジック ---
 
@@ -220,9 +289,116 @@ const onSkillUsed = (
     sourceUnitId: string,
     eidolonLevel: number
 ): GameState => {
-    if (event.sourceId !== sourceUnitId) return state;
     const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
+
+    // --- ミュリオンの行動処理 ---
+    const activeMurion = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
+    if (activeMurion && event.sourceId === activeMurion.id) {
+        // ENHANCED_SKILLタグがある場合 = 「あたしが助ける！」発動
+        const hasEnhancedSkill = activeMurion.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
+        const target = event.targetId ? state.registry.get(createUnitId(event.targetId)) : null;
+
+        console.log(`[Murion onSkillUsed] hasEnhancedSkill=${hasEnhancedSkill}, targetId=${event.targetId}, target=${target?.name}`);
+
+        if (hasEnhancedSkill && target && !target.isEnemy) {
+            // 「あたしが助ける！」の処理
+            console.log(`[Murion] 「あたしが助ける！」発動 -> ${target.name}`);
+
+            let newState = state;
+
+            // チャージ消費 (アクション実行時に消費)
+            newState = consumeMurionCharge(newState, activeMurion.id);
+
+            // 行動順100%短縮（ミュリオン自身以外）
+            if (target.id !== activeMurion.id) {
+                newState = advanceAction(newState, target.id, 1.0, 'percent');
+            }
+
+            // 精霊スキルレベル計算
+            const skillLevel = calculateAbilityLevel(eidolonLevel, 3, 'Skill');
+            const supportValue = getLeveledValue(ABILITY_VALUES.supportSkill, skillLevel);
+            let additionalDmgMult = supportValue;
+
+            // A6: 最大EP100超過分10につき+2%（最大20%）
+            if (source.traces?.some(t => t.id === TRACE_IDS.A6) && target.stats.max_ep > 100) {
+                const excess = target.stats.max_ep - 100;
+                const bonus = Math.min(0.20, Math.floor(excess / 10) * 0.02);
+                additionalDmgMult += bonus;
+            }
+
+            // E4: 最大EP0の味方はさらに+6%
+            if (eidolonLevel >= 4 && target.stats.max_ep === 0) {
+                additionalDmgMult += E4_ADDITIONAL_DMG_BONUS;
+            }
+
+            // ミュリオンの応援付与
+            const supportEffect: MurionSupportEffect = {
+                id: EFFECT_IDS.MURION_SUPPORT(target.id),
+                name: 'ミュリオンの応援',
+                category: 'BUFF',
+                sourceUnitId: activeMurion.id,
+                durationType: 'TURN_END_BASED',
+                skipFirstTurnDecrement: true, // アクション直後に付与されるため
+                duration: 3,
+                modifiers: [],
+                additionalDmgMult: additionalDmgMult,
+                apply: (t: Unit, s: GameState) => s,
+                remove: (t: Unit, s: GameState) => s
+            };
+
+            newState = addEffect(newState, target.id, supportEffect);
+
+            // E1: ミュリオンの応援所持味方の会心率+10%
+            if (eidolonLevel >= 1) {
+                newState = addEffect(newState, target.id, {
+                    id: EFFECT_IDS.E1_CRIT(target.id),
+                    name: 'ミュリオンの応援 (E1会心率)',
+                    category: 'BUFF',
+                    sourceUnitId: activeMurion.id,
+                    durationType: 'LINKED',
+                    duration: 0,
+                    linkedEffectId: EFFECT_IDS.MURION_SUPPORT(target.id),
+                    modifiers: [{
+                        target: 'crit_rate',
+                        value: E1_CRIT_RATE_BUFF,
+                        type: 'add',
+                        source: 'E1'
+                    }],
+                    apply: (t: Unit, s: GameState) => s,
+                    remove: (t: Unit, s: GameState) => s
+                });
+
+                // E1: 味方が精霊を持つ場合、精霊にも応援効果適用
+                const targetSpirit = newState.registry.toArray().find(u => u.linkedUnitId === target!.id && u.isSummon);
+                if (targetSpirit) {
+                    const spiritSupportEffect: MurionSupportEffect = {
+                        ...supportEffect,
+                        id: EFFECT_IDS.MURION_SUPPORT(targetSpirit.id)
+                    };
+                    newState = addEffect(newState, targetSpirit.id, spiritSupportEffect);
+                }
+            }
+
+            // 詳細情報をログに追加
+            if (newState.currentActionLog) {
+                const baseVal = supportValue;
+                const a6Bonus = (source.traces?.some(t => t.id === TRACE_IDS.A6) && target.stats.max_ep > 100) ? Math.min(0.20, Math.floor((target.stats.max_ep - 100) / 10) * 0.02) : 0;
+                const e4Bonus = (eidolonLevel >= 4 && target.stats.max_ep === 0) ? E4_ADDITIONAL_DMG_BONUS : 0;
+
+                const prefix = newState.currentActionLog.details ? '\n' : '';
+                newState.currentActionLog.details = (newState.currentActionLog.details || '') +
+                    `${prefix}[ミュリオンの応援] バフ量: ${(additionalDmgMult * 100).toFixed(1)}% (基礎: ${(baseVal * 100).toFixed(1)}% + A6: ${(a6Bonus * 100).toFixed(1)}% + E4: ${(e4Bonus * 100).toFixed(1)}%)`;
+            }
+
+            return newState;
+        }
+        return state;
+    }
+
+    // --- 開拓者の通常スキル処理 ---
+    if (event.sourceId !== sourceUnitId) return state;
+
 
     let newState = state;
 
@@ -233,16 +409,29 @@ const onSkillUsed = (
     const definition = createMurionDefinition(source, eidolonLevel);
     const summonResult = summonOrRefreshSpirit(newState, source, definition);
     newState = summonResult.state;
-    const murion = summonResult.spirit;
+
+    // ★ Config設定: アクションループを使用させるため
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(summonResult.spirit.id), u => ({
+            ...u,
+            config: {
+                ...u.config,
+                rotation: ['s'],
+                rotationMode: 'spam_skill'
+            } as any
+        }))
+    };
+    const murion = newState.registry.get(createUnitId(summonResult.spirit.id))!;
 
     if (summonResult.isNew) {
         // 新規召喚時
         // 精霊天賦「がんばれミュリオン！」: 召喚時チャージ50%
-        newState = addMurionCharge(newState, murion.id, CHARGE_ON_SUMMON_INITIAL);
+        newState = addMurionCharge(newState, murion.id, CHARGE_ON_SUMMON_INITIAL, sourceUnitId, eidolonLevel);
 
         // A2: 初回召喚時チャージ40%
         if (source.traces?.some(t => t.id === TRACE_IDS.A2)) {
-            newState = addMurionCharge(newState, murion.id, CHARGE_ON_SUMMON_A2);
+            newState = addMurionCharge(newState, murion.id, CHARGE_ON_SUMMON_A2, sourceUnitId, eidolonLevel);
         }
 
         // 精霊天賦「仲間と一緒に！」: 味方全体の会心ダメージアップ
@@ -282,7 +471,7 @@ const onSkillUsed = (
         }, '戦闘スキル: ミュリオンHP回復');
 
         // チャージ10%獲得
-        newState = addMurionCharge(newState, murion.id, CHARGE_ON_SKILL_REFRESH);
+        newState = addMurionCharge(newState, murion.id, CHARGE_ON_SKILL_REFRESH, sourceUnitId, eidolonLevel);
     }
 
     return newState;
@@ -304,10 +493,23 @@ const onUltimateUsed = (
     const definition = createMurionDefinition(source, eidolonLevel);
     const summonResult = summonOrRefreshSpirit(newState, source, definition);
     newState = summonResult.state;
-    const murion = summonResult.spirit;
+
+    // ★ Config設定: アクションループを使用させるため
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(summonResult.spirit.id), u => ({
+            ...u,
+            config: {
+                ...u.config,
+                rotation: ['s'],
+                rotationMode: 'spam_skill'
+            } as any
+        }))
+    };
+    const murion = newState.registry.get(createUnitId(summonResult.spirit.id))!;
 
     // チャージ40%獲得
-    newState = addMurionCharge(newState, murion.id, CHARGE_ON_ULT);
+    newState = addMurionCharge(newState, murion.id, CHARGE_ON_ULT, sourceUnitId, eidolonLevel);
 
     return newState;
 };
@@ -315,7 +517,8 @@ const onUltimateUsed = (
 const onTurnStart = (
     event: GeneralEvent,
     state: GameState,
-    sourceUnitId: string
+    sourceUnitId: string,
+    eidolonLevel: number
 ): GameState => {
     const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
@@ -325,18 +528,9 @@ const onTurnStart = (
 
     // ミュリオンのターン開始時の処理
     if (event.sourceId === murion.id) {
-        const charge = getMurionCharge(state, murion.id);
-
-        if (charge < 1.0) {
-            // チャージ100%未満: 自動で「厄介な悪者さん！」発動
-            // 注: ダメージ処理はdispatcher経由で行われるため、ここではA4のチャージ追加のみ
-            // A4: 精霊攻撃時チャージ5%
-            if (source.traces?.some(t => t.id === TRACE_IDS.A4)) {
-                const newState = addMurionCharge(state, murion.id, CHARGE_ON_SPIRIT_ATTACK_A4);
-                return newState;
-            }
-        }
-        // チャージ100%の場合: 「あたしが助ける！」はスキル選択で発動（AIが選択）
+        // チャージ100%の場合はENHANCED_SKILLタグにより自動で「あたしが助ける！」に切り替わる
+        // チャージ100%未満の場合、通常の「厄介な悪者さん！」が発動（dispatcher経由）
+        // A4チャージ追加は「厄介な悪者さん！」発動時（onActionComplete）で処理される
     }
 
     return state;
@@ -355,112 +549,23 @@ const onActionComplete = (
     if (!murion) return state;
 
     // ミュリオンのスキル発動後
+    // 「厄介な悪者さん！」発動時のA4処理
+    // 「あたしが助ける！」発動時はA4をスキップ（ENHANCED_SKILLタグで判定）
     if (event.sourceId === murion.id && event.subType === 'SKILL') {
+        // ENHANCED_SKILLタグがある場合は「あたしが助ける！」を発動したのでA4スキップ
+        // （タグはTURN_END_BASEDでターン終了時に自動削除される）
+        const hasEnhancedSkill = murion.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
+        if (hasEnhancedSkill) {
+            console.log(`[Murion A4] ENHANCED_SKILLタグありのためスキップ（あたしが助ける！発動）`);
+            return state;
+        }
+
         let newState = state;
-        const charge = getMurionCharge(newState, murion.id);
 
-        if (charge >= 1.0) {
-            // 「あたしが助ける！」発動後: チャージ消費、ターゲットにミュリオンの応援付与
-            newState = consumeMurionCharge(newState, murion.id);
-
-            // ターゲット選択（最もATKが高い味方）
-            const allies = TargetSelector.select(source, newState, {
-                type: 'ally',
-                sort: TargetSelector.SortByHighestATK,
-                filter: (u) => u.id !== murion.id
-            });
-            const target = allies[0] || source;
-
-            // 行動順100%短縮（ミュリオン自身以外）
-            if (target.id !== murion.id) {
-                newState = advanceAction(newState, target.id, 1.0, 'percent');
-            }
-
-            // ミュリオンの応援付与
-            // 精霊スキルレベルは必殺技Lv or スキルLv ?
-            // Assuming default E5 checks Ultimate/Basic, E3 checks Skill/Talent.
-            // "あたしが助ける！" depends on? Usually Spirit Skill scales.
-            // Let's assume it scales with Skill (E3).
-            const skillLevel = calculateAbilityLevel(eidolonLevel, 3, 'Skill');
-            const supportValue = getLeveledValue(ABILITY_VALUES.supportSkill, skillLevel);
-            let additionalDmgMult = supportValue;
-
-            // A6: 最大EP100超過分10につき+2%（最大20%）
-            if (source.traces?.some(t => t.id === TRACE_IDS.A6) && target.stats.max_ep > 100) {
-                const excess = target.stats.max_ep - 100;
-                const bonus = Math.min(0.20, Math.floor(excess / 10) * 0.02);
-                additionalDmgMult += bonus;
-            }
-
-            // E4: 最大EP0の味方はさらに+6%
-            if (eidolonLevel >= 4 && target.stats.max_ep === 0) {
-                additionalDmgMult += E4_ADDITIONAL_DMG_BONUS;
-            }
-
-            const supportEffect: MurionSupportEffect = {
-                id: EFFECT_IDS.MURION_SUPPORT(target.id),
-                name: 'ミュリオンの応援',
-                category: 'BUFF',
-                sourceUnitId: murion.id,
-                durationType: 'TURN_END_BASED',
-                skipFirstTurnDecrement: true, // 次の攻撃後まで持ち越すため
-                duration: 3, // Assuming long enough duration, consumed on attack or fixed turns?
-                // Original code: duration 3.
-                modifiers: [],
-                additionalDmgMult: additionalDmgMult,
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
-            };
-
-            newState = addEffect(newState, target.id, supportEffect);
-
-            // E1: ミュリオンの応援所持味方の会心率+10%
-            if (eidolonLevel >= 1) {
-                newState = addEffect(newState, target.id, {
-                    id: EFFECT_IDS.E1_CRIT(target.id),
-                    name: 'ミュリオンの応援 (E1会心率)',
-                    category: 'BUFF',
-                    sourceUnitId: murion.id,
-                    durationType: 'LINKED',
-                    duration: 0,
-                    linkedEffectId: EFFECT_IDS.MURION_SUPPORT(target.id),
-                    modifiers: [{
-                        target: 'crit_rate',
-                        value: E1_CRIT_RATE_BUFF,
-                        type: 'add',
-                        source: 'E1'
-                    }],
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
-                });
-
-                // E1: 味方が精霊を持つ場合、精霊にも応援効果適用
-                const targetSpirit = newState.registry.toArray().find(u => u.linkedUnitId === target.id && u.isSummon);
-                if (targetSpirit) {
-                    const spiritSupportEffect: MurionSupportEffect = {
-                        ...supportEffect,
-                        id: EFFECT_IDS.MURION_SUPPORT(targetSpirit.id)
-                    };
-                    newState = addEffect(newState, targetSpirit.id, spiritSupportEffect);
-                }
-            }
-
-            newState = {
-                ...newState,
-                log: [...newState.log, {
-                    actionType: '精霊スキル',
-                    sourceId: murion.id,
-                    characterName: murion.name,
-                    targetId: target.id,
-                    details: `あたしが助ける！: ${target.name}に「ミュリオンの応援」付与（確定ダメージ+${(additionalDmgMult * 100).toFixed(0)}%）`
-                }]
-            };
-        } else {
-            // 「厄介な悪者さん！」発動後
-            // A4: チャージ5%獲得
-            if (source.traces?.some(t => t.id === TRACE_IDS.A4)) {
-                newState = addMurionCharge(newState, murion.id, CHARGE_ON_SPIRIT_ATTACK_A4);
-            }
+        // A4: 「厄介な悪者さん！」発動時にチャージ5%獲得
+        if (source.traces?.some(t => t.id === TRACE_IDS.A4)) {
+            console.log(`[Murion A4] 厄介な悪者さん！発動後、チャージ+5%`);
+            newState = addMurionCharge(newState, murion.id, CHARGE_ON_SPIRIT_ATTACK_A4, sourceUnitId, eidolonLevel);
         }
 
         return newState;
@@ -485,12 +590,20 @@ const onDamageDealt = (
         const additionalDmgMult = supportEffect.additionalDmgMult;
         if (additionalDmgMult > 0) {
             // 確定ダメージ: 実ダメージ × 倍率をそのまま適用
-            const trueDamage = calculateTrueDamage(event.value * additionalDmgMult);
+            const trueDamageResult = calculateTrueDamageWithBreakdown(event.value * additionalDmgMult);
 
-            const result = applyUnifiedDamage(state, attacker, target, trueDamage, {
+            const result = applyUnifiedDamage(state, attacker, target, trueDamageResult.damage, {
                 damageType: '確定ダメージ',
                 details: 'ミュリオンの応援',
-                skipStats: true // 統計に二重カウントしない
+                skipLog: true, // 統合ログに追記するため個別ログはスキップ
+                skipStats: true, // 統計に二重カウントしない
+                additionalDamageEntry: {
+                    source: attacker.name,
+                    name: 'ミュリオンの応援',
+                    damageType: 'true_damage',
+                    isCrit: trueDamageResult.isCrit,
+                    breakdownMultipliers: trueDamageResult.breakdownMultipliers
+                }
             });
             return result.state;
         }
@@ -626,14 +739,15 @@ const onSkillUsedE4 = (
     const murion = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
     if (!murion) return state;
 
-    return addMurionCharge(state, murion.id, E4_CHARGE_GAIN);
+    return addMurionCharge(state, murion.id, E4_CHARGE_GAIN, sourceUnitId, eidolonLevel);
 };
 
 // 天賦: EP10回復ごとにチャージ1%
 const onEpGained = (
     event: IEvent, // EpGainEvent
     state: GameState,
-    sourceUnitId: string
+    sourceUnitId: string,
+    eidolonLevel: number
 ): GameState => {
     const epEvent = event as EpGainEvent;
     if (!epEvent.epGained || epEvent.epGained <= 0) return state;
@@ -647,7 +761,7 @@ const onEpGained = (
 
     // EP10回復ごとにチャージ1%
     const chargeGain = (epEvent.epGained / 10) * CHARGE_PER_EP;
-    return addMurionCharge(state, murion.id, chargeGain);
+    return addMurionCharge(state, murion.id, chargeGain, sourceUnitId, eidolonLevel);
 };
 
 // --- キャラクター定義 ---
@@ -686,7 +800,8 @@ export const trailblazerRemembrance: Character = {
             name: 'ミュリオンに決めた！',
             type: 'Skill',
             description: '記憶の精霊「ミュリオン」を召喚する。ミュリオンがすでにフィールド上にいる場合、ミュリオンはHPを回復し、チャージを10%獲得する。',
-            targetType: 'self',
+            targetType: 'ally',
+            manualTargeting: true, // 「あたしが助ける！」のターゲット指定
             spCost: 1,
             energyGain: 30,
         },
@@ -811,7 +926,7 @@ export const trailblazerRemembranceHandlerFactory: IEventHandlerFactory = (
             } else if (event.type === 'ON_ULTIMATE_USED') {
                 newState = onUltimateUsed(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             } else if (event.type === 'ON_TURN_START') {
-                newState = onTurnStart(event as GeneralEvent, newState, sourceUnitId);
+                newState = onTurnStart(event as GeneralEvent, newState, sourceUnitId, eidolonLevel);
             } else if (event.type === 'ON_ACTION_COMPLETE') {
                 newState = onActionComplete(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             } else if (event.type === 'ON_DAMAGE_DEALT') {
@@ -823,7 +938,7 @@ export const trailblazerRemembranceHandlerFactory: IEventHandlerFactory = (
             } else if (event.type === 'ON_FOLLOW_UP_ATTACK') {
                 newState = onFollowUpAttack(event, newState, sourceUnitId, eidolonLevel);
             } else if (event.type === 'ON_EP_GAINED') {
-                newState = onEpGained(event, newState, sourceUnitId);
+                newState = onEpGained(event, newState, sourceUnitId, eidolonLevel);
             }
 
             return newState;
