@@ -38,7 +38,9 @@
 17. [DoT/状態異常の実装パターン](#17-dot状態異常の実装パターン)
 18. [強化通常攻撃の実装パターン](#18-強化通常攻撃の実装パターン)
 19. [代表実装例へのリンク集](#19-代表実装例へのリンク集)
-20. [カウントダウン（タイマー）システムユニットの実装パターン](#20-カウントダウンタイマーシステムユニットの実装パターン)
+20. [通常ダメージと付加ダメージのログ区別](#20-通常ダメージと付加ダメージのログ区別)
+21. [カウントダウン（タイマー）システムユニットの実装パターン](#21-カウントダウンタイマーシステムユニットの実装パターン)
+
 
 ---
 
@@ -1115,7 +1117,99 @@ if (event.type === 'ON_BASIC_ATTACK' && event.sourceId === sourceUnitId) {
 
 ---
 
-## 20. カウントダウン（タイマー）システムユニットの実装パターン
+## 20. 通常ダメージと付加ダメージのログ区別
+
+統合ログシステムでは、ダメージの種類に応じて `damageType` を指定することで、UIで適切なラベルが表示されます。
+
+### AdditionalDamageType の種類
+
+| タイプ | ラベル表示 | 説明 | 使用例 |
+|:-------|:----------|:-----|:-------|
+| `'normal'` | ラベルなし | 連携攻撃など、通常ダメージとして表示 | アグライア強化通常攻撃 |
+| `'additional'` | `[付加]` | 付加ダメージ（会心あり、与ダメ適用） | トリビー結界、光円錐効果 |
+| `'break'` | `[撃破]` | 弱点撃破ダメージ（撃破特効適用） | 撃破ダメージ |
+| `'break_additional'` | `[撃破付加]` | 撃破付加ダメージ（凍結・もつれ） | 凍結解除時ダメージ |
+| `'super_break'` | `[超撃破]` | 超撃破ダメージ | 開拓者・調和の超撃破 |
+| `'dot'` | `[DoT]` | 持続ダメージ | 感電、燃焼、裂創 |
+| `'true_damage'` | `[確定]` | 確定ダメージ（防御・耐性・会心を無視） | ミュリオンの応援ダメージ |
+
+### 通常ダメージ (`'normal'`) と付加ダメージ (`'additional'`) の違い
+
+| 項目 | `'normal'` | `'additional'` |
+|:-----|:----------|:---------------|
+| UIラベル | なし（メインダメージと同等表示） | `[付加]` ラベルが表示される |
+| 用途 | アビリティの一部として発生するダメージ | 追加効果として発生するダメージ |
+| 例 | 連携攻撃、複数ヒット攻撃 | 結界ダメージ、光円錐の追加ダメージ |
+
+### 使い分けの基準
+
+1. **アビリティの本来のダメージの一部** → `'normal'`
+   - 強化通常攻撃の連携ダメージ
+   - 必殺技の追加ヒット
+   - 天賦によるダメージ（アビリティの一部として）
+
+2. **別効果として発生するダメージ** → `'additional'`
+   - 結界やフィールド効果によるダメージ
+   - 光円錐の効果によるダメージ
+   - バフ・デバフのトリガーダメージ
+
+### 実装例
+
+**通常ダメージとして記録（連携攻撃など）:**
+```typescript
+newState = appendAdditionalDamage(newState, {
+    source: source.name,
+    name: '連携攻撃',
+    damage: result.totalDamage,
+    target: target.name,
+    damageType: 'normal',  // ラベルなしで表示
+    isCrit: result.isCrit || false,
+    breakdownMultipliers: result.breakdownMultipliers
+});
+```
+
+**付加ダメージとして記録（結界効果など）:**
+```typescript
+newState = appendAdditionalDamage(newState, {
+    source: source.name,
+    name: '結界付加ダメージ',
+    damage: result.totalDamage,
+    target: target.name,
+    damageType: '付加ダメージ',  // 「付加ダメージ」ラベルを設定
+    isCrit: result.isCrit || false,
+    breakdownMultipliers: result.breakdownMultipliers
+});
+```
+
+**確定ダメージとして記録:**
+```typescript
+newState = appendAdditionalDamage(newState, {
+    source: source.name,
+    name: 'ミュリオンの応援',
+    damage: trueDamage,
+    target: target.name,
+    damageType: 'true_damage',  // [確定] ラベルが表示される
+    breakdownMultipliers: trueDamageBreakdown
+});
+```
+
+### レビューチェックリスト
+
+新規ダメージロジック実装時、以下を確認してください:
+
+- [ ] ダメージが「アビリティの一部」か「追加効果」かを判断
+- [ ] 適切な `damageType` を選択
+- [ ] UIでのラベル表示が期待通りか確認
+- [ ] `breakdownMultipliers` を含めて計算式が表示されるか確認
+
+> **参照実装:**
+> - 通常ダメージ: [aglaea.ts](./aglaea.ts) (強化通常攻撃)
+> - 付加ダメージ: [tribbie.ts](./tribbie.ts) (結界)
+> - 確定ダメージ: [trailblazer-remembrance.ts](./trailblazer-remembrance.ts) (ミュリオン)
+
+---
+
+## 21. カウントダウン（タイマー）システムユニットの実装パターン
 
 アグライアの「至高の姿」のような、一定時間後に効果が解除されるカウントダウンシステムの実装パターンです。
 
