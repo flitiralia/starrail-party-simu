@@ -15,7 +15,7 @@ export const DUMMY_ENEMY: Enemy = {
     Imaginary: 0.2,
   },
   baseStats: {
-    hp: 10000,
+    hp: 1000000,
     atk: 500,
     def: 500,
     spd: 100,

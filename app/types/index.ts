@@ -205,6 +205,7 @@ export interface IUnitData {
     talent: IAbility;
     technique: IAbility;
     enhancedBasic?: IAbility; // 強化通常攻撃（刃の無間剣樹など）
+    enhancedSkill?: IAbility; // 強化戦闘スキル（ホタルの死星オーバーロードなど）
   };
   // シミュレーション中に付与される動的な効果
   effects?: IEffect[];
@@ -216,7 +217,7 @@ export interface IUnitData {
  * アビリティのパラメータ変更定義
  */
 export interface AbilityModifier {
-  abilityName: 'basic' | 'skill' | 'ultimate' | 'talent' | 'enhancedBasic';
+  abilityName: 'basic' | 'skill' | 'ultimate' | 'talent' | 'enhancedBasic' | 'enhancedSkill';
   param: string; // 変更するパラメータのパス (例: "damage.multiplier", "shield.flat")
   value: number; // 変更後の値
 }

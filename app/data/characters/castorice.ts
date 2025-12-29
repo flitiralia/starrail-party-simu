@@ -310,10 +310,10 @@ export const castorice: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'farewells-can-be-beautiful',
+        lightConeId: 'farewell-be-beautiful',
         superimposition: 1,
-        relicSetId: 'the_wondrous_poetaster',
-        ornamentSetId: 'izumo_gensei_and_takama_divine_realm',
+        relicSetId: 'poet_who_sings_of_the_sorrow_of_the_fallen_kingdom',
+        ornamentSetId: 'silent_ossuary',
         mainStats: {
             body: 'crit_dmg',
             feet: 'hp_pct',
@@ -329,7 +329,10 @@ export const castorice: Character = {
         rotationMode: 'spam_skill',
         ultStrategy: 'immediate',
         customConfig: {
-            siryuBreathCount: 1 // 死竜の「晦冥焼き払う息吹」発動回数 (デフォルト: 1)
+            // 死竜の「晦冥焼き払う息吹」発動モード
+            // 'full': HP25%以下まで全て発動（幽墟奪略の晦翼も発動）
+            // 'safe': 幽墟奪略の晦翼が発動しないギリギリまで発動
+            siryuBreathMode: 'full' as 'full' | 'safe'
         }
     }
 };
@@ -363,15 +366,18 @@ function createSiryuDefinition(owner: Unit, eidolonLevel: number): IMemorySpirit
             },
             skill: {
                 id: 'siryu-skill',
-                name: '冥茫裂く爪痕',
+                name: '精霊スキル',
                 type: 'Skill',
-                description: '敵全体にキャストリスの最大HP52%分の量子属性ダメージを与える。',
+                description: '晦冥焼き払う息吹または冥茫裂く爪痕を発動',
                 targetType: 'all_enemies',
                 energyGain: 0,
+                // ダメージはON_SKILL_USEDハンドラー（onSiryuSkillUsed）で処理
+                // breathCount > 0: 晦冥焼き払う息吹
+                // breathCount = 0: 冥茫裂く爪痕
                 damage: {
                     type: 'aoe',
-                    scaling: 'hp', // オーナー（キャストリス）のHPを参照
-                    hits: [{ multiplier: 0.52, toughnessReduction: 10 }]
+                    scaling: 'hp',
+                    hits: [] // ダメージなし（ハンドラーで処理）
                 }
             },
             ultimate: { id: 'siryu-ult', name: 'なし', type: 'Ultimate', description: 'なし' },
@@ -552,7 +558,7 @@ const onBattleStart = (
 };
 
 /**
- * スキル使用時
+ * スキル使用時（キャストリス）
  */
 const onSkillUsed = (
     event: ActionEvent,
@@ -560,6 +566,14 @@ const onSkillUsed = (
     sourceUnitId: string,
     eidolonLevel: number
 ): GameState => {
+    // 死竜のスキル使用を検知
+    const siryu = getActiveSpirit(state, sourceUnitId, SUMMON_ID_PREFIX);
+    if (siryu && event.sourceId === siryu.id) {
+        // 死竜のスキル使用時の追加処理
+        return onSiryuSkillUsed(state, sourceUnitId, siryu.id as string, eidolonLevel);
+    }
+
+    // キャストリス自身のスキル使用時
     if (event.sourceId !== sourceUnitId) return state;
 
     const source = state.registry.get(createUnitId(sourceUnitId));
@@ -568,7 +582,6 @@ const onSkillUsed = (
     let newState = state;
 
     // 死竜がいるかチェック
-    const siryu = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
     const hpCostPct = siryu ? ENHANCED_SKILL_HP_COST_PCT : SKILL_HP_COST_PCT;
 
     // 味方全員のHP消費
@@ -586,6 +599,75 @@ const onSkillUsed = (
     }
 
     return newState;
+};
+
+/**
+ * 死竜のスキル使用時
+ * 通常のdispatchシステムを通じてスキルが実行された後に呼ばれる
+ * 
+ * 仕様:
+ * - siryuBreathMode = 'full': HP25%以下まで全て発動（幽墟奪略の晦翼も発動）
+ * - siryuBreathMode = 'safe': 幽墟奪略の晦翼が発動しないギリギリまで発動
+ * 
+ * いずれの場合も、幽墟奪略の晦翼が発動しなかった場合は冥茫裂く爪痕も発動
+ */
+const onSiryuSkillUsed = (
+    state: GameState,
+    ownerId: string,
+    siryuId: string,
+    eidolonLevel: number
+): GameState => {
+    const owner = state.registry.get(createUnitId(ownerId));
+    const siryu = state.registry.get(createUnitId(siryuId));
+    if (!owner || !siryu) return state;
+
+    const breathMode = owner.config?.customConfig?.siryuBreathMode ?? 'full';
+
+    // 発動可能回数を計算
+    // HP100%→75%→50%→25%→1（幽墟発動）
+    // 熾意があれば追加で発動可能
+    const shiiEffect = eidolonLevel >= 2 ? owner.effects.find(e => e.id === EFFECT_IDS.E2_SHII(ownerId)) : undefined;
+    const shiiStacks = shiiEffect?.stackCount ?? 0;
+
+    // 現在HPから発動可能回数を計算（25%ずつ消費）
+    const hpPct = siryu.hp / siryu.stats.hp;
+    // floor((hpPct - 0.25) / 0.25) + 1 = 幽墟が発動しない最大回数
+    // floor(hpPct / 0.25) = 幽墟が発動する可能性がある最大回数
+    const safeBreathCount = Math.max(0, Math.floor((hpPct - SIRYU_BREATH_HP_COST) / SIRYU_BREATH_HP_COST) + 1);
+    const maxBreathCount = Math.floor(hpPct / SIRYU_BREATH_HP_COST) + 1; // HP25%以下でも1回発動可能
+
+    // 熾意分を加算
+    const availableSafeCount = safeBreathCount + shiiStacks;
+    const availableFullCount = maxBreathCount + shiiStacks;
+
+    // モードに応じて発動回数を決定
+    let breathCount: number;
+    if (breathMode === 'safe') {
+        // 安全モード: 幽墟奪略の晦翼が発動しないギリギリまで
+        breathCount = availableSafeCount;
+    } else {
+        // fullモード: 全て発動（最大4回 + 熾意）
+        breathCount = availableFullCount;
+    }
+
+    if (breathCount > 0) {
+        // 「晦冥焼き払う息吹」発動
+        let newState = executeSiryuBreath(state, ownerId, siryuId, breathCount, eidolonLevel);
+
+        // 精霊スキル発動後、死竜が消えている可能性があるため再チェック
+        const siryuAfterBreath = getActiveSpirit(newState, ownerId, SUMMON_ID_PREFIX);
+        if (!siryuAfterBreath) {
+            // 死竜が消えた場合（幽墟奪略の晦翼が発動済み）→ 冥茫裂く爪痕は発動しない
+            return newState;
+        }
+
+        // 死竜がまだ存在する場合（幽墟奪略の晦翼が発動しなかった場合）
+        // → 「冥茫裂く爪痕」も追加発動
+        return executeSiryuClaw(newState, ownerId, siryuAfterBreath.id as string, eidolonLevel);
+    } else {
+        // breathCount = 0 の場合は「冥茫裂く爪痕」のみ発動
+        return executeSiryuClaw(state, ownerId, siryuId, eidolonLevel);
+    }
 };
 
 /**
@@ -691,31 +773,9 @@ const onTurnStart = (
     }
 
     // 死竜のターン開始時
+    // 注意: 精霊スキル実行はON_SKILL_USEDハンドラーで処理される（通常のdispatchシステムを使用）
     const siryu = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
     if (siryu && event.sourceId === siryu.id) {
-        const siryuUnit = newState.registry.get(createUnitId(siryu.id as string));
-        const owner = newState.registry.get(createUnitId(sourceUnitId));
-
-        if (siryuUnit && owner) {
-            const breathCount = owner.config?.customConfig?.siryuBreathCount ?? 1;
-
-            if (breathCount > 0) {
-                // 精霊スキル「晦冥焼き払う息吹」発動
-                newState = executeSiryuBreath(newState, sourceUnitId, siryu.id as string, breathCount, eidolonLevel);
-
-                // 精霊スキル発動後、死竜が消えている可能性があるため再チェック
-                const siryuAfterBreath = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
-                if (!siryuAfterBreath) {
-                    // 死竜が消えた場合（幽墟奪略の晦翼が発動）はターンカウント処理をスキップ
-                    return newState;
-                }
-                // 晦冥焼き払う息吹が発動し、幽墟奪略の晦翼も発動しなかった場合は冥茫裂く爪痕を発動しない
-            } else {
-                // breathCount = 0 の場合は「冥茫裂く爪痕」を発動
-                newState = executeSiryuClaw(newState, sourceUnitId, siryu.id as string, eidolonLevel);
-            }
-        }
-
         // ターンカウント+1
         const currentCount = getSiryuTurnCount(newState, siryu.id as string);
         const newCount = currentCount + 1;

@@ -55,7 +55,26 @@ app/data/characters/[character-name].ts
 └── ハンドラーファクトリ (export const characterNameHandlerFactory)
 ```
 
+> [!IMPORTANT]
+> ### レジストリへの登録（必須）
+> 
+> ハンドラーファクトリを作成したら、必ず **`app/simulator/registry/index.ts`** に登録してください。
+> この登録を忘れると、キャラクターのイベントハンドラーが動作しません。
+> 
+> ```typescript
+> // 1. インポートを追加
+> import { characterNameHandlerFactory } from '../../data/characters/character-name';
+> 
+> // 2. レジストリに登録
+> registry.registerCharacter('character-name', characterNameHandlerFactory);
+> ```
+> 
+> **チェックリスト:**
+> - [ ] `index.ts` にインポート追加
+> - [ ] `registry.registerCharacter()` を追加
+
 ---
+
 
 ## 必須インポート
 

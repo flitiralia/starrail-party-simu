@@ -210,6 +210,7 @@ export interface DamageCalculationModifiers {
   resReduction?: number; // 動的耐性ダウン（ブラック・スワンE1等）
   dmgTakenReduction?: number; // 動的被ダメ軽減（ブートヒルA4等）
   toughnessFlat?: number; // 削靭値固定加算（ブートヒル天賦等）
+  toughnessMultiplier?: number; // 削靭倍率（ホタルA2等）
 
   // E6キャストリス: 弱点無視で靭性削り
   ignoreToughnessWeakness?: boolean;

@@ -5,14 +5,22 @@ import { Character, CharacterRotationConfig } from '@/app/types';
 
 // Internal component for handling rotation input with local state
 const RotationInput = ({ config, onUpdate }: { config: CharacterRotationConfig, onUpdate: (rotation: string[]) => void }) => {
-    const [inputValue, setInputValue] = useState(config.rotation.join(', '));
+    // ハイドレーションエラー回避: 初期値は空文字列で開始し、useEffectで設定
+    const [inputValue, setInputValue] = useState('');
     const [isEditing, setIsEditing] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
+
+    // クライアントマウント後に初期値を設定
+    useEffect(() => {
+        setIsMounted(true);
+        setInputValue(config.rotation.join(', '));
+    }, []);
 
     useEffect(() => {
-        if (!isEditing) {
+        if (isMounted && !isEditing) {
             setInputValue(config.rotation.join(', '));
         }
-    }, [config.rotation, isEditing]);
+    }, [config.rotation, isEditing, isMounted]);
 
     const handleChange = (val: string) => {
         setInputValue(val);
@@ -418,25 +426,25 @@ export default function PartySlotCard({
             {/* キャストリス専用設定 */}
             {config && character.id === 'castorice' && (
                 <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-                    <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>死竜行動回数:</label>
-                    <input
-                        type="number"
-                        style={{ ...selectorStyle, width: '60px', padding: '2px 4px' }}
-                        value={config.customConfig?.siryuBreathCount ?? 1}
+                    <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>死竜行動モード:</label>
+                    <select
+                        style={selectorStyle}
+                        value={config.customConfig?.siryuBreathMode ?? 'full'}
                         onChange={(e) => {
                             if (onConfigUpdate) {
                                 onConfigUpdate({
                                     ...config,
                                     customConfig: {
                                         ...config.customConfig,
-                                        siryuBreathCount: Math.max(0, Number(e.target.value))
+                                        siryuBreathMode: e.target.value as 'full' | 'safe'
                                     }
                                 });
                             }
                         }}
-                        min={0}
-                        placeholder="回数"
-                    />
+                    >
+                        <option value="full">全力発動（幽墟奪略の晦翼まで）</option>
+                        <option value="safe">安全発動（晦翼発動しない）</option>
+                    </select>
                 </div>
             )}
 

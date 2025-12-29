@@ -285,9 +285,9 @@ export const evernight: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'long-night-shining-star',
+        lightConeId: 'to-the-star-shining-in-the-long-night',
         superimposition: 1,
-        relicSetId: 'the_wondrous_poetaster',
+        relicSetId: 'savior_who_recreates_heaven_and_earth',
         ornamentSetId: 'silent_ossuary',
         mainStats: {
             body: 'crit_dmg',

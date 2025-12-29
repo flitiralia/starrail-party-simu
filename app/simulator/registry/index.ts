@@ -24,6 +24,9 @@ import { argentiHandlerFactory } from '../../data/characters/argenti';
 import { aventurineHandlerFactory } from '../../data/characters/aventurine';
 import { boothillHandlerFactory } from '../../data/characters/boothill';
 import { castoriceHandlerFactory } from '../../data/characters/castorice';
+import { feixiaoHandlerFactory } from '../../data/characters/feixiao';
+import { fireflyHandlerFactory } from '../../data/characters/firefly';
+import { fuXuanHandlerFactory } from '../../data/characters/fu-xuan';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -88,4 +91,7 @@ registry.registerCharacter('argenti', argentiHandlerFactory);
 registry.registerCharacter('aventurine', aventurineHandlerFactory);
 registry.registerCharacter('boothill', boothillHandlerFactory);
 registry.registerCharacter('castorice', castoriceHandlerFactory);
+registry.registerCharacter('feixiao', feixiaoHandlerFactory);
+registry.registerCharacter('firefly', fireflyHandlerFactory);
+registry.registerCharacter('fu-xuan', fuXuanHandlerFactory);
 

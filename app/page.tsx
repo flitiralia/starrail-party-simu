@@ -117,18 +117,26 @@ const weaknessGridStyle: React.CSSProperties = {
 };
 
 export default function Home() {
+  // --- HYDRATION FIX ---
+  const [mounted, setMounted] = useState(false);
+
   // --- PARTY STATE ---
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
   const [activeCharacterIndex, setActiveCharacterIndex] = useState<number | null>(null);
 
   // --- ENEMY STATE ---
   const [weaknesses, setWeaknesses] = useState(new Set<Element>());
+
+  // クライアントサイドマウント後にフラグを立てる
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [enemyLevel, setEnemyLevel] = useState(80);
-  const [enemyMaxHp, setEnemyMaxHp] = useState(10000);
+  const [enemyMaxHp, setEnemyMaxHp] = useState(1000000);
   const [enemyToughness, setEnemyToughness] = useState(180);
   const [enemyAtk, setEnemyAtk] = useState<number | undefined>(undefined); // Optional, undefined = default
   const [enemyDef, setEnemyDef] = useState<number | undefined>(undefined); // Optional, undefined = default
-  const [enemySpd, setEnemySpd] = useState(132); // Default Speed
+  const [enemySpd, setEnemySpd] = useState(100); // Default Speed
 
   // --- SIMULATION STATE ---
   const [rounds, setRounds] = useState(5);
@@ -408,6 +416,16 @@ export default function Home() {
   const activeCharacter = activeCharacterIndex !== null ? partyMembers[activeCharacterIndex]?.character : null;
   const activeConfig = activeCharacterIndex !== null ? partyMembers[activeCharacterIndex]?.config : null;
   const activeStats = activeCharacter ? finalStats.get(activeCharacter.id) : null;
+
+  // ハイドレーションエラー回避: クライアントマウント前はローディング表示
+  if (!mounted) {
+    return (
+      <main suppressHydrationWarning>
+        <h1 style={{ padding: '0 16px', textAlign: 'center' }} suppressHydrationWarning>崩壊スターレイル パーティビルドシミュレーター</h1>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#888' }} suppressHydrationWarning>読み込み中...</div>
+      </main>
+    );
+  }
 
   return (
     <main>

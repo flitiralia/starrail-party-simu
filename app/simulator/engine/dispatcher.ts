@@ -892,12 +892,18 @@ function stepGenerateHits(context: ActionContext): ActionContext {
     }
   }
   else if (action.type === 'SKILL') {
-    // abilityIdが指定されている場合はそのアビリティを使用
-    const skillAction = action as SkillAction;
-    if (skillAction.abilityId && (source.abilities as any)[skillAction.abilityId.replace('murion-', '')]) {
-      ability = (source.abilities as any)[skillAction.abilityId.replace('murion-', '')];
+    // ENHANCED_SKILLタグがある場合は強化スキルを使用
+    const hasEnhancedSkill = source.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
+    if (hasEnhancedSkill && source.abilities.enhancedSkill) {
+      ability = source.abilities.enhancedSkill;
     } else {
-      ability = source.abilities.skill;
+      // abilityIdが指定されている場合はそのアビリティを使用
+      const skillAction = action as SkillAction;
+      if (skillAction.abilityId && (source.abilities as any)[skillAction.abilityId.replace('murion-', '')]) {
+        ability = (source.abilities as any)[skillAction.abilityId.replace('murion-', '')];
+      } else {
+        ability = source.abilities.skill;
+      }
     }
   }
   else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
@@ -1064,7 +1070,15 @@ function stepProcessHits(context: ActionContext): ActionContext {
       ability = source.abilities.basic;
     }
   }
-  else if (action.type === 'SKILL') ability = source.abilities.skill;
+  else if (action.type === 'SKILL') {
+    // ENHANCED_SKILLタグがある場合は強化スキルを使用
+    const hasEnhancedSkill = source.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
+    if (hasEnhancedSkill && source.abilities.enhancedSkill) {
+      ability = source.abilities.enhancedSkill;
+    } else {
+      ability = source.abilities.skill;
+    }
+  }
   else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
   else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent;
 
@@ -1156,8 +1170,12 @@ function stepProcessHits(context: ActionContext): ActionContext {
 
     if (canReduceToughness) {
       if (currentTarget.toughness > 0) {
-        // 削靭値計算: (基礎 + toughnessFlat) × (1 + break_efficiency)
-        const baseToughness = hit.toughnessReduction + (currentDamageModifiers.toughnessFlat || 0);
+        // 削靭値計算: (基礎 + toughnessFlat) × toughnessMultiplier × (1 + break_efficiency)
+        let baseToughness = hit.toughnessReduction + (currentDamageModifiers.toughnessFlat || 0);
+        // 削靭倍率適用（ホタルA2: 弱点無視時55%）
+        if (currentDamageModifiers.toughnessMultiplier !== undefined) {
+          baseToughness *= currentDamageModifiers.toughnessMultiplier;
+        }
         const breakEfficiency = currentSource.stats.break_effect || 0;
         const toughnessReduction = baseToughness * (1 + breakEfficiency);
         newToughness = Math.max(0, currentTarget.toughness - toughnessReduction);
