@@ -27,6 +27,9 @@ export { evernight, evernightHandlerFactory } from './evernight';
 export { feixiao, feixiaoHandlerFactory } from './feixiao';
 export { firefly, fireflyHandlerFactory } from './firefly';
 export { fuXuan, fuXuanHandlerFactory } from './fu-xuan';
+export { fugue, fugueHandlerFactory } from './fugue';
+export { Huohuo } from './huohuo';
+export { hysilens, hysilensHandlerFactory } from './hysilens';
 // Export all characters for easy access
 import { march7th } from './march-7th';
 import { tribbie } from './tribbie';
@@ -56,6 +59,8 @@ import { evernight } from './evernight';
 import { feixiao } from './feixiao';
 import { firefly } from './firefly';
 import { fuXuan } from './fu-xuan';
+import { fugue } from './fugue';
+import { hysilens } from './hysilens';
 
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan];
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan, fugue, hysilens];

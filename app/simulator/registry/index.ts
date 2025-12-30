@@ -27,6 +27,11 @@ import { castoriceHandlerFactory } from '../../data/characters/castorice';
 import { feixiaoHandlerFactory } from '../../data/characters/feixiao';
 import { fireflyHandlerFactory } from '../../data/characters/firefly';
 import { fuXuanHandlerFactory } from '../../data/characters/fu-xuan';
+import { fugueHandlerFactory } from '../../data/characters/fugue';
+import { gepardHandlerFactory } from '../../data/characters/gepard';
+import { himekoHandlerFactory } from '../../data/characters/himeko';
+import { huohuoHandlerFactory } from '../../data/characters/huohuo';
+import { hysilensHandlerFactory } from '../../data/characters/hysilens';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -94,4 +99,9 @@ registry.registerCharacter('castorice', castoriceHandlerFactory);
 registry.registerCharacter('feixiao', feixiaoHandlerFactory);
 registry.registerCharacter('firefly', fireflyHandlerFactory);
 registry.registerCharacter('fu-xuan', fuXuanHandlerFactory);
+registry.registerCharacter('fugue', fugueHandlerFactory);
+registry.registerCharacter('gepard', gepardHandlerFactory);
+registry.registerCharacter('himeko', himekoHandlerFactory);
+registry.registerCharacter('huohuo', huohuoHandlerFactory);
+registry.registerCharacter('hysilens', hysilensHandlerFactory);
 

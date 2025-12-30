@@ -89,6 +89,7 @@ export interface ShieldEffect extends IEffect {
 }
 
 // 撃破による特殊状態異常 (凍結、もつれ、禁錮)
+// @deprecated CrowdControlEffect を使用してください
 export interface BreakStatusEffect extends IEffect {
   type: 'BreakStatus';
   statusType: 'Freeze' | 'Entanglement' | 'Imprisonment';
@@ -98,3 +99,56 @@ export interface BreakStatusEffect extends IEffect {
   frozen?: boolean; // 凍結フラグ
   baseDamagePerStack?: number; // もつれ用: スタックごとのダメージ量
 }
+
+/**
+ * 行動制限デバフ（凍結/もつれ/禁錮）
+ * 
+ * 共通仕様:
+ * - ターンは回ってくるが行動選択時にスキップされる
+ * - ターン開始時に解除された場合は通常行動可能
+ * - ダメージ処理は解除より先に実行される
+ * 
+ * 凍結: 解除時に付加ダメージ、解除後AV50%進行
+ * もつれ: ターン開始時に付加ダメージ（スタック依存）、行動順遅延、攻撃ヒット時スタック+1
+ * 禁錮: 行動順遅延、速度-10%
+ */
+export interface CrowdControlEffect extends IEffect {
+  readonly type: 'CrowdControl';
+  readonly ccType: 'Freeze' | 'Entanglement' | 'Imprisonment';
+
+  /**
+   * ダメージ計算方式
+   * - 'fixed': baseDamage × 係数（弱点撃破由来）
+   * - 'multiplier': 参照ステータス × 倍率（キャラクター由来）
+   * - 'none': ダメージなし（禁錮）
+   */
+  readonly damageCalculation: 'fixed' | 'multiplier' | 'none';
+
+  /** 固定ダメージ値（弱点撃破由来用） */
+  readonly baseDamage?: number;
+
+  /** 参照ステータス（キャラクター由来用） */
+  readonly scaling?: 'atk' | 'hp' | 'def';
+
+  /** ダメージ倍率（キャラクター由来用） */
+  readonly multiplier?: number;
+
+  /** もつれ: スタック数 */
+  stackCount?: number;
+
+  /** もつれ: 最大スタック数 */
+  readonly maxStacks?: number;
+
+  /** もつれ: スタックごとの基礎ダメージ */
+  readonly baseDamagePerStack?: number;
+
+  /** 行動順遅延量（もつれ/禁錮用） */
+  readonly delayAmount?: number;
+
+  /** 速度低下率（禁錮用、例: 0.10 = 10%） */
+  readonly speedReduction?: number;
+
+  /** 凍結解除時のAV進行率（例: 0.5 = 50%） */
+  readonly avAdvanceOnRemoval?: number;
+}
+

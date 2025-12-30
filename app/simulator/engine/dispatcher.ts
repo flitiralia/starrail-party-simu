@@ -1,4 +1,4 @@
-import { GameState, Unit, IEventHandlerLogic, IEventHandler, ActionContext, Action, BasicAttackAction, SkillAction, UltimateAction, BattleStartAction, RegisterHandlersAction, ActionAdvanceAction, FollowUpAttackAction, IEvent, IHit, DamageOptions, DamageResult, CombatAction, EnhancedBasicAttackAction, CurrentActionLog } from './types';
+import { GameState, Unit, IEventHandlerLogic, IEventHandler, ActionContext, Action, BasicAttackAction, SkillAction, UltimateAction, BattleStartAction, RegisterHandlersAction, ActionAdvanceAction, FollowUpAttackAction, IEvent, IHit, DamageOptions, DamageResult, CombatAction, EnhancedBasicAttackAction, CurrentActionLog, BeforeDamageReceivedEvent, BeforeDeathEvent } from './types';
 import { UnitId, createUnitId } from './unitId';
 import { SimulationLogEntry, IAbility, HitDetail, AdditionalDamageEntry, DamageTakenEntry, HealingEntry, ShieldEntry, DotDetonationEntry, EquipmentEffectEntry, EffectSummary, Modifier } from '../../types/index';
 import { calculateDamage, calculateDamageWithCritInfo, DamageCalculationModifiers, calculateBreakDamage, calculateSuperBreakDamage, calculateBreakDamageWithBreakdown } from '../damage';
@@ -561,17 +561,102 @@ export function applyUnifiedDamage(
     effects: target.effects
   } : target;
 
+  let newState = state;
+  let actualDamage = damage;
+
+  // ★ ON_BEFORE_DAMAGE_RECEIVED イベント発火（ダメージ分担処理用）
+  // 味方がダメージを受ける場合のみ発火
+  if (!freshTarget.isEnemy && damage > 0) {
+    const beforeDamageEvent: BeforeDamageReceivedEvent = {
+      type: 'ON_BEFORE_DAMAGE_RECEIVED',
+      sourceId: source.id,
+      targetId: freshTarget.id,
+      originalDamage: damage,
+      damageType: options.damageType,
+      attackerId: source.isEnemy ? source.id : undefined,
+    };
+
+    // イベントを発火してハンドラーに処理させる
+    const relevantHandlers = newState.eventHandlers.filter(h =>
+      h.subscribesTo.includes('ON_BEFORE_DAMAGE_RECEIVED')
+    );
+    for (const handler of relevantHandlers) {
+      const logic = newState.eventHandlerLogics[handler.id];
+      if (logic) {
+        newState = logic(beforeDamageEvent, newState, handler.id);
+      }
+    }
+
+    // ハンドラーがmodifiedDamageを設定していればダメージを更新
+    if (beforeDamageEvent.modifiedDamage !== undefined) {
+      actualDamage = beforeDamageEvent.modifiedDamage;
+    }
+
+    // ダメージ分担処理（符玄等）
+    if (beforeDamageEvent.sharedDamage) {
+      const sharedTarget = newState.registry.get(createUnitId(beforeDamageEvent.sharedDamage.targetId));
+      if (sharedTarget && sharedTarget.hp > 0) {
+        // 分担先にダメージを適用（再帰呼び出しは避ける）
+        const sharedDamageAmount = beforeDamageEvent.sharedDamage.amount;
+        const sharedTargetAfterDamage = applyDamage(sharedTarget, sharedDamageAmount);
+        newState = {
+          ...newState,
+          registry: newState.registry.update(sharedTarget.id as UnitId, u => sharedTargetAfterDamage)
+        };
+      }
+    }
+  }
+
   // 1. Apply Damage
-  const targetAfterDamage = applyDamage(freshTarget, damage);
+  const targetAfterDamage = applyDamage(freshTarget, actualDamage);
   let killed = false;
-  let newState = {
-    ...state,
-    registry: state.registry.update(target.id as UnitId, u => targetAfterDamage)
+  newState = {
+    ...newState,
+    registry: newState.registry.update(target.id as UnitId, u => targetAfterDamage)
   };
 
   // 2. Kill Logic (EP Recovery)
   if (targetAfterDamage.hp <= 0 && target.hp > 0) { // Newly killed
     killed = true;
+
+    // ★ ON_BEFORE_DEATH イベント発火（符玄E2蘇生防止等）
+    // 味方が死亡しようとしている場合のみ発火
+    if (!target.isEnemy) {
+      const beforeDeathEvent: BeforeDeathEvent = {
+        type: 'ON_BEFORE_DEATH',
+        sourceId: source.id,
+        targetId: target.id,
+        killerId: source.id,
+      };
+
+      // イベントを発火してハンドラーに処理させる
+      const beforeDeathHandlers = newState.eventHandlers.filter(h =>
+        h.subscribesTo.includes('ON_BEFORE_DEATH')
+      );
+      for (const handler of beforeDeathHandlers) {
+        const logic = newState.eventHandlerLogics[handler.id];
+        if (logic) {
+          newState = logic(beforeDeathEvent, newState, handler.id);
+        }
+      }
+
+      // 死亡を防止する場合
+      if (beforeDeathEvent.preventDeath && beforeDeathEvent.healAmount && beforeDeathEvent.healAmount > 0) {
+        // ユニットを回復して死亡をキャンセル
+        const healedUnit = newState.registry.get(target.id as UnitId);
+        if (healedUnit) {
+          const restoredHp = Math.min(beforeDeathEvent.healAmount, healedUnit.stats.hp);
+          newState = {
+            ...newState,
+            registry: newState.registry.update(target.id as UnitId, u => ({
+              ...u,
+              hp: restoredHp
+            }))
+          };
+          killed = false;  // 死亡キャンセル
+        }
+      }
+    }
 
     // 敵撃破イベント発火（効果削除前、EP回復前）
     if (target.isEnemy) {
@@ -593,51 +678,51 @@ export function applyUnifiedDamage(
       }
     }
 
-    // ON_UNIT_DEATH event (For Ikarun dismissal etc.)
-    const unitDeathEvent: IEvent = {
-      type: 'ON_UNIT_DEATH',
-      sourceId: source.id, // Killer
-      targetId: target.id, // Victim
-    };
+    // ON_UNIT_DEATH event (For Ikarun dismissal etc.) - 死亡がキャンセルされていない場合のみ
+    if (killed) {
+      const unitDeathEvent: IEvent = {
+        type: 'ON_UNIT_DEATH',
+        sourceId: source.id, // Killer
+        targetId: target.id, // Victim
+      };
 
-    const deathHandlers = newState.eventHandlers.filter(h =>
-      h.subscribesTo.includes('ON_UNIT_DEATH')
-    );
-    for (const handler of deathHandlers) {
-      const logic = newState.eventHandlerLogics[handler.id];
-      if (logic) {
-        newState = logic(unitDeathEvent, newState, handler.id);
-      }
-    }
-
-    // ★ オーラ削除: 死亡したユニットがソースのオーラをすべて削除
-    newState = removeAurasBySource(newState, target.id);
-
-    if (options.isKillRecoverEp) {
-      const killer = newState.registry.get(source.id as UnitId);
-      if (killer) {
-        const oldEp = killer.ep;
-        const updatedKiller = addEnergy(killer, ENEMY_DEFEAT_ENERGY_REWARD);
-        const actualGain = updatedKiller.ep - oldEp;
-        newState = {
-          ...newState,
-          registry: newState.registry.update(killer.id as UnitId, u => updatedKiller)
-        };
-
-        // Publish ON_EP_GAINED event for kill EP recovery
-        if (actualGain > 0) {
-          newState = publishEvent(newState, {
-            type: 'ON_EP_GAINED',
-            sourceId: killer.id,
-            targetId: killer.id,
-            value: actualGain,
-            epGained: actualGain
-          });
+      const deathHandlers = newState.eventHandlers.filter(h =>
+        h.subscribesTo.includes('ON_UNIT_DEATH')
+      );
+      for (const handler of deathHandlers) {
+        const logic = newState.eventHandlerLogics[handler.id];
+        if (logic) {
+          newState = logic(unitDeathEvent, newState, handler.id);
         }
       }
-    }
-  }
+      // ★ オーラ削除: 死亡したユニットがソースのオーラをすべて削除
+      newState = removeAurasBySource(newState, target.id);
 
+      if (options.isKillRecoverEp) {
+        const killer = newState.registry.get(source.id as UnitId);
+        if (killer) {
+          const oldEp = killer.ep;
+          const updatedKiller = addEnergy(killer, ENEMY_DEFEAT_ENERGY_REWARD);
+          const actualGain = updatedKiller.ep - oldEp;
+          newState = {
+            ...newState,
+            registry: newState.registry.update(killer.id as UnitId, u => updatedKiller)
+          };
+
+          // Publish ON_EP_GAINED event for kill EP recovery
+          if (actualGain > 0) {
+            newState = publishEvent(newState, {
+              type: 'ON_EP_GAINED',
+              sourceId: killer.id,
+              targetId: killer.id,
+              value: actualGain,
+              epGained: actualGain
+            });
+          }
+        }
+      }
+    } // end if (killed)
+  } // end if (targetAfterDamage.hp <= 0 && target.hp > 0)
   // 3. Update Stats (Optional)
   if (!options.skipStats) {
     const currentStats = newState.result.characterStats[source.id] || {

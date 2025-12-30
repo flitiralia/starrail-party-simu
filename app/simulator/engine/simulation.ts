@@ -9,8 +9,8 @@ import { LightConeRegistry, RelicRegistry } from './handlers/registry';
 import { createGenericLightConeHandlerFactory } from './handlers/generic';
 import { march7thHandlerFactory } from '../../data/characters/march-7th';
 import { tribbieHandlerFactory } from '../../data/characters/tribbie';
-import { DoTEffect, BreakStatusEffect, IEffect } from '../effect/types';
-import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect } from '../effect/utils';
+import { DoTEffect, BreakStatusEffect, IEffect, CrowdControlEffect } from '../effect/types';
+import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect, isNewCrowdControlEffect } from '../effect/utils';
 import { calculateBreakDoTDamage, calculateNormalDoTDamage, calculateBreakAdditionalDamage, calculateNormalDoTDamageWithBreakdown, calculateBreakDoTDamageWithBreakdown } from '../damage';
 import { LEVEL_CONSTANT_80, FREEZE_REMOVAL_AV_ADVANCE } from './constants';
 import * as relicData from '../../data/relics';
@@ -780,17 +780,41 @@ export function stepSimulation(state: GameState): GameState {
     // 1. 付加ダメージ処理
     // 2. 効果時間減少
     // 3. duration > 0 ならターンスキップ、0以下なら効果解除して通常行動
-    const ccEffect = currentActingUnit!.effects.find(e => isCrowdControlEffect(e)) as BreakStatusEffect | undefined;
+    const ccEffectRaw = currentActingUnit!.effects.find(e => isCrowdControlEffect(e));
+
+    // 新型または旧型のCCエフェクトを取得
+    const ccEffect = ccEffectRaw as (CrowdControlEffect | BreakStatusEffect | undefined);
 
     if (ccEffect) {
         // Get the latest state of the acting unit
         let affectedUnit = newState.registry.get(createUnitId(currentActingUnit!.id))!;
 
+        // CCタイプを取得（新型crowdControlEffectは ccType、旧型BreakStatusEffectは statusType）
+        const ccType = isNewCrowdControlEffect(ccEffect)
+            ? ccEffect.ccType
+            : (ccEffect as BreakStatusEffect).statusType;
+
         // 1. ダメージ処理 (凍結のみここで処理、もつれは別途処理済み)
-        if (ccEffect.statusType === 'Freeze') {
+        if (ccType === 'Freeze') {
             const source = newState.registry.get(createUnitId(ccEffect.sourceUnitId));
             if (source) {
-                const freezeDamage = calculateBreakAdditionalDamage(source, affectedUnit, 1 * LEVEL_CONSTANT_80);
+                // ダメージ計算: 新型は baseDamage / multiplier、旧型は固定値
+                let baseDamage: number;
+                if (isNewCrowdControlEffect(ccEffect)) {
+                    if (ccEffect.damageCalculation === 'multiplier' && ccEffect.scaling && ccEffect.multiplier) {
+                        // キャラクター由来: 参照ステータス × 倍率
+                        const refStat = source.stats[ccEffect.scaling] || 0;
+                        baseDamage = refStat * ccEffect.multiplier;
+                    } else {
+                        // 弱点撃破由来: 固定ダメージ
+                        baseDamage = ccEffect.baseDamage || LEVEL_CONSTANT_80;
+                    }
+                } else {
+                    // 旧型: 固定値
+                    baseDamage = LEVEL_CONSTANT_80;
+                }
+
+                const freezeDamage = calculateBreakAdditionalDamage(source, affectedUnit, baseDamage);
 
                 const result = applyUnifiedDamage(
                     newState,
@@ -815,6 +839,7 @@ export function stepSimulation(state: GameState): GameState {
 
         // 3. 解除判定（duration <= 0 なら解除、それ以外は更新）
         let shouldAdvanceAV = false;
+        let avAdvanceAmount = FREEZE_REMOVAL_AV_ADVANCE;
         if (newDuration <= 0) {
             // 効果解除
             affectedUnit = {
@@ -823,8 +848,12 @@ export function stepSimulation(state: GameState): GameState {
             };
 
             // 凍結解除時のAV加速フラグ
-            if (ccEffect.statusType === 'Freeze') {
+            if (ccType === 'Freeze') {
                 shouldAdvanceAV = true;
+                // 新型は avAdvanceOnRemoval を参照
+                if (isNewCrowdControlEffect(ccEffect) && ccEffect.avAdvanceOnRemoval !== undefined) {
+                    avAdvanceAmount = ccEffect.avAdvanceOnRemoval;
+                }
             }
 
             // Update state with modified unit
@@ -836,7 +865,7 @@ export function stepSimulation(state: GameState): GameState {
             // AV加速（凍結解除時のみ）
             if (shouldAdvanceAV) {
                 const updatedUnit = newState.registry.get(createUnitId(affectedUnit.id))!;
-                newState = advanceAction(newState, updatedUnit.id, FREEZE_REMOVAL_AV_ADVANCE);
+                newState = advanceAction(newState, updatedUnit.id, avAdvanceAmount);
             }
 
             // ★ 効果解除後は通常行動に進む（return しない）
@@ -861,7 +890,7 @@ export function stepSimulation(state: GameState): GameState {
                     characterName: affectedUnit.name,
                     actionTime: newState.time,
                     actionType: 'ターンスキップ',
-                    details: `${ccEffect.statusType} (ターンスキップ、残り${newDuration}ターン)`,
+                    details: `${ccType} (ターンスキップ、残り${newDuration}ターン)`,
                     sourceId: affectedUnit.id,
                     skillPointsAfterAction: newState.skillPoints,
                     damageDealt: 0,
@@ -881,7 +910,7 @@ export function stepSimulation(state: GameState): GameState {
             };
 
             // ターン終了処理（他のエフェクトの時間減少、AV リセット）
-            newState = updateTurnEndState(newState, affectedUnit, { type: 'TURN_SKIP', sourceId: affectedUnit.id, reason: ccEffect.statusType });
+            newState = updateTurnEndState(newState, affectedUnit, { type: 'TURN_SKIP', sourceId: affectedUnit.id, reason: ccType });
 
             newState = updateActionQueue(newState);
 

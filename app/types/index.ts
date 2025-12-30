@@ -24,9 +24,11 @@ export type EventType =
   | 'ON_ATTACK'
   | 'ON_DAMAGE_DEALT'
   | 'ON_DAMAGE_RECEIVED'
+  | 'ON_BEFORE_DAMAGE_RECEIVED'  // ダメージ受ける前（符玄のダメージ分担等）
   | 'ON_HEAL_RECEIVED'
   | 'ON_UNIT_HEALED' // Legacy
   | 'ON_DEATH'
+  | 'ON_BEFORE_DEATH'  // ユニット死亡前（符玄E2蘇生防止等）
   | 'ON_REVIVE'
   | 'ON_SKILL_USED'
   | 'ON_ULTIMATE_USED'

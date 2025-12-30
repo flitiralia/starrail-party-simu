@@ -399,6 +399,35 @@ export interface EnemyDefeatedEvent extends BaseEvent {
     targetId?: string; // ID of defeated enemy
 }
 
+/**
+ * ダメージを受ける前のイベント（符玄のダメージ分担等）
+ * ハンドラーはmodifiedDamageを設定して実際に受けるダメージを変更できる
+ */
+export interface BeforeDamageReceivedEvent extends BaseEvent {
+    type: 'ON_BEFORE_DAMAGE_RECEIVED';
+    targetId: string;           // ダメージを受けるユニット
+    originalDamage: number;     // 元のダメージ量
+    damageType: string;         // ダメージタイプ
+    attackerId?: string;        // 攻撃者のID（いる場合）
+    modifiedDamage?: number;    // 変更後のダメージ（ハンドラーが設定）
+    sharedDamage?: {            // 分担ダメージ情報（符玄等が設定）
+        targetId: string;       // 分担先のユニットID
+        amount: number;         // 分担する量
+    };
+}
+
+/**
+ * ユニット死亡前のイベント（符玄E2蘇生防止等）
+ * ハンドラーはpreventDeathをtrueに設定して死亡を防止できる
+ */
+export interface BeforeDeathEvent extends BaseEvent {
+    type: 'ON_BEFORE_DEATH';
+    targetId: string;           // 死亡しようとしているユニット
+    killerId: string;           // 倒したユニット
+    preventDeath?: boolean;     // trueなら死亡を防止
+    healAmount?: number;        // 防止時の回復量
+}
+
 export type IEvent =
     | GeneralEvent
     | ActionEvent
@@ -412,7 +441,9 @@ export type IEvent =
     | BeforeActionEvent
     | BeforeDamageCalcEvent
     | EnemyDefeatedEvent
-    | HpConsumeEvent;
+    | HpConsumeEvent
+    | BeforeDamageReceivedEvent
+    | BeforeDeathEvent;
 
 /**
  * エフェクト付与/解除イベント用のインターフェース

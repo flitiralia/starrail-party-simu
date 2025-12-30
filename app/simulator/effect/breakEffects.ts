@@ -5,7 +5,7 @@ import {
 } from "../engine/constants";
 
 import { GameState, Unit } from "../engine/types";
-import { DoTEffect, BreakStatusEffect, DurationType, IEffect } from "./types";
+import { DoTEffect, BreakStatusEffect, DurationType, IEffect, CrowdControlEffect } from "./types";
 import { Element } from "@/app/types";
 import { calculateBreakDoTDamage, calculateBreakAdditionalDamage } from "../damage";
 
@@ -171,36 +171,45 @@ export function createWindShearEffect(source: Unit, target: Unit): DoTEffect {
     };
 }
 
-// --- Status Factories ---
+// --- Crowd Control Factories (新型) ---
 
-export function createFreezeEffect(source: Unit, target: Unit): BreakStatusEffect {
-    // Freeze: 1 * LevelConst dmg on remove. Skip turn.
+/**
+ * 凍結エフェクトを作成（弱点撃破由来）
+ * 
+ * 仕様:
+ * - 付加ダメージ: 1 × レベル定数
+ * - 解除後: AV50%進行
+ * - 継続: 1ターン
+ */
+export function createFreezeEffect(source: Unit, target: Unit): CrowdControlEffect {
     return {
-        id: `freeze-${target.id}`,
+        id: generateEffectId('Freeze', source.id, target.id),
         name: '凍結',
         category: 'DEBUFF',
-        type: 'BreakStatus',
-        statusType: 'Freeze',
+        type: 'CrowdControl',
+        ccType: 'Freeze',
         sourceUnitId: source.id,
         durationType: 'TURN_START_BASED',
         duration: 1,
-        frozen: true,
-        apply: (t, s) => s, // Turn skip handled in simulation loop
-        remove: (t, s) => {
-            // Deal Ice Damage
-            const dmg = calculateBreakAdditionalDamage(source, t, 1 * LEVEL_CONSTANT_80);
-            // Log damage? We need a way to log from here or handle it in simulation loop.
-            // Since remove returns GameState, we can't easily log unless we modify state.log.
-            // For now, let's assume simulation loop handles the "On Remove" logic for Freeze specifically to capture damage.
-            // Or we can just return state and let the loop calculate damage.
-            return s;
-        }
+        damageCalculation: 'fixed',
+        baseDamage: 1 * LEVEL_CONSTANT_80,
+        avAdvanceOnRemoval: 0.5,  // 50% AV進行
+        isCleansable: true,
+        apply: (t, s) => s,
+        remove: (t, s) => s
     };
 }
 
-export function createEntanglementEffect(source: Unit, target: Unit): BreakStatusEffect {
-    // Entanglement: 0.6 * Stack * LevelConst * ToughnessMult
-    // Delay 20% * (1+BE)
+/**
+ * もつれエフェクトを作成（弱点撃破由来）
+ * 
+ * 仕様:
+ * - 付加ダメージ: 0.6 × スタック数 × レベル定数 × 靭性係数
+ * - 行動順遅延: 20% × (1 + 撃破特効)
+ * - 攻撃ヒット時: スタック+1（最大5スタック）
+ * - 継続: 1ターン
+ */
+export function createEntanglementEffect(source: Unit, target: Unit): CrowdControlEffect {
     const breakEffect = source.stats.break_effect || 0;
     const delay = ENTANGLEMENT_BASE_DELAY * (1 + breakEffect);
     const toughnessMult = 0.5 + (target.maxToughness / 40);
@@ -210,27 +219,32 @@ export function createEntanglementEffect(source: Unit, target: Unit): BreakStatu
         id: generateEffectId('Entanglement', source.id, target.id),
         name: 'もつれ',
         category: 'DEBUFF',
-        type: 'BreakStatus',
-        statusType: 'Entanglement',
+        type: 'CrowdControl',
+        ccType: 'Entanglement',
         sourceUnitId: source.id,
         durationType: 'TURN_START_BASED',
         duration: 1,
+        damageCalculation: 'fixed',
+        baseDamagePerStack: baseDmgPerStack,
         stackCount: 1,
         maxStacks: 5,
         delayAmount: delay,
-        baseDamagePerStack: baseDmgPerStack,
-        apply: (t, s) => {
-            // Apply Delay immediately? 
-            // Usually delay happens ON BREAK, which is when this effect is created.
-            // So the dispatcher should handle the delay application using the value from here.
-            return s;
-        },
-        remove: (t, s) => s // Damage handled in loop
+        isCleansable: true,
+        apply: (t, s) => s,
+        remove: (t, s) => s
     };
 }
 
-export function createImprisonmentEffect(source: Unit, target: Unit): BreakStatusEffect {
-    // Imprisonment: Delay 30% * (1+BE). Spd -10%.
+/**
+ * 禁錮エフェクトを作成（弱点撃破由来）
+ * 
+ * 仕様:
+ * - ダメージ: なし
+ * - 行動順遅延: 30% × (1 + 撃破特効)
+ * - 速度低下: -10%
+ * - 継続: 1ターン
+ */
+export function createImprisonmentEffect(source: Unit, target: Unit): CrowdControlEffect {
     const breakEffect = source.stats.break_effect || 0;
     const delay = IMPRISONMENT_BASE_DELAY * (1 + breakEffect);
 
@@ -238,22 +252,21 @@ export function createImprisonmentEffect(source: Unit, target: Unit): BreakStatu
         id: generateEffectId('Imprisonment', source.id, target.id),
         name: '禁錮',
         category: 'DEBUFF',
-        type: 'BreakStatus',
-        statusType: 'Imprisonment',
+        type: 'CrowdControl',
+        ccType: 'Imprisonment',
         sourceUnitId: source.id,
         durationType: 'TURN_START_BASED',
         duration: 1,
+        damageCalculation: 'none',
         delayAmount: delay,
-
-        // モディファイアで速度-10%を定義（NEW）
+        speedReduction: 0.10,  // 速度-10%
         modifiers: [{
             target: 'spd_pct',
             source: '禁錮',
             type: 'pct',
             value: -0.10
         }],
-
-        // apply/removeは空関数に（statBuilderが自動処理）
+        isCleansable: true,
         apply: (t, s) => s,
         remove: (t, s) => s
     };
