@@ -1,0 +1,32 @@
+
+Cavern Relics (トンネル遺物)
+| English Name | Japanese Name |
+| :--- | :--- |
+| Passerby of Wandering Cloud | 流雲無痕の過客 |
+| Musketeer of Wild Wheat | 草の穂ガンマン |
+| Knight of Purity Palace | 純庭教会の聖騎士 |
+| Hunter of Glacial Forest | 雪の密林の狩人 |
+| Champion of Streetwise Boxing | 成り上がりチャンピオン |
+| Guard of Wuthering Snow | 吹雪と対峙する兵士 |
+| Firesmith of Lava-Forging | 溶岩で鍛造する火匠 |
+| Genius of Brilliant Stars | 星の如く輝く天才 |
+| Band of Sizzling Thunder | 雷鳴轟くバンド |
+| Eagle of Twilight Line | 昼夜の狭間を翔ける鷹 |
+| Thief of Shooting Meteor | 流星の跡を追う怪盗 |
+| Wastelander of Banditry Desert | 荒地で盗みを働く廃土客 |
+| Longevous Disciple | 宝命長存の蒔者 |
+| Messenger Traversing Hackerspace | 仮想空間を漫遊するメッセンジャー |
+| The Ashblazing Grand Duke | 灰燼を燃やし尽くす大公 |
+| Prisoner in Deep Confinement | 深い牢獄の囚人 |
+| Pioneer Diver of Dead Waters | 死水に潜る先駆者 |
+| Watchmaker, Master of Dream Machinations | 夢を弄ぶ時計屋 |
+| Iron Cavalry Against the Scourge | 蝗害を一掃せし鉄騎 |
+| The Wind-Soaring Valorous | 風雲を薙ぎ払う勇烈 |
+| Sacerdos' Relived Ordeal | 再び苦難の道を歩む司祭 |
+| Scholar Lost in Erudition | 知識の海に溺れる学者 |
+| Hero of Triumphant Song | 凱歌を揚げる英雄 |
+| Poet of Mourning Collapse | 亡国の悲哀を詠う詩人 |
+| Warrior Goddess of Sun and Thunder | 烈陽と雷鳴の武神 |
+| Wavestrider Captain | 荒海を越える船長 |
+| World-Remaking Deliverer | 天地再創の救世主 |
+| Self-Enshrouded Recluse | 星の光を隠した隠者 |

@@ -1,4 +1,5 @@
 import { IEventHandlerFactory } from '../engine/types';
+import { jingliuHandlerFactory } from '../../data/characters/jingliu';
 import { march7thHandlerFactory } from '../../data/characters/march-7th';
 import { tribbieHandlerFactory } from '../../data/characters/tribbie';
 import { kafkaHandlerFactory } from '../../data/characters/kafka';
@@ -32,6 +33,7 @@ import { gepardHandlerFactory } from '../../data/characters/gepard';
 import { himekoHandlerFactory } from '../../data/characters/himeko';
 import { huohuoHandlerFactory } from '../../data/characters/huohuo';
 import { hysilensHandlerFactory } from '../../data/characters/hysilens';
+import { jiaoqiuHandlerFactory } from '../../data/characters/jiaoqiu';
 
 type HandlerFactory = IEventHandlerFactory;
 
@@ -104,4 +106,5 @@ registry.registerCharacter('gepard', gepardHandlerFactory);
 registry.registerCharacter('himeko', himekoHandlerFactory);
 registry.registerCharacter('huohuo', huohuoHandlerFactory);
 registry.registerCharacter('hysilens', hysilensHandlerFactory);
-
+registry.registerCharacter('jiaoqiu', jiaoqiuHandlerFactory);
+registry.registerCharacter('jingliu', jingliuHandlerFactory);
