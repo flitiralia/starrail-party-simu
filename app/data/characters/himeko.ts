@@ -1,7 +1,7 @@
 
 import { Character, StatKey } from '../../types';
 import { IEventHandlerFactory, GameState, IEvent, Unit, ActionEvent, BeforeDamageCalcEvent, DoTDamageEvent, GeneralEvent } from '../../simulator/engine/types';
-import { IEffect } from '../../simulator/effect/types';
+import { IEffect, DoTEffect } from '../../simulator/effect/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { applyUnifiedDamage, checkDebuffSuccess, publishEvent } from '../../simulator/engine/dispatcher';
@@ -69,7 +69,6 @@ function addChargeStack(state: GameState, unitId: string, amount: number): GameS
         id: EFFECT_IDS.CHARGE(unitId),
         name: 'Victory Rush Charge',
         category: 'BUFF',
-        type: 'Counter',
         sourceUnitId: unitId, // Fixed prop name
         stackCount: newStacks,
         maxStacks: maxStacks, // Fixed prop name
@@ -296,7 +295,6 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                             id: EFFECT_IDS.TECHNIQUE_DEBUFF(sourceId, enemy.id),
                             name: 'Incomplete Combustion (Technique)',
                             category: 'DEBUFF',
-                            type: 'Debuff',
                             sourceUnitId: sourceId,
                             durationType: 'TURN_START_BASED',
                             duration: 2,
@@ -441,22 +439,16 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                     name: 'Burn (Starfire)',
                                     category: 'DEBUFF',
                                     type: 'DoT',
-                                    // dotType: 'Burn', // IEffect doesn't have dotType, DoTEffect does.
-                                    // But IEffect union includes DoTEffect? No.
-                                    // We need to cast or use the create helper?
-                                    // Let's manually construct.
-                                    // The interface `DoTEffect` extends IEffect.
                                     sourceUnitId: sourceId,
                                     durationType: 'TURN_START_BASED',
                                     duration: 2,
                                     modifiers: [],
                                     apply: (t, s) => s,
                                     remove: (t, s) => s,
-                                    // DoT specific properties (mixed in, engine handles via casting)
                                     dotType: 'Burn',
                                     damageCalculation: 'multiplier',
                                     multiplier: 0.30
-                                } as any);
+                                } as DoTEffect);
                             }
                         });
                         state = newState; // Update local state for next block
