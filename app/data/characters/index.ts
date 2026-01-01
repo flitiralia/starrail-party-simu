@@ -85,6 +85,7 @@ import { fugue } from './fugue';
 import { hysilens } from './hysilens';
 import { jade } from './jade';
 import { jingliu } from './jingliu';
+import { jingYuan } from './jing-yuan';
 
 import { lingsha } from './lingsha';
 import { mydei } from './mydei';
@@ -109,4 +110,4 @@ export { silverWolf, silverWolfHandlerFactory };
 import { yunli, yunliHandlerFactory } from './yunli';
 export { yunli, yunliHandlerFactory };
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, theHerta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan, fugue, hysilens, jade, jingliu, lingsha, mydei, rappa, robin, silverWolf, sparkle, dahlia, topazAndNumby, trailblazerDestruction, trailblazerPreservation, yunli, huohuo, gepard, himeko, jiaoqiu, saber, seele, welt, yanqing];
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, theHerta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan, fugue, hysilens, jade, jingliu, jingYuan, lingsha, mydei, rappa, robin, silverWolf, sparkle, dahlia, topazAndNumby, trailblazerDestruction, trailblazerPreservation, yunli, huohuo, gepard, himeko, jiaoqiu, saber, seele, welt, yanqing];

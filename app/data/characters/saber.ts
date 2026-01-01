@@ -137,6 +137,26 @@ export const saber: Character = {
         e4: { level: 4, name: '星魂4', description: '風貫通UP' },
         e5: { level: 5, name: '星魂5', description: 'LvUP' },
         e6: { level: 6, name: '星魂6', description: 'EP回復強化' },
+    },
+    defaultConfig: {
+        eidolonLevel: 0,
+        lightConeId: 'a-thankless-coronation',
+        superimposition: 1,
+        relicSetId: 'wavestrider-captain',
+        ornamentSetId: 'rutilant-arena',
+        mainStats: {
+            body: 'crit_dmg',
+            feet: 'atk_pct',
+            sphere: 'wind_dmg_boost',
+            rope: 'atk_pct',
+        },
+        subStats: [
+            { stat: 'crit_rate', value: 0.12 },
+            { stat: 'crit_dmg', value: 0.40 },
+            { stat: 'atk_pct', value: 0.15 },
+        ],
+        rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
     }
 };
 
@@ -182,39 +202,45 @@ function addReactorCoreWrapper(state: GameState, unit: Unit, amount: number): Ga
 
     // 昇格6: 1層ごとに会心ダメ+4% (Max8層=32%)
     if ((unit.traces || []).some(t => t.id === 'trace-a6')) {
-        newState = addEffect(newState, unit.id, {
-            id: EFFECT_IDS.TRACE_A6_STACK(unit.id),
-            name: '星の冠: 累積会心ダメ',
-            type: 'BUFF',
-            category: 'BUFF',
-            stackCount: amount, // 獲得数分追加
-            maxStacks: 8,
-            duration: -1, // 戦闘中永続
-            durationType: 'TURN_START_BASED',
-            // 1スタックあたり4% (0.04)
-            modifiers: [{ target: 'crit_dmg', value: 0.04, type: 'add', source: '昇格6' }],
-            sourceUnitId: unit.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
-        });
+        const currentUnit = newState.registry.get(unit.id); // 最新のunitを再取得
+        if (currentUnit) {
+            newState = addEffect(newState, unit.id, {
+                id: EFFECT_IDS.TRACE_A6_STACK(unit.id),
+                name: '星の冠: 累積会心ダメ',
+                type: 'BUFF',
+                category: 'BUFF',
+                stackCount: amount, // 獲得数分追加
+                maxStacks: 8,
+                duration: -1, // 戦闘中永続
+                durationType: 'TURN_START_BASED',
+                // 1スタックあたり4% (0.04)
+                modifiers: [{ target: 'crit_dmg', value: 0.04, type: 'add', source: '昇格6' }],
+                sourceUnitId: unit.id,
+                apply: (t, s) => s,
+                remove: (t, s) => s
+            });
+        }
     }
 
     // E2: 1層ごとに防御無視1% (Max15層=15%)
     if ((unit.eidolonLevel || 0) >= 2) {
-        newState = addEffect(newState, unit.id, {
-            id: EFFECT_IDS.E2_DEF_IGNORE(unit.id),
-            name: 'E2: 累積防御無視',
-            type: 'BUFF',
-            category: 'BUFF',
-            stackCount: amount,
-            maxStacks: 15,
-            duration: -1,
-            durationType: 'TURN_START_BASED',
-            modifiers: [{ target: 'def_ignore', value: 0.01, type: 'add', source: 'E2' }],
-            sourceUnitId: unit.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
-        });
+        const currentUnit = newState.registry.get(unit.id); // 最新のunitを再取得
+        if (currentUnit) {
+            newState = addEffect(newState, unit.id, {
+                id: EFFECT_IDS.E2_DEF_IGNORE(unit.id),
+                name: 'E2: 累積防御無視',
+                type: 'BUFF',
+                category: 'BUFF',
+                stackCount: amount,
+                maxStacks: 15,
+                duration: -1,
+                durationType: 'TURN_START_BASED',
+                modifiers: [{ target: 'def_ignore', value: 0.01, type: 'add', source: 'E2' }],
+                sourceUnitId: unit.id,
+                apply: (t, s) => s,
+                remove: (t, s) => s
+            });
+        }
     }
 
     return newState;

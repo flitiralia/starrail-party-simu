@@ -36,7 +36,7 @@ const MAX_SPEED_STACKS = 6;
 const MAX_SPEED_STACKS_E4 = 7;
 
 // エフェクトID
-const EFFECT_IDS = {
+export const EFFECT_IDS = {
     /** 至高の姿状態 */
     SUPREME_STANCE: (sourceId: string) => `aglaea-supreme-stance-${sourceId}`,
     /** 隙を縫う糸デバフ */
@@ -429,6 +429,50 @@ const getSpeedStacks = (state: GameState, spiritId: string): number => {
 };
 
 /**
+ * アグライアの至高の姿による速度バフを最新のスタック数で同期
+ */
+const syncAglaeaUltimateSpeed = (state: GameState, ownerId: string, stacks: number): GameState => {
+    const owner = state.registry.get(createUnitId(ownerId));
+    if (!owner) return state;
+
+    const supremeStanceId = EFFECT_IDS.SUPREME_STANCE(ownerId);
+    const supremeStance = owner.effects.find(e => e.id === supremeStanceId);
+    if (!supremeStance) return state;
+
+    // 必殺技レベルに基づき再計算
+    const eidolonLevel = owner.eidolonLevel || 0;
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
+    const spdBoostPerStack = getLeveledValue(ABILITY_VALUES.ultSpdBoost, ultLevel);
+    const totalSpdBoost = spdBoostPerStack * stacks;
+
+    const newModifiers: Modifier[] = totalSpdBoost > 0 ? [{
+        target: 'spd_pct' as StatKey,
+        value: totalSpdBoost,
+        type: 'add' as const,
+        source: '至高の姿'
+    }] : [];
+
+    // エフェクト更新
+    const updatedEffects = owner.effects.map(e => e.id === supremeStanceId ? { ...e, modifiers: newModifiers } : e);
+
+    const oldSpd = owner.stats.spd;
+    let updatedOwner = { ...owner, effects: updatedEffects };
+
+    // ステータス再計算
+    updatedOwner.stats = recalculateUnitStats(updatedOwner, state.registry.toArray());
+
+    // 行動順調整
+    if (oldSpd !== updatedOwner.stats.spd) {
+        updatedOwner = adjustActionValueForSpeedChange(updatedOwner, oldSpd, updatedOwner.stats.spd);
+    }
+
+    return {
+        ...state,
+        registry: state.registry.update(createUnitId(ownerId), u => updatedOwner)
+    };
+};
+
+/**
  * 速度スタックを加算
  */
 const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number): GameState => {
@@ -455,6 +499,8 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
         source: '涙で鍛えし匠の躯'
     }];
 
+    let newState = state;
+
     if (existingEffect) {
         const updatedEffect: IEffect = {
             ...existingEffect,
@@ -477,15 +523,13 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
             updatedSpirit = adjustActionValueForSpeedChange(updatedSpirit, oldSpd, updatedSpirit.stats.spd);
         }
 
-        let newState = {
+        newState = {
             ...state,
             registry: state.registry.update(createUnitId(spiritId), u => updatedSpirit)
         };
 
         // ★ ActionQueue も同期
         newState = updateActionQueue(newState);
-
-        return newState;
     } else {
         const speedStackEffect: IEffect = {
             id: effectId,
@@ -500,8 +544,17 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
             apply: (t: Unit, s: GameState) => s,
             remove: (t: Unit, s: GameState) => s
         };
-        return addEffect(state, spiritId, speedStackEffect);
+        newState = addEffect(state, spiritId, speedStackEffect);
     }
+
+    // ★ アグライア本体の速度バフも同期（更新後または新規作成後の newState を使用）
+    if (spirit.ownerId) {
+        const ownerIdStr = typeof spirit.ownerId === 'string' ? spirit.ownerId : (spirit.ownerId as any).id || JSON.stringify(spirit.ownerId);
+        newState = syncAglaeaUltimateSpeed(newState, ownerIdStr, newStacks);
+        newState = updateActionQueue(newState); // アグライアのAV変更を反映
+    }
+
+    return newState;
 };
 
 /**
