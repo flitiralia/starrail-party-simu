@@ -64,6 +64,7 @@ export interface RelicSet {
   id: string;
   name: string;
   setBonuses: SetBonus[];
+  iconPath?: string; // StarRailStaticAPI 用のアイコンパス
 }
 
 /**
@@ -73,6 +74,7 @@ export interface OrnamentSet {
   id: string;
   name: string;
   setBonuses: SetBonus[];
+  iconPath?: string; // StarRailStaticAPI 用のアイコンパス
 }
 
 export type RelicType = 'Head' | 'Hands' | 'Body' | 'Feet';

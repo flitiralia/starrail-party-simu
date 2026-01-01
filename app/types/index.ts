@@ -213,6 +213,7 @@ export interface IUnitData {
   };
   // シミュレーション中に付与される動的な効果
   effects?: IEffect[];
+  iconPath?: string; // StarRailStaticAPI 用のアイコンパス
 }
 
 // --- 星魂(Eidolon) ---

@@ -548,7 +548,8 @@ const insertCountdown = (state: GameState, sourceUnitId: string): GameState => {
         } as Unit['baseStats'],
         hp: 1,
         isEnemy: false,
-        isSummon: true,  // 召喚物として登録
+        isSummon: false, // 召喚物ではなくカウントダウンとして扱う
+        isCountdown: true,
         level: 80,
         ep: 0,
         effects: [],

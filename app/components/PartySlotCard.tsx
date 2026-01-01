@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterRotationConfig } from '@/app/types';
+import { getAssetUrl, getCharacterIconPath } from '@/app/utils/assetUtils';
 
 // Internal component for handling rotation input with local state
 const RotationInput = ({ config, onUpdate }: { config: CharacterRotationConfig, onUpdate: (rotation: string[]) => void }) => {
@@ -13,7 +14,9 @@ const RotationInput = ({ config, onUpdate }: { config: CharacterRotationConfig, 
     // クライアントマウント後に初期値を設定
     useEffect(() => {
         setIsMounted(true);
-        setInputValue(config.rotation.join(', '));
+        if (config?.rotation && Array.isArray(config.rotation)) {
+            setInputValue(config.rotation.join(', '));
+        }
     }, []);
 
     useEffect(() => {
@@ -173,12 +176,29 @@ export default function PartySlotCard({
     }
 
     const currentCardStyle = isActive ? activeCardStyle : cardStyle;
-
-
+    const iconUrl = getAssetUrl(getCharacterIconPath(character.id));
 
     return (
-        <div style={currentCardStyle} onClick={onConfigure}>
-            <div style={headerStyle}>
+        <div style={{ ...currentCardStyle, position: 'relative', overflow: 'hidden' }} onClick={onConfigure}>
+            {/* Background Icon (subtle) */}
+            {iconUrl && (
+                <div style={{
+                    position: 'absolute',
+                    top: '-10%',
+                    right: '-10%',
+                    width: '120px',
+                    height: '120px',
+                    backgroundImage: `url("${iconUrl}")`, // 引用符を追加
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    opacity: 0.15,
+                    filter: 'grayscale(50%)',
+                    pointerEvents: 'none',
+                    zIndex: 0,
+                }} />
+            )}
+
+            <div style={{ ...headerStyle, position: 'relative', zIndex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{
                         width: '8px',
@@ -199,24 +219,39 @@ export default function PartySlotCard({
                 </button>
             </div>
 
-            <select
-                style={selectorStyle}
-                value={character.id}
-                onChange={(e) => {
-                    e.stopPropagation();
-                    onCharacterSelect(e.target.value);
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {characterList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                        {c.name}
-                    </option>
-                ))}
-            </select>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                {iconUrl && (
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        backgroundColor: '#000',
+                        border: '1px solid #444',
+                        flexShrink: 0
+                    }}>
+                        <img src={iconUrl} alt={character.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                )}
+                <select
+                    style={selectorStyle}
+                    value={character.id}
+                    onChange={(e) => {
+                        e.stopPropagation();
+                        onCharacterSelect(e.target.value);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {characterList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                            {c.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
 
             {/* 凸数表示 (Read-only) */}
-            <div style={{ fontSize: '0.85em', color: '#bbb', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontSize: '0.85em', color: '#bbb', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }}>
                 <span>凸数:</span>
                 <span style={{
                     backgroundColor: '#2a2a2a',
@@ -231,7 +266,7 @@ export default function PartySlotCard({
 
             {/* 秘技使用設定 */}
             {config && (
-                <div style={{ fontSize: '0.85em', color: '#bbb', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ fontSize: '0.85em', color: '#bbb', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
                         <input
                             type="checkbox"
@@ -249,20 +284,20 @@ export default function PartySlotCard({
                 </div>
             )}
 
-            <div style={infoRowStyle}>
+            <div style={{ ...infoRowStyle, position: 'relative', zIndex: 1 }}>
                 <span>✦ {character.path}</span>
                 <span>{character.element}</span>
             </div>
 
             {character.equippedLightCone && (
-                <div style={{ ...infoRowStyle, fontSize: '0.8em', color: '#999' }}>
+                <div style={{ ...infoRowStyle, fontSize: '0.8em', color: '#999', position: 'relative', zIndex: 1 }}>
                     光円錐: {character.equippedLightCone.lightCone.name} (S{character.equippedLightCone.superimposition})
                 </div>
             )}
 
             {/* ローテーション設定 & 必殺技発動方針 */}
             {config && (
-                <div style={{ marginTop: '4px', display: 'flex', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ marginTop: '4px', display: 'flex', gap: '12px', position: 'relative', zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
                     {/* ローテーション */}
                     <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>ローテーション:</label>
@@ -397,7 +432,7 @@ export default function PartySlotCard({
 
             {/* Skill Target (Conditional) */}
             {config && character.abilities.skill.manualTargeting && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
                     <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>
                         {/* 記憶開拓者向けにラベルをカスタマイズ */}
                         {character.id === 'trailblazer-remembrance' ? 'あたしが助ける！対象:' : 'スキル対象:'}
@@ -425,7 +460,7 @@ export default function PartySlotCard({
             )}
             {/* キャストリス専用設定 */}
             {config && character.id === 'castorice' && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
                     <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>死竜行動モード:</label>
                     <select
                         style={selectorStyle}
@@ -449,7 +484,7 @@ export default function PartySlotCard({
             )}
 
             <button
-                style={{ ...buttonStyle, marginTop: '4px', width: '100%' }}
+                style={{ ...buttonStyle, marginTop: '4px', width: '100%', position: 'relative', zIndex: 1 }}
                 onClick={(e) => {
                     e.stopPropagation();
                     onConfigure();

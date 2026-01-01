@@ -90,7 +90,7 @@ function consumeAllCharge(state: GameState, unitId: string): GameState {
 
 export const himeko: Character = {
     id: CHARACTER_ID,
-    name: 'Himeko',
+    name: '姫子',
     path: 'Erudition',
     element: 'Fire',
     rarity: 5,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IRelicData, IOrnamentData, StatKey, STAT_KEYS, RelicSet, OrnamentSet } from '@/app/types';
+import { getAssetUrl, getRelicSetIconPath } from '@/app/utils/assetUtils';
 
 // Level 15 5-Star Relic Main Stat Values
 const MAIN_STAT_VALUES: Record<string, number> = {
@@ -275,7 +276,17 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                 {relicMode === '4pc' ? (
                     /* 4セットモード */
                     <div>
-                        <label className="block text-sm font-bold mb-1">Relic Set (4pc)</label>
+                        <div className="flex gap-2 items-center mb-1">
+                            {currentSet1Id && getAssetUrl(getRelicSetIconPath(currentSet1Id)) && (
+                                <img
+                                    src={getAssetUrl(getRelicSetIconPath(currentSet1Id))}
+                                    alt=""
+                                    className="w-8 h-8 rounded bg-black border border-gray-600"
+                                    referrerPolicy="no-referrer"
+                                />
+                            )}
+                            <label className="block text-sm font-bold">Relic Set (4pc)</label>
+                        </div>
                         <select
                             value={currentSet1Id}
                             onChange={(e) => handleRelicSetChange(e.target.value)}
@@ -300,7 +311,17 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                     /* 2+2セットモード */
                     <>
                         <div>
-                            <label className="block text-sm font-bold mb-1">セット1 (Head/Hands)</label>
+                            <div className="flex gap-2 items-center mb-1">
+                                {currentSet1Id && getAssetUrl(getRelicSetIconPath(currentSet1Id)) && (
+                                    <img
+                                        src={getAssetUrl(getRelicSetIconPath(currentSet1Id))}
+                                        alt=""
+                                        className="w-8 h-8 rounded bg-black border border-gray-600"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                )}
+                                <label className="block text-sm font-bold">セット1 (Head/Hands)</label>
+                            </div>
                             <select
                                 value={currentSet1Id}
                                 onChange={(e) => handleRelicSet1Change(e.target.value)}
@@ -322,7 +343,17 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                             )}
                         </div>
                         <div>
-                            <label className="block text-sm font-bold mb-1">セット2 (Body/Feet)</label>
+                            <div className="flex gap-2 items-center mb-1">
+                                {currentSet2Id && getAssetUrl(getRelicSetIconPath(currentSet2Id)) && (
+                                    <img
+                                        src={getAssetUrl(getRelicSetIconPath(currentSet2Id))}
+                                        alt=""
+                                        className="w-8 h-8 rounded bg-black border border-gray-600"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                )}
+                                <label className="block text-sm font-bold">セット2 (Body/Feet)</label>
+                            </div>
                             <select
                                 value={currentSet2Id}
                                 onChange={(e) => handleRelicSet2Change(e.target.value)}
@@ -346,7 +377,17 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
                     </>
                 )}
                 <div>
-                    <label className="block text-sm font-bold mb-1">Ornament Set (2pc)</label>
+                    <div className="flex gap-2 items-center mb-1">
+                        {ornaments[0]?.set?.id && getAssetUrl(getRelicSetIconPath(ornaments[0].set.id)) && (
+                            <img
+                                src={getAssetUrl(getRelicSetIconPath(ornaments[0].set.id))}
+                                alt=""
+                                className="w-8 h-8 rounded bg-black border border-gray-600"
+                                referrerPolicy="no-referrer"
+                            />
+                        )}
+                        <label className="block text-sm font-bold">Ornament Set (2pc)</label>
+                    </div>
                     <select
                         value={ornaments[0]?.set?.id || ''}
                         onChange={(e) => handleOrnamentSetChange(e.target.value)}

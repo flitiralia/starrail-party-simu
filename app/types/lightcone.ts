@@ -97,4 +97,5 @@ export interface ILightConeData {
 
   // 旧形式（後方互換性のため維持）
   effects?: ILightConeEffect[];
+  iconPath?: string; // StarRailStaticAPI 用のアイコンパス
 }

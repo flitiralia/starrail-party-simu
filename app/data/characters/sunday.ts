@@ -614,6 +614,7 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
     // 1. ターゲットが召喚物を持っているかチェック
     const summons = newState.registry.toArray().filter((u: Unit) =>
         u.isSummon &&
+        !u.isCountdown &&
         (u.ownerId === targetId || u.linkedUnitId === targetId) &&
         u.hp > 0
     );

@@ -97,6 +97,7 @@ export interface Unit {
 
     // Summon related
     isSummon?: boolean;
+    isCountdown?: boolean; // カウントダウンユニットかどうか
     ownerId?: UnitId;
     linkedUnitId?: UnitId;
     untargetable?: boolean;

@@ -12,6 +12,7 @@ import {
 } from '@/app/types';
 import { RelicEditor } from './RelicEditor';
 import { getLightConeDescription } from '@/app/utils/lightConeUtils';
+import { getAssetUrl, getCharacterIconPath, getLightConeIconPath } from '@/app/utils/assetUtils';
 
 interface CharacterConfigPanelProps {
     character: Character;
@@ -120,9 +121,18 @@ export default function CharacterConfigPanel({
 
     return (
         <div style={panelStyle}>
-            <h3 style={{ margin: 0, borderBottom: '1px solid #555', paddingBottom: '8px' }}>
-                {character.name} の設定
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>
+                {getAssetUrl(getCharacterIconPath(character.id)) && (
+                    <img
+                        src={getAssetUrl(getCharacterIconPath(character.id))}
+                        alt={character.name}
+                        style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: '#000' }}
+                    />
+                )}
+                <h3 style={{ margin: 0 }}>
+                    {character.name} の設定
+                </h3>
+            </div>
 
             {/* 星魂（Eidolon）設定 */}
             <div style={sectionStyle}>
@@ -159,26 +169,34 @@ export default function CharacterConfigPanel({
                 </select>
 
                 {selectedLightCone && (
-                    <>
-                        <label style={labelStyle}>重畳ランク</label>
-                        <select
-                            style={selectorStyle}
-                            value={superimposition}
-                            onChange={(e) => handleSuperimpositionChange(Number(e.target.value))}
-                        >
-                            {[1, 2, 3, 4, 5].map((s) => (
-                                <option key={s} value={s}>
-                                    S{s}
-                                </option>
-                            ))}
-                        </select>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        {getAssetUrl(getLightConeIconPath(selectedLightCone.id)) && (
+                            <img
+                                src={getAssetUrl(getLightConeIconPath(selectedLightCone.id))}
+                                alt={selectedLightCone.name}
+                                style={{ width: '64px', height: '64px', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#000', flexShrink: 0 }}
+                            />
+                        )}
+                        <div style={{ flex: 1 }}>
+                            <label style={labelStyle}>重畳ランク</label>
+                            <select
+                                style={selectorStyle}
+                                value={superimposition}
+                                onChange={(e) => handleSuperimpositionChange(Number(e.target.value))}
+                            >
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                    <option key={s} value={s}>
+                                        S{s}
+                                    </option>
+                                ))}
+                            </select>
 
-                        {/* 光円錐の効果説明（重畳ランク対応） */}
-                        <div style={descriptionStyle}>
-                            {getLightConeDescription(selectedLightCone, superimposition as 1 | 2 | 3 | 4 | 5)}
+                            {/* 光円錐の効果説明（重畳ランク対応） */}
+                            <div style={descriptionStyle}>
+                                {getLightConeDescription(selectedLightCone, superimposition as 1 | 2 | 3 | 4 | 5)}
+                            </div>
                         </div>
-                    </>
-
+                    </div>
                 )}
             </div>
 
