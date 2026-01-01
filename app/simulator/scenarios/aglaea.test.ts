@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createInitialGameState } from '../engine/gameState';
 import { dispatch, publishEvent } from '../engine/dispatcher';
 import { aglaea, aglaeaHandlerFactory } from '../../data/characters';
-import { weavingTimeIntoGold } from '../../data/light-cones';
+import { TIME_WOVEN_INTO_GOLD } from '../../data/light-cones';
 import { ILightConeData } from '../../types';
 import { Character, Enemy, PartyConfig } from '../../types';
 import { GameState, Unit } from '../engine/types';
@@ -41,7 +41,7 @@ describe('Aglaea Scenario Test', () => {
                 ...aglaea,
                 id: AGLAEA_ID,
                 equippedLightCone: {
-                    lightCone: weavingTimeIntoGold,
+                    lightCone: TIME_WOVEN_INTO_GOLD,
                     level: 80,
                     superimposition: 1
                 }
@@ -232,10 +232,11 @@ describe('Aglaea Scenario Test', () => {
 
             // Raftra attacks same target - should gain speed stack
             if (raftra) {
+                state = publishEvent(state, { type: 'ON_ATTACK', sourceId: raftra.id as string, targetId: ENEMY_ID, subType: 'SKILL' });
                 state = publishEvent(state, { type: 'ON_ACTION_COMPLETE', sourceId: raftra.id as string, targetId: ENEMY_ID, subType: 'SKILL' });
 
                 const updatedRaftra = getRaftra(state);
-                const speedEffect = findEffectByPrefix(updatedRaftra, 'speed-stack');
+                const speedEffect = findEffectByPrefix(updatedRaftra, 'raftra-speed-stack');
                 expect(speedEffect).toBeDefined();
                 expect(speedEffect?.stackCount).toBeGreaterThanOrEqual(1);
             }

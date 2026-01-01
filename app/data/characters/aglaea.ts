@@ -287,10 +287,10 @@ export const aglaea: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'weaving-time-into-gold',
+        lightConeId: 'time-woven-into-gold',
         superimposition: 1,
-        relicSetId: 'hero_who_raises_the_battle_song',
-        ornamentSetId: 'omphalos_eternal_grounds',
+        relicSetId: 'hero-of-triumphant-song',
+        ornamentSetId: 'the-wondrous-bananamusement-park',
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',
@@ -636,7 +636,7 @@ const onBattleStart = (
     // A6: EP50%未満なら50%まで回復
     if (unit.traces?.some(t => t.id === TRACE_IDS.A6_SUNLIGHT)) {
         const maxEp = unit.stats.max_ep;
-        const halfEp = maxEp * 0.5;
+        const halfEp = (maxEp ?? 0) * 0.5;
         if (unit.ep < halfEp) {
             newState = {
                 ...newState,

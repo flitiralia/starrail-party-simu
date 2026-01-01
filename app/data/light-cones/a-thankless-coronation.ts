@@ -23,7 +23,7 @@ export const aThanklessCoronation: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'thankless_coronation_cd',
+            id: 'thankless-coronation-cd',
             name: '報われぬ戴冠（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -32,7 +32,7 @@ export const aThanklessCoronation: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'thankless_coronation_proc',
+            id: 'thankless-coronation-proc',
             name: '報われぬ戴冠（発動）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

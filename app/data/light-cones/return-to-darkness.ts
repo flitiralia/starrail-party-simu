@@ -21,7 +21,7 @@ export const returnToDarkness: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'return_to_darkness_crit',
+            id: 'return-to-darkness-crit',
             name: '幽冥に帰す（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const returnToDarkness: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'return_to_darkness_dispel',
+            id: 'return-to-darkness-dispel',
             name: '幽冥に帰す（バフ解除）',
             events: ['ON_DAMAGE_DEALT'],
             // 「1回の攻撃で1回まで発動」をアクション単位で制限

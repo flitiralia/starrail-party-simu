@@ -162,6 +162,7 @@ export function createInitialGameState(
       ornaments: char.ornaments,
       traces: char.traces,
       disableEnergyRecovery: char.disableEnergyRecovery,
+      ultCost: char.ultCost,
     };
 
     // Initialize Energy (50% start, or 0% if energy recovery is disabled)
@@ -194,6 +195,7 @@ export function createInitialGameState(
       id: createUnitId(enemy.id),
       name: enemy.name,
       isEnemy: true,
+      rank: enemy.rank, // Copy rank from enemy data
       element: enemy.element,
       level: enemyConfig.level, // Override with user config
       abilities: enemy.abilities, // IUnitDataを継承したため、abilitiesはここに存在

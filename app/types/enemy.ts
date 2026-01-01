@@ -6,6 +6,7 @@ import { CharacterBaseStats, IAbility, Element, IUnitData } from './index'; // I
 export interface Enemy extends IUnitData { // IUnitData を継承
   toughness: number;
   baseRes: Partial<Record<Element, number>>;
+  rank?: 'Normal' | 'Elite' | 'Boss';
 
   // CharacterBaseStats は IUnitData に含まれる
   // Enemy abilities or skills (IUnitData に含まれるので削除)

@@ -22,7 +22,7 @@ export const goodNightAndSleepWell: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'gnsw_dmg_calc',
+            id: 'gnsw-dmg-calc',
             name: '奔走者（与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

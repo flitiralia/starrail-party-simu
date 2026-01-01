@@ -20,7 +20,7 @@ export const mutualDemise: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'mutual_demise_crit',
+            id: 'mutual-demise-crit',
             name: '倶歿',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const mutualDemise: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'mutual_demise_check',
+            id: 'mutual-demise-check',
             name: '倶歿（会心率注入）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

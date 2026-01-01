@@ -6,8 +6,10 @@ import {
     Unit,
     ActionEvent,
     GeneralEvent,
-    BeforeDamageCalcEvent
+    BeforeDamageCalcEvent,
+    DamageDealtEvent
 } from '../../simulator/engine/types';
+import { calculateSuperBreakDamageWithBreakdown } from '../../simulator/damage';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
 import { UnitId, createUnitId } from '../../simulator/engine/unitId';
@@ -837,7 +839,8 @@ export const fugueHandlerFactory: IEventHandlerFactory = (
                 'ON_ULTIMATE_USED',
                 'ON_WEAKNESS_BREAK',
                 'ON_BEFORE_DAMAGE_CALCULATION',
-                'ON_BEFORE_HIT'
+                'ON_BEFORE_HIT',
+                'ON_DAMAGE_DEALT'
             ]
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
@@ -855,6 +858,44 @@ export const fugueHandlerFactory: IEventHandlerFactory = (
                     return onSkillUsed(event as ActionEvent, state, sourceUnitId, eidolonLevel);
                 case 'ON_ULTIMATE_USED':
                     return onUltimateUsed(event as ActionEvent, state, sourceUnitId, eidolonLevel);
+                case 'ON_DAMAGE_DEALT': {
+                    const damageEvent = event as DamageDealtEvent;
+                    const attacker = state.registry.get(createUnitId(damageEvent.sourceId));
+                    const target = state.registry.get(createUnitId(damageEvent.targetId));
+                    if (!attacker || !target || attacker.isEnemy) return state;
+
+                    // 雲火昭瑞状態の敵への攻撃時
+                    const cloudflame = target.effects.find(e => e.id === EFFECT_IDS.CLOUDFLAME(sourceUnitId, target.id));
+                    if (!cloudflame) return state;
+
+                    // 弱点撃破状態またはダリアの結界中
+                    const hasDahliaBarrier = target.effects.some((e: IEffect) => e.id.includes('dahlia-barrier'));
+                    if (target.toughness > 0 && !hasDahliaBarrier) return state;
+
+                    // 削靭値を確認
+                    const toughnessReduction = damageEvent.hitDetails?.reduce((sum: number, hit: any) => sum + (hit.toughnessReduction || 0), 0) || 0;
+                    if (toughnessReduction <= 0) return state;
+
+                    // 超撃破ダメージ計算 (天賦倍率依存)
+                    const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
+                    const talentValues = ABILITY_VALUES.talent[talentLevel] || ABILITY_VALUES.talent[10];
+                    const sbRatio = talentValues.superBreakRatio;
+
+                    // calculateSuperBreakDamageWithBreakdown を使用
+                    const sbDmg = calculateSuperBreakDamageWithBreakdown(attacker, target, toughnessReduction * sbRatio);
+
+                    if (sbDmg.damage > 0) {
+                        const result = applyUnifiedDamage(state, attacker, target, sbDmg.damage, {
+                            damageType: '超撃破ダメージ',
+                            details: '帰忘の流離人: 雲火昭瑞・超撃破',
+                            isCrit: false,
+                            skipLog: true,
+                            breakdownMultipliers: sbDmg.breakdownMultipliers
+                        });
+                        return result.state;
+                    }
+                    return state;
+                }
                 case 'ON_WEAKNESS_BREAK':
                     return onWeaknessBreak(event as ActionEvent, state, sourceUnitId, eidolonLevel);
                 case 'ON_BEFORE_DAMAGE_CALCULATION':

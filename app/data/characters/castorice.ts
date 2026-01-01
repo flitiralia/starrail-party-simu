@@ -310,10 +310,10 @@ export const castorice: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'farewell-be-beautiful',
+        lightConeId: 'make-farewells-more-beautiful',
         superimposition: 1,
-        relicSetId: 'poet_who_sings_of_the_sorrow_of_the_fallen_kingdom',
-        ornamentSetId: 'silent_ossuary',
+        relicSetId: 'poet-of-mourning-collapse',
+        ornamentSetId: 'bone-collections-serene-demesne',
         mainStats: {
             body: 'crit_dmg',
             feet: 'hp_pct',

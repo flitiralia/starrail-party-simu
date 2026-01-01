@@ -24,7 +24,7 @@ export const passkey: ILightConeData = {
     eventHandlers: [
         // 1ターン制限のトラッカー
         {
-            id: 'passkey_tracker',
+            id: 'passkey-tracker',
             name: '霊鍵（ターン制限管理）',
             events: ['ON_TURN_START'],
             handler: (event, state, unit, superimposition) => {
@@ -39,7 +39,7 @@ export const passkey: ILightConeData = {
             }
         },
         {
-            id: 'passkey_ep',
+            id: 'passkey-ep',
             name: '霊鍵（EP回復）',
             events: ['ON_SKILL_USED'],
             handler: (event, state, unit, superimposition) => {

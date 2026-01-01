@@ -523,9 +523,11 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             }],
                             onApply: (t, s) => {
                                 // 量子弱点を付与
+                                const newWeaknesses = new Set(t.weaknesses);
+                                newWeaknesses.add('Quantum' as Element);
                                 const updatedUnit = {
                                     ...t,
-                                    weaknesses: new Set([...t.weaknesses, 'Quantum' as Element])
+                                    weaknesses: newWeaknesses
                                 };
                                 return {
                                     ...s,

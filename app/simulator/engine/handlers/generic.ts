@@ -1,5 +1,5 @@
 import { IEventHandlerFactory, IEventHandler, IEventHandlerLogic, GameState, Unit } from '../types';
-import { RelicSet, OrnamentSet, ILightConeData, StatKey, STAT_KEYS, IEffect, CooldownResetType } from '@/app/types';
+import { RelicSet, OrnamentSet, ILightConeData, StatKey, STAT_KEYS, IEffect, CooldownResetType } from '../../../types';
 import { createUnitId } from '../unitId';
 
 type IRelicSet = ILightConeData; // Adjusted to remove RelicSet/OrnamentSet dependency if possible, or just keep ILightConeData usage

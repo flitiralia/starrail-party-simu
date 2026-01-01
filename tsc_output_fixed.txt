@@ -1,0 +1,7 @@
+node_modules/@vitest/expect/dist/index.d.ts(8,27): error TS2307: Cannot find module '@vitest/utils/display' or its corresponding type declarations.
+  There are types at '/home/calces/Soft/starrail-party-simu/node_modules/@vitest/utils/dist/display.d.ts', but this result could not be resolved under your current 'moduleResolution' setting. Consider updating to 'node16', 'nodenext', or 'bundler'.
+node_modules/vite/dist/node/chunks/moduleRunnerTransport.d.ts(1,28): error TS2307: Cannot find module '#types/hmrPayload' or its corresponding type declarations.
+node_modules/vite/dist/node/module-runner.d.ts(2,49): error TS2307: Cannot find module '#types/hot' or its corresponding type declarations.
+node_modules/vite/dist/node/module-runner.d.ts(3,36): error TS2307: Cannot find module '#types/hmrPayload' or its corresponding type declarations.
+node_modules/vite/dist/node/module-runner.d.ts(4,41): error TS2307: Cannot find module '#types/customEvent' or its corresponding type declarations.
+node_modules/vitest/dist/chunks/traces.d.402V_yFI.d.ts(12,2): error TS18028: Private identifiers are only available when targeting ECMAScript 2015 and higher.

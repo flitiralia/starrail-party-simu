@@ -21,7 +21,7 @@ export const boundlessChoreo: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'boundless_choreo_cr',
+            id: 'boundless-choreo-cr',
             name: '探り合い（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const boundlessChoreo: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'boundless_choreo_cd_cond',
+            id: 'boundless-choreo-cd-cond',
             name: '探り合い（条件付会心ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

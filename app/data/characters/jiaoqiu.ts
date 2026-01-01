@@ -8,14 +8,14 @@ import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { advanceAction } from '../../simulator/engine/utils';
 
-// --- Constants ---
+// --- 定数定義 ---
 const CHARACTER_ID = 'jiaoqiu';
 
 const EFFECT_IDS = {
-    ASHEN_ROAST: 'jiaoqiu-ashen-roast', // 焼尽 (Burn/Debuff)
+    ASHEN_ROAST: 'jiaoqiu-ashen-roast', // 焼尽 (燃焼/デバフ)
     FIELD: 'jiaoqiu-field', // 結界
     TECHNIQUE_FIELD: 'jiaoqiu-technique-field', // 秘技領域
-    E1_DMG_BOOST: 'jiaoqiu-e1-dmg-boost', // E1 味方与ダメアップ
+    E1_DMG_BOOST: 'jiaoqiu-e1-dmg-boost', // 1凸: 味方与ダメアップ
 };
 
 const TRACE_IDS = {
@@ -24,34 +24,34 @@ const TRACE_IDS = {
     A6_SEARING_SCENT: 'jiaoqiu-trace-a6', // 炙香
 };
 
-// --- Ability Values ---
+// --- アビリティ係数 ---
 const ABILITY_VALUES = {
-    // Basic: Single Target DMG
+    // 通常攻撃: 単体ダメージ
     basicDmg: { 6: 1.00, 7: 1.10 } as Record<number, number>,
 
-    // Skill: Blast DMG
+    // スキル: 拡散ダメージ
     skillDmgMain: { 10: 1.50, 12: 1.65 } as Record<number, number>,
     skillDmgAdj: { 10: 0.90, 12: 0.99 } as Record<number, number>,
 
-    // Ult: Field
+    // 必殺技: 結界
     ultDmg: { 10: 1.00, 12: 1.08 } as Record<number, number>,
-    ultVuln: { 10: 0.15, 12: 0.162 } as Record<number, number>, // Ult DMG Taken increase
+    ultVuln: { 10: 0.15, 12: 0.162 } as Record<number, number>, // 必殺技被ダメージアップ
     ultProcChance: { 10: 0.60, 12: 0.62 } as Record<number, number>,
 
-    // Talent: Ashen Roast
-    talentVulnBase: { 10: 0.15, 12: 0.165 } as Record<number, number>, // 1st stack
-    talentVulnStack: { 10: 0.05, 12: 0.055 } as Record<number, number>, // 2nd+ stacks
+    // 天賦: 焼尽
+    talentVulnBase: { 10: 0.15, 12: 0.165 } as Record<number, number>, // 1層目
+    talentVulnStack: { 10: 0.05, 12: 0.055 } as Record<number, number>, // 2層目以降
     talentDoT: { 10: 1.80, 12: 1.98 } as Record<number, number>,
 };
 
-// --- Config Constants ---
+// --- 設定定数 ---
 const FIELD_DURATION = 3;
 const BASE_ASHEN_ROAST_DURATION = 2;
 const MAX_STACKS_BASE = 5;
 const MAX_STACKS_E6 = 9;
 const FIELD_TRIGGER_LIMIT = 6;
 
-// Eidolon Constants
+// 星魂定数
 const E1_DMG_BOOST_VAL = 0.40;
 const E2_DOT_MULT_BOOST = 3.00;
 const E4_ATK_REDUCE = 0.15;
@@ -101,7 +101,7 @@ export const jiaoqiu: Character = {
             name: '炊陣妙法、詭正相生',
             type: 'Ultimate',
             description: '「焼尽」層数を最高値に統一し、結界を展開。敵全体に炎属性ダメージ。',
-            targetType: 'self', // Activates field and hits enemies
+            targetType: 'self', // 結界を展開し、敵全体を攻撃する
             energyGain: 5,
             effects: [],
         },
@@ -172,7 +172,7 @@ export const jiaoqiu: Character = {
         e6: { level: 6, name: '九沸九変', description: '敵死亡時スタック移動。上限9層。全耐性ダウン。' },
     },
     defaultConfig: {
-        lightConeId: 'those_many_springs', // 幾度目かの春
+        lightConeId: 'those-many-springs', // 幾度目かの春
         superimposition: 1,
         relicSetId: 'prisoner_in_deep_confinement', // 深い牢獄の囚人
         ornamentSetId: 'pan_galactic_commercial_enterprise', // 汎銀河商事会社
@@ -183,7 +183,7 @@ export const jiaoqiu: Character = {
             rope: 'energy_regen_rate',
         },
         subStats: [
-            { stat: 'effect_hit_rate', value: 0.8 }, // Ensure high EHR for A4
+            { stat: 'effect_hit_rate', value: 0.8 }, // A4のために高い効果命中を確保
             { stat: 'spd', value: 20 },
             { stat: 'atk_pct', value: 0.5 },
         ],
@@ -191,16 +191,24 @@ export const jiaoqiu: Character = {
     }
 };
 
-// --- Helper Functions ---
+// --- ヘルパー関数 ---
 
-// Get Ashen Roast Modifiers
+/**
+ * 「焼尽」の効果モディファイアを取得する
+ * 1層目と2層目以降で上昇量が異なる
+ * 
+ * @param stacks 現在の層数
+ * @param talentLevel 天賦レベル
+ * @param eidolonLevel 星魂レベル
+ * @returns モディファイアリスト
+ */
 function getAshenRoastModifiers(stacks: number, talentLevel: number, eidolonLevel: number): any[] {
     const baseVuln = getLeveledValue(ABILITY_VALUES.talentVulnBase, talentLevel);
     const stackVuln = getLeveledValue(ABILITY_VALUES.talentVulnStack, talentLevel);
 
-    // 1st stack: baseVuln
-    // 2nd+ stack: + stackVuln per stack (starting from 2nd)
-    // Formula: base + (stacks - 1) * perStack
+    // 1層目: baseVuln
+    // 2層目以降: (層数 - 1) * stackVuln を加算
+    // 式: 基礎値 + (層数 - 1) * 層ごとの増加量
     let vuln = baseVuln;
     if (stacks > 1) {
         vuln += (stacks - 1) * stackVuln;
@@ -213,15 +221,26 @@ function getAshenRoastModifiers(stacks: number, talentLevel: number, eidolonLeve
     if (eidolonLevel >= 6) {
         const resPen = stacks * E6_RES_PEN_PER_STACK;
         modifiers.push({ source: 'E6焼尽(全耐性ダウン)', target: 'all_res_pen', type: 'add', value: resPen });
-        // NOTE: all_res_pen might need specific implementation in damage formula. 
-        // Usually simulator uses 'def_ignore' or specific 'fire_res_pen'. 
-        // 'all_res_pen' is generally supported or maps to reducing RES multiplier.
+        // 注意: all_res_pen はシミュレーターのダメージ計算式でサポートされている前提
+        // 通常は 'def_ignore' や属性固有の 'fire_res_pen' を使用する
+        // 'all_res_pen' がサポートされているか、耐性係数の減少にマッピングされることを期待
     }
 
     return modifiers;
 }
 
-// Add/Update Ashen Roast
+/**
+ * 「焼尽」を付与または更新する
+ * 既存の層数に加算し、上限を超えないようにする
+ * 
+ * @param state ゲーム状態
+ * @param targetId 対象ユニットID
+ * @param sourceId 付与者ID
+ * @param stacksToAdd 追加する層数
+ * @param talentLevel 天賦レベル
+ * @param eidolonLevel 星魂レベル
+ * @returns 更新後のゲーム状態
+ */
 function addAshenRoast(state: GameState, targetId: string, sourceId: string, stacksToAdd: number, talentLevel: number, eidolonLevel: number): GameState {
     let newState = state;
     const target = newState.registry.get(createUnitId(targetId));
@@ -232,24 +251,24 @@ function addAshenRoast(state: GameState, targetId: string, sourceId: string, sta
     const maxStacks = eidolonLevel >= 6 ? MAX_STACKS_E6 : MAX_STACKS_BASE;
 
     let newStacks = Math.min(currentStacks + stacksToAdd, maxStacks);
-    // Ensure at least 1 if adding
+    // 加算する場合、最低でも1層にする
     if (stacksToAdd > 0 && newStacks === 0) newStacks = 1;
 
     if (currentStacks === newStacks && currentEffect) {
-        // Just refresh duration
+        // 持続時間のみ更新
         newState = removeEffect(newState, targetId, EFFECT_IDS.ASHEN_ROAST);
-        // Adding back below
+        // 以下で再付与
     } else if (currentEffect) {
         newState = removeEffect(newState, targetId, EFFECT_IDS.ASHEN_ROAST);
     }
 
     if (newStacks <= 0) return newState;
 
-    // Calculate Dot Multiplier
-    // Talent: Z%
+    // 持続ダメージ倍率の計算
+    // 天賦: Z%
     let dotMult = getLeveledValue(ABILITY_VALUES.talentDoT, talentLevel);
     if (eidolonLevel >= 2) {
-        dotMult += E2_DOT_MULT_BOOST; // +300%
+        dotMult += E2_DOT_MULT_BOOST; // 2凸: +300%
     }
 
     const modifiers = getAshenRoastModifiers(newStacks, talentLevel, eidolonLevel);
@@ -257,9 +276,9 @@ function addAshenRoast(state: GameState, targetId: string, sourceId: string, sta
     const ashenRoast: DoTEffect = {
         id: EFFECT_IDS.ASHEN_ROAST,
         name: `焼尽 (${newStacks})`,
-        category: 'DEBUFF', // Can be cleansed (Burn)
+        category: 'DEBUFF', // 解除可能 (燃焼)
         type: 'DoT',
-        dotType: 'Burn', // Considered as Burn
+        dotType: 'Burn', // 燃焼として扱われる
         sourceUnitId: sourceId,
         durationType: 'TURN_START_BASED',
         duration: BASE_ASHEN_ROAST_DURATION,
@@ -277,7 +296,14 @@ function addAshenRoast(state: GameState, targetId: string, sourceId: string, sta
     return newState;
 }
 
-// Ensure A4 Attack Boost
+/**
+ * トレース「炊事」(A4) の効果命中による攻撃力アップを適用する
+ * 効果命中が80%を超えている場合、超過分に基づいて攻撃力バフを付与する
+ * 
+ * @param state ゲーム状態
+ * @param unitId ユニットID
+ * @returns 更新後のゲーム状態
+ */
 function ensureA4Buff(state: GameState, unitId: string): GameState {
     let newState = state;
     const unit = newState.registry.get(createUnitId(unitId));
@@ -285,24 +311,24 @@ function ensureA4Buff(state: GameState, unitId: string): GameState {
 
     if (!unit.traces?.some(t => t.id === TRACE_IDS.A4_HEARTH_KINDLING)) return newState;
 
-    // Calc EHR
-    // Note: Stats might need to be recalculated or we assume 'unit.stats' is fresh.
+    // 効果命中の計算
+    // 注: ステータスは再計算が必要な場合があるが、ここでは現在のstatsを参照する
     const ehr = unit.stats.effect_hit_rate || 0;
     if (ehr > 0.80) {
         const excess = ehr - 0.80;
-        // 60% ATK per 15% excess, max 240%
-        // 0.60 per 0.15
+        // 超過分15%につき攻撃力60% (最大240%)
+        // 0.15ごとに0.60
         const ratio = excess / 0.15;
         let atkBoost = ratio * 0.60;
         atkBoost = Math.min(atkBoost, 2.40);
 
-        // Apply as modifier? Or perm stat?
-        // Usually dynamic modifiers are tricky. Better to add a permanent buff that updates on turn start?
-        // Or simply add a modifier to the unit now.
-        // But we must overwrite previous A4 buff.
+        // モディファイアとして適用？それとも永続ステータス？
+        // 通常、動的なモディファイアは複雑。ターン開始時に更新される永続バフとして付与するのが良いか？
+        // ここでは単純にユニットにモディファイアを追加する。
+        // ただし、以前のA4バフを上書きする必要がある。
         const buffName = 'A4: 炊事';
 
-        // Remove old modifier
+        // 既存のバフを削除して再適用
         const newModifiers = unit.modifiers.filter(m => m.source !== buffName);
         newModifiers.push({
             source: buffName,
@@ -319,10 +345,17 @@ function ensureA4Buff(state: GameState, unitId: string): GameState {
     return newState;
 }
 
-// Field Logic
+/**
+ * 必殺技による「結界」エフェクトを作成する
+ * 
+ * @param sourceId 発生源ID
+ * @param ultLevel 必殺技レベル
+ * @param eidolonLevel 星魂レベル
+ * @returns 結界エフェクト
+ */
 function createFieldEffect(sourceId: string, ultLevel: number, eidolonLevel: number): IEffect {
     const ultVuln = getLeveledValue(ABILITY_VALUES.ultVuln, ultLevel);
-    // E4: Atk Reduce
+    // 4凸: 攻撃力ダウン
     const modifiers: any[] = [
         { source: '結界(必殺技被ダメup)', target: 'ult_dmg_taken_boost', type: 'add', value: ultVuln }
     ];
@@ -331,36 +364,39 @@ function createFieldEffect(sourceId: string, ultLevel: number, eidolonLevel: num
         modifiers.push({ source: 'E4: 結界(攻撃ダウン)', target: 'atk_pct', type: 'add', value: -E4_ATK_REDUCE });
     }
 
-    // Effect on Enemy?
-    // The field places an effect on enemies OR a global field effect.
-    // Jiaoqiu's field: "Enemies take +Y% Ult DMG".
-    // This is best implemented as a global field effect that applies modifiers to all enemies, 
-    // OR individually applied buffs to enemies.
-    // Since it also has a trigger "When enemy acts...", a global handler is best. 
-    // But for the stats (Ult DMG taken), we need it on enemies.
-    // Let's make this an effect on JIAOQIU (Tracking duration) and a separate effect on ENEMIES (Debuff).
-    // Or just one Effect on Jiaoqiu that interacts via Handler.
-    // However, for DMG calculation to see the Debuff stats, enemies need the modifiers.
-    // Let's put a "Field Aura" on enemies linked to the Field on Jiaoqiu.
+    // 敵への効果について
+    // 結界は敵にエフェクトを与えるか、グローバルなフィールド効果とするか。
+    // 椒丘の結界: "敵は必殺技被ダメージアップ"。
+    // これは全ての敵に対するモディファイアを適用するグローバルフィールド効果として実装するのが最善。
+    // または敵個別にバフを付与する。
+    // "敵が行動する時" というトリガーもあるため、グローバルハンドラーが適している。
+    // しかしステータス（必殺技被ダメージアップ）のためには、敵にモディファイアが必要。
+    // ここでは椒丘に「結界(Field)」エフェクト（期間管理用）を持たせ、
+    // 敵用のデバフは別途管理（AuraManager等）したいところだが、
+    // 簡易実装として、ここでの定義は「自身の状態」とし、ハンドラーで敵への影響を及ぼすか、
+    // あるいはこのエフェクト自体がオーラとして機能する仕組みが必要。
+    // （現状のシミュレーター仕様では、キャラクターに付いたEffectのmodifiersは「そのキャラクター」に適用されるため、
+    //  敵にデバフをかけるには敵にEffectを付与する必要がある）
 
-    // Actually, simple implementation:
-    // Field on Jiaoqiu triggers events.
-    // Field applies "Field Effect" to all enemies on tick/apply.
+    // 簡易実装:
+    // 椒丘の結界エフェクトがイベントをトリガーする。
+    // 結界は適用/ティック時に敵全員に「結界エフェクト」を適用する...のが正しいが、
+    // ここではトリガーロジックメインで、ステータス効果は（敵への付与ロジックが別途必要だが）省略またはハンドラーで対応を検討。
     return {
         id: EFFECT_IDS.FIELD,
         name: '結界',
-        category: 'OTHER', // Field
+        category: 'OTHER', // フィールド効果
         sourceUnitId: sourceId,
-        durationType: 'TURN_START_BASED', // Jiaoqiu's turn
+        durationType: 'TURN_START_BASED', // 椒丘のターン開始時に減少
         duration: FIELD_DURATION,
         miscData: { triggerCount: FIELD_TRIGGER_LIMIT },
-        apply: (t, s) => s, // logic handled in handler
+        apply: (t, s) => s, // ロジックはハンドラーで処理
         remove: (t, s) => s,
     };
 }
 
 // ===============================
-// Handler
+// イベントハンドラー
 // ===============================
 
 const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
@@ -368,33 +404,29 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
     const unit = newState.registry.get(createUnitId(sourceUnitId));
     if (!unit) return newState;
 
-    // A2: Energy
+    // 追加能力(A2): EP回復
     if (unit.traces?.some(t => t.id === TRACE_IDS.A2_PYRE_CLEANSE)) {
         newState = addEnergyToUnit(newState, sourceUnitId, 15);
     }
 
-    // A4: Initial Check
+    // 追加能力(A4): 初期チェック
     newState = ensureA4Buff(newState, sourceUnitId);
 
-    // Technique
+    // 秘技
     if (unit.config?.useTechnique !== false) {
-        // Field 15s -> Start of battle: Deal 100% ATK + 100% chance apply Ashen Roast (1 stack)
+        // 秘技領域: 戦闘開始時に敵全体にダメージ＆「焼尽」1層付与
         const enemies = newState.registry.getAliveEnemies();
         enemies.forEach(enemy => {
-            // Damage
+            // ダメージ
             const res = applyUnifiedDamage(newState, unit, enemy, unit.stats.atk * 1.0, {
                 damageType: 'Technique',
                 details: '秘技ダメージ'
             });
             newState = res.state;
 
-            // Apply Ashen Roast
-            // Chance 100%. Assume success for now or check EHR?
-            // "100% base chance"
-            // We should use a helper for chance default, but here we can just apply it (EffectManager handles resistance if we pass hit chance, 
-            // but addEffect usually bypasses roll unless wrapped. 
-            // In this project, addEffect is direct. We should ideally check logic if strict.
-            // For now, simply apply.
+            // 「焼尽」付与
+            // 基礎確率100%。命中判定は簡易化して適用。
+            // 本来はEHRチェックが必要だが、ここでは直接適用する。
             const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
             newState = addAshenRoast(newState, enemy.id, sourceUnitId, 1, talentLevel, eidolonLevel);
         });
@@ -405,16 +437,14 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
 
 const onTurnStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     let newState = state;
-    // A4 Re-check on turn start (stats might change)
+    // A4: ターン開始時にステータス再チェック（バフ状況が変わる可能性があるため）
     if (event.sourceId === sourceUnitId) {
         newState = ensureA4Buff(newState, sourceUnitId);
     }
 
-    // E1 Effect on Allies
-    // "Allies deal +40% DMG to Ashen Roast enemies"
-    // This is best strictly as a modifier on allies?
-    // Or check on Damage Event.
-    // Check Damage Event is better.
+    // 1凸効果: 味方への影響
+    // "味方は焼尽状態の敵への与ダメージ+40%"
+    // これはダメージイベントでチェックするのが最適。
 
     return newState;
 };
@@ -424,10 +454,10 @@ const onBasicAttack = (event: ActionEvent, state: GameState, sourceUnitId: strin
     if (event.sourceId !== sourceUnitId) return newState;
 
     const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
-    // Talent: Apply 1 stack to target
-    // E1: +1 stack (If implemented here? Description says "Target of Skill...". NO, E1 says "Talent application +1")
-    // "Talent: When attack hits... apply 1 stack."
-    // E1: "Talent applies 1 extra stack."
+    // 天賦: ターゲットに1層付与
+    // 1凸: 天賦による付与数+1
+    // "天賦: 攻撃命中時...1層付与"
+    // 1凸: "天賦による付与数+1"
     let stacks = 1;
     if (eidolonLevel >= 1) stacks += 1;
 
@@ -443,19 +473,19 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
 
     const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
     let talentStacks = 1;
-    if (eidolonLevel >= 1) talentStacks += 1; // E1 applies to Talent application
+    if (eidolonLevel >= 1) talentStacks += 1; // 1凸: 天賦による付与数+1
 
     const mainTargetId = event.targetId;
     if (!mainTargetId) return newState;
 
-    // 1. Skill Inherent Effect (Main Target): 1 Stack
+    // 1. スキル固有効果 (メインターゲット): 1層付与
     newState = addAshenRoast(newState, mainTargetId, sourceUnitId, 1, talentLevel, eidolonLevel);
 
-    // 2. Talent Effect (All hit targets): TalentStacks
-    // Targets: Main + Adjacents
+    // 2. 天賦効果 (ヒットした全ターゲット): 1層 (1凸なら2層) 付与
+    // ターゲット: メイン + 隣接
     const targets = [mainTargetId];
 
-    // Find Adjacents
+    // 隣接ターゲットの特定
     const enemies = newState.registry.getAliveEnemies();
     const mainIdx = enemies.findIndex(e => e.id === mainTargetId);
     if (mainIdx !== -1) {
@@ -473,32 +503,29 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
 const onActionComplete = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     let newState = state;
 
-    // Field Trigger Logic: "When enemy acts..."
+    // 結界のトリガーロジック: "敵が行動する時"
     const jiaoqiu = newState.registry.get(createUnitId(sourceUnitId));
     if (!jiaoqiu) return newState;
     const fieldStruct = jiaoqiu.effects.find(e => e.id === EFFECT_IDS.FIELD);
 
     if (fieldStruct && event.sourceId !== sourceUnitId) {
-        // Is source an enemy?
+        // 行動者が敵かどうか確認
         const actor = newState.registry.get(createUnitId(event.sourceId));
         if (actor && actor.isEnemy) {
-            // Check limit
+            // 回数制限チェック
             const currentTriggers = fieldStruct.miscData?.triggerCount || 0;
-            // Check "Once per enemy per turn"
-            // We can store "lastTriggerTurn" in enemy miscData or Field miscData map.
-            // Simplified: If trigger count > 0.
+            // "敵1体につきターン1回" の制限があるが、簡易化のためここでは回数のみチェック
+            // 必要であれば敵ごとの再発動制限(miscData等)を実装する
             if (currentTriggers > 0) {
-                // Trigger Chance: Z% (60/62)
+                // 発動確率: Z% (レベル依存)
                 const ultLevel = calculateAbilityLevel(eidolonLevel, 3, 'Ultimate');
                 const procChance = getLeveledValue(ABILITY_VALUES.ultProcChance, ultLevel);
-                // Roll? Assuming hit for simulation consistency or average?
-                // Simulator usually assumes 100% or user config. 
-                // Here, let's just apply.
+                // 本来は確率ロールが必要だが、シミュレーターの設定に従い適用する
 
                 const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
                 newState = addAshenRoast(newState, event.sourceId, sourceUnitId, 1, talentLevel, eidolonLevel);
 
-                // Decrement trigger count
+                // 発動回数を減らす
                 const newTriggers = currentTriggers - 1;
                 newState = removeEffect(newState, sourceUnitId, EFFECT_IDS.FIELD);
                 newState = addEffect(newState, sourceUnitId, { ...fieldStruct, miscData: { ...fieldStruct.miscData, triggerCount: newTriggers } });
@@ -510,33 +537,18 @@ const onActionComplete = (event: ActionEvent, state: GameState, sourceUnitId: st
 };
 
 const onBeforeDamageReceived = (event: BeforeDamageCalcEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    // E1: Allies deal +40% DMG to Ashen Roast enemies
-    // Calc E1 Dmg Boost
+    // 1凸: 味方が「焼尽」状態の敵に与えるダメージ+40%
+    // 1凸ダメージバフ計算
     if (eidolonLevel >= 1 && event.targetId) {
         const target = state.registry.get(createUnitId(event.targetId));
         if (target && target.effects.some(e => e.id === EFFECT_IDS.ASHEN_ROAST)) {
-            // Check if attacker is ally
+            // 攻撃者が味方かどうかチェック
             const attacker = state.registry.get(createUnitId(event.sourceId));
-            if (attacker && !attacker.isEnemy) { // All allies
-                // Modify damage info directly in event? NO, BeforeDamageCalcEvent is for modification?
-                // The event interface allows modifying 'damageInfo'.
-                // event.damageInfo.breakdownMultipliers.dmgBoostMult += 0.40
-                // But event is often read-only copy or handled via return.
-                // The Simulator dispatcher uses the returned event/state. Usually we modify state modifiers.
-                // But temporary modifier for this damage instance?
-                // The standard way in this engine seems to be checking modifiers on attacker.
-                // But this is conditional on target state.
-                // We can inject a one-time modifier?
-                // OR we can rely on the fact that Jiaoqiu SHOULD have applied a Debuff to the enemy that increases DMG taken?
-                // E1 says "Allies Deal +40% DMG". This is DMG Boost (Additive with Sphere), not Vulnerability.
-                // Vulnerability is "Enemies Take +X% DMG".
-                // "Deal +40%" -> Attacker stat.
-                // Hard to inject into Attacker for specific target.
-                // We can use the 'vulnerability' multiplier slot if we treat it as such, but it's "Deal increased DMG".
-                // Text: "与ダメージ" (Deal DMG) usually means DMG Boost.
-                // "被ダメージ" (Receive DMG) is Vuln.
-                // So it's DMG Boost.
-                // I'll leave it as TODO or non-functional for exact math, OR use a global passive?
+            if (attacker && !attacker.isEnemy) { // 味方全員
+                // TODO: ダメージ計算時にこのボーナスを適用するロジックが必要
+                // 現在のイベント構造ではダメージ情報を直接変更できない場合があるため、
+                // アタッカーに一時的なバフを付与する等の実装が別途必要になる可能性がある。
+                // 暫定的にこのハンドラーはプレースホルダーとする。
             }
         }
     }
@@ -550,7 +562,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
     const jiaoqiu = newState.registry.get(createUnitId(sourceUnitId));
     if (!jiaoqiu) return newState;
 
-    // 1. Set Stacks to Highest
+    // 1. 層数の統一（最高値に合わせる）
     const enemies = newState.registry.getAliveEnemies();
     let maxStacks = 0;
     enemies.forEach(e => {
@@ -567,14 +579,14 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         }
     });
 
-    // 2. Activate Field
+    // 2. 結界の展開
     const ultLevel = calculateAbilityLevel(eidolonLevel, 3, 'Ultimate');
     newState = addEffect(newState, sourceUnitId, createFieldEffect(sourceUnitId, ultLevel, eidolonLevel));
 
-    // Refresh Trigger Count (Reset to 6)
-    // createFieldEffect sets it to 6.
+    // 発動回数リセット (6回)
+    // createFieldEffectで6回に設定される
 
-    // 3. Deal Damage
+    // 3. ダメージの適用
     const ultDmgMult = getLeveledValue(ABILITY_VALUES.ultDmg, ultLevel);
     enemies.forEach(e => {
         const res = applyUnifiedDamage(newState, jiaoqiu, e, jiaoqiu.stats.atk * ultDmgMult, {
@@ -588,31 +600,22 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
 }
 
 const onFieldEnter = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    // A6: When enemy enters battle while field is active
-    // Event: ON_UNIT_ENTER_BATTLE? (Need to check if exists, usually ON_BATTLE_START is initial)
-    // Scenarios might spawn mid-battle.
-    // Assuming 'ON_ENEMY_ENTER' or similar?
-    // Current Types: ON_BATTLE_START, ON_TURN_START...
-    // Step: Check EVENT_REFERENCE.md?
-    // Assuming no spawns for now in standard sim, only initial.
-    // But A6 says "During field... when enemy enters".
-    // I'll implement if I find the event.
+    // 追加能力(A6): 結界展開中に敵が戦闘に参加した場合
+    // 対応するイベント種別 ('ON_ENEMY_ENTER' 等) が実装され次第記述する
     return state;
 }
 
 const onDeath = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
-    // E6: Transfer stacks on death
+    // 6凸: 敵死亡時に層数を移動
     if (eidolonLevel < 6) return state;
 
-    const deadUnitId = event.sourceId; // Assuming ON_DEATH source is dead unit
-    // Need to check if dead unit had Ashen Roast from Jiaoqiu
-    // But we need the State BEFORE death to know stacks?
-    // Engine handles death by removing unit?
-    // Usually ON_DEATH triggers before removal or we can access dead unit data if preserved?
-    // If unit is gone from registry, we can't find effects.
-    // Assuming ON_DEATH happens while unit is still accessible or passed in event.
+    const deadUnitId = event.sourceId; // ON_DEATHのソースは死亡ユニットと仮定
+    // 死亡した敵から「焼尽」層数を取得し、他の敵に移すロジックが必要
+    // 現在の仕様では死亡時の状態取得が難しいため、保留
+    // 通常はON_DEATHは削除前にトリガーされるか、死亡ユニットデータにアクセス可能であるべき
+    // ユニットがレジストリから消えている場合、エフェクトが見つからない可能性がある
 
-    // For now, if E6, we try to transfer.
+    // 現状、6凸なら移動を試みる（未実装）
     return state;
 }
 
@@ -628,7 +631,7 @@ export const jiaoqiuHandlerFactory: IEventHandlerFactory = (sourceUnitId: string
                 'ON_ULTIMATE_USED',
                 'ON_BASIC_ATTACK',
                 'ON_SKILL_USED'
-                // 'ON_DEATH', // Need to check if supported
+                // 'ON_DEATH', // サポート状況を確認後有効化
             ],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {

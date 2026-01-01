@@ -21,7 +21,7 @@ export const sailingTowardsASecondLife: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'sailing_be',
+            id: 'sailing-be',
             name: '二度目の生に向かって（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const sailingTowardsASecondLife: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'sailing_def_ignore',
+            id: 'sailing-def-ignore',
             name: '二度目の生に向かって（防御無視）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -53,7 +53,7 @@ export const sailingTowardsASecondLife: ILightConeData = {
             }
         },
         {
-            id: 'sailing_spd_check',
+            id: 'sailing-spd-check',
             name: '二度目の生に向かって（速度条件）',
             events: ['ON_TURN_START'], // 定期的にチェック
             handler: (event, state, unit, superimposition) => {

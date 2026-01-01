@@ -29,7 +29,7 @@ export type UltEpOption = 'argenti_90' | 'argenti_180';
 
 export interface CharacterConfig {
     rotation: string[];
-    rotationMode?: 'sequence' | 'spam_skill';
+    rotationMode?: 'sequence' | 'spam_skill' | 'spam_basic';
     spamSkillTriggerSp?: number;
     skillTargetId?: string;
     ultStrategy: UltimateStrategy;
@@ -47,6 +47,7 @@ export interface Unit {
     id: UnitId;
     name: string;
     isEnemy: boolean;
+    rank?: 'Normal' | 'Elite' | 'Boss'; // For enemy units
     element: Element;
     level: number;
     abilities: IUnitData['abilities'];
@@ -67,6 +68,7 @@ export interface Unit {
     // Dynamic state values
     hp: number;
     ep: number;
+    ultCost?: number; // 必殺技消費EP
     disableEnergyRecovery?: boolean;
     shield: number;
     toughness: number;
@@ -183,6 +185,7 @@ export interface CurrentActionLog {
     primarySourceId: string;                    // メインアクション実行者
     primarySourceName: string;                  // メインアクション実行者名
     primaryActionType: string;                  // メインアクション種別
+    primaryTargetId?: string;                   // メインターゲット（オプション）
     startTime: number;                          // アクション開始時間
 
     // メインダメージ
@@ -304,7 +307,7 @@ export interface BaseEvent {
 }
 
 export interface GeneralEvent extends BaseEvent {
-    type: 'ON_BATTLE_START' | 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ENEMY_SPAWNED' | 'ON_UNIT_DEATH';
+    type: 'ON_BATTLE_START' | 'ON_WAVE_START' | 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ENEMY_SPAWNED' | 'ON_UNIT_DEATH';
     targetId?: string;
     value?: number;
 }
@@ -317,6 +320,7 @@ export interface ActionEvent extends BaseEvent {
     targetCount?: number;
     adjacentIds?: string[];
     value?: number; // General value field for damage/healing/etc
+    actionType?: string; // Original action type (e.g. 'BASIC_ATTACK', 'SKILL')
 }
 
 export interface DamageDealtEvent extends BaseEvent {
@@ -391,6 +395,7 @@ export interface BeforeDamageCalcEvent extends BaseEvent {
     element?: import('../../types/index').Element;
     value?: number;
     subType?: string;
+    isMainTarget?: boolean;
 }
 
 export interface EnemyDefeatedEvent extends BaseEvent {

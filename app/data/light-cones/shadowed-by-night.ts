@@ -21,7 +21,7 @@ export const shadowedByNight: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'shadowed_by_night_be',
+            id: 'shadowed-by-night-be',
             name: '夜は影のように付き纏う（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const shadowedByNight: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'shadowed_by_night_spd_proc',
+            id: 'shadowed-by-night-spd-proc',
             name: '夜は影のように付き纏う（速度）',
             events: ['ON_BATTLE_START', 'ON_WEAKNESS_BREAK'],
             cooldownResetType: CooldownResetType.WEARER_TURN,

@@ -21,7 +21,7 @@ export const theSeriousnessOfBreakfast: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'seriousness_breakfast_dmg',
+            id: 'seriousness-breakfast-dmg',
             name: '朝食の儀式感（与ダメ）',
             category: 'BUFF',
             targetStat: 'all_type_dmg_boost',
@@ -30,7 +30,7 @@ export const theSeriousnessOfBreakfast: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'seriousness_breakfast_stack',
+            id: 'seriousness-breakfast-stack',
             name: '朝食の儀式感（攻撃力累積）',
             events: ['ON_ENEMY_DEFEATED'],
             handler: (event, state, unit, superimposition) => {

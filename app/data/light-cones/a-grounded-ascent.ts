@@ -27,7 +27,7 @@ export const aGroundedAscent: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'grounded_ascent_trigger',
+            id: 'grounded-ascent-trigger',
             name: '大地より天を目指して（スキル発動）',
             events: ['ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -52,7 +52,7 @@ export const aGroundedAscent: ILightConeData = {
 
                 if (targetId) {
                     newState = addEffect(newState, targetId, {
-                        id: 'grounded_ascent_hymn',
+                        id: 'grounded-ascent-hymn',
                         name: '聖なる詠唱',
                         category: 'BUFF',
                         sourceUnitId: unit.id,

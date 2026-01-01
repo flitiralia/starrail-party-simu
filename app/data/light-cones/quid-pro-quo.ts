@@ -32,7 +32,7 @@ export const quidProQuo: ILightConeData = {
 
                 const candidates = state.registry.getAliveAllies().filter(a =>
                     a.id !== unit.id &&
-                    (a.ep / a.stats.max_ep) < 0.5
+                    (a.ep / (a.stats.max_ep ?? 1)) < 0.5
                 );
 
                 if (candidates.length === 0) return state;

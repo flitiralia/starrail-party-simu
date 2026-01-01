@@ -20,7 +20,7 @@ export const onlySilenceRemains: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'only_silence_remains_atk',
+            id: 'only-silence-remains-atk',
             name: '沈黙のみ（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -29,7 +29,7 @@ export const onlySilenceRemains: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'only_silence_remains_conditional',
+            id: 'only-silence-remains-conditional',
             name: '沈黙のみ（条件付き会心率）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

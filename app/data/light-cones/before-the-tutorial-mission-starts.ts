@@ -19,7 +19,7 @@ export const beforeTheFirstQuest: ILightConeData = {
   // パッシブ効果（常時発動）
   passiveEffects: [
     {
-      id: 'nice_catch',
+      id: 'nice-catch',
       name: 'ナイスキャッチ',
       category: 'BUFF',
       targetStat: 'effect_hit_rate',
@@ -30,7 +30,7 @@ export const beforeTheFirstQuest: ILightConeData = {
   // イベント駆動ハンドラー
   eventHandlers: [
     {
-      id: 'nice_catch_ep',
+      id: 'nice-catch-ep',
       name: 'ナイスキャッチ EP回復',
       events: ['ON_ATTACK'], // 攻撃を行った後
       // cooldownResetTypeはデフォルト（wearer_turn）

@@ -21,14 +21,14 @@ export const danceAtSunset: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'dance_at_sunset_stats',
+            id: 'dance-at-sunset-stats',
             name: '夕日に舞う（常時）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
             effectValue: [0.36, 0.42, 0.48, 0.54, 0.60]
         },
         {
-            id: 'dance_at_sunset_aggro',
+            id: 'dance-at-sunset-aggro',
             name: '夕日に舞う（ヘイト）',
             category: 'BUFF',
             targetStat: 'aggro',
@@ -37,7 +37,7 @@ export const danceAtSunset: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'dance_at_sunset_proc',
+            id: 'dance-at-sunset-proc',
             name: '炎舞獲得',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

@@ -260,7 +260,7 @@ export const blackSwan: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'reforging-the-memories-of-time',
+        lightConeId: 'reforged-remembrance',
         superimposition: 1,
         relicSetId: 'prisoner_in_deep_confinement',
         ornamentSetId: 'pan_galactic_commercial_enterprise',

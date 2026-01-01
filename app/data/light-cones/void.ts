@@ -22,7 +22,7 @@ export const voidLC: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'void_start_buff',
+            id: 'void-start-buff',
             name: '沈淪（効果命中）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

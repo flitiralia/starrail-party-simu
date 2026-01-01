@@ -22,7 +22,7 @@ export const chorus: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'chorus_aura',
+            id: 'chorus-aura',
             name: '斉頌（攻撃力）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

@@ -5,7 +5,7 @@
  * イカルン（ヒアンシー）などの記憶の精霊を管理する。
  */
 
-import { Element, IAbility, IUnitData } from '@/app/types';
+import { Element, IAbility, IUnitData } from '../../types';
 import { GameState, Unit } from './types';
 import { createSummon, getActiveSummon, insertSummonAfterOwner, removeSummon } from './summonManager';
 import { addEffect, removeEffect } from './effectManager';

@@ -8,7 +8,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  * 4セット: ターンが回ってきた時、装備キャラの残りHPが50%以下の場合、HPを最大HP8%分回復し、EPを5回復する
  */
 export const GUARD_OF_WUTHERING_SNOW: RelicSet = {
-    id: 'guard_of_wuthering_snow',
+    id: 'guard-of-wuthering-snow',
     name: '吹雪と対峙する兵士',
     setBonuses: [
         {

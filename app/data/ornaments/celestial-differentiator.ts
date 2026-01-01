@@ -8,7 +8,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  * 2セット: 会心ダメージ+16%。会心ダメ120%以上で戦闘開始時会心率+60%、初回攻撃終了まで。
  */
 export const CELESTIAL_DIFFERENTIATOR: OrnamentSet = {
-    id: 'celestial_differentiator',
+    id: 'celestial-differentiator',
     name: '天体階差機関',
     setBonuses: [
         {

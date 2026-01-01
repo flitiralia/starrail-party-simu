@@ -20,7 +20,7 @@ export const inTheNight: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'in_the_night_crit',
+            id: 'in-the-night-crit',
             name: '夜の帳の中で（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -29,7 +29,7 @@ export const inTheNight: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'in_the_night_spd_scaling',
+            id: 'in-the-night-spd-scaling',
             name: '夜の帳の中で（速度スケーリング）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

@@ -4,7 +4,7 @@ import { IEffect } from '../../simulator/effect/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const WATCHMAKER_MASTER_OF_DREAM_MACHINATIONS: RelicSet = {
-  id: 'watchmaker_master_of_dream_machinations',
+  id: 'watchmaker-master-of-dream-machinations',
   name: '夢を弄ぶ時計屋',
   setBonuses: [
     {

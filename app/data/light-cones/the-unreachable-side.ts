@@ -21,14 +21,14 @@ export const theUnreachableSide: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'the_unreachable_side_crit_hp',
+            id: 'the-unreachable-side-crit-hp',
             name: '着かない彼岸（ステータス）',
             category: 'BUFF',
             targetStat: 'crit_rate',
             effectValue: [0.18, 0.21, 0.24, 0.27, 0.30]
         },
         {
-            id: 'the_unreachable_side_hp',
+            id: 'the-unreachable-side-hp',
             name: '着かない彼岸（HP）',
             category: 'BUFF',
             targetStat: 'hp_pct',
@@ -40,7 +40,7 @@ export const theUnreachableSide: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'the_unreachable_side_dmg_trigger',
+            id: 'the-unreachable-side-dmg-trigger',
             name: '着かない彼岸（与ダメ発動）',
             events: ['ON_AFTER_HIT'], // HP消費を検知するためにON_HP_CHANGEDが必要だが、現状定義にあるか？
             // IEventには ON_DAMAGE_DEALT, ON_UNIT_HEALED などはあるが、HP消費単体のイベントは...
@@ -99,7 +99,7 @@ export const theUnreachableSide: ILightConeData = {
             }
         },
         {
-            id: 'the_unreachable_side_dmg_remove',
+            id: 'the-unreachable-side-dmg-remove',
             name: '着かない彼岸（解除）',
             events: ['ON_ACTION_COMPLETE'], // 攻撃を行った後 = アクション終了時
             handler: (event, state, unit, superimposition) => {

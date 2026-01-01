@@ -8,7 +8,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  * 2セット: 効果命中+10%。攻撃力が現在の効果命中25%分アップ、最大+25%。
  */
 export const PAN_COSMIC_COMMERCIAL_ENTERPRISE: OrnamentSet = {
-    id: 'pan_cosmic_commercial_enterprise',
+    id: 'pan-cosmic-commercial-enterprise',
     name: '汎銀河商事会社',
     setBonuses: [
         {

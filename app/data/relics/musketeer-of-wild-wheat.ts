@@ -1,7 +1,7 @@
 import { RelicSet } from '../../types';
 
 export const MUSKETEER_OF_WILD_WHEAT: RelicSet = {
-  id: 'musketeer_of_wild_wheat',
+  id: 'musketeer-of-wild-wheat',
   name: '草の穂ガンマン',
   setBonuses: [
     {

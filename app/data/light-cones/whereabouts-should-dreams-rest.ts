@@ -21,7 +21,7 @@ export const whereaboutsShouldDreamsRest: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'whereabouts_break_effect',
+            id: 'whereabouts-break-effect',
             name: '夢が帰り着く場所（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const whereaboutsShouldDreamsRest: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'routed_debuff_application',
+            id: 'routed-debuff-application',
             name: '敗走付与',
             events: ['ON_WEAKNESS_BREAK'],
             handler: (event, state, unit, superimposition) => {
@@ -80,7 +80,7 @@ export const whereaboutsShouldDreamsRest: ILightConeData = {
             }
         },
         {
-            id: 'routed_damage_boost',
+            id: 'routed-damage-boost',
             name: '敗走（ダメージ増加）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

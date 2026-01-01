@@ -21,7 +21,7 @@ export const eternalCalculus: ILightConeData = {
   },
   passiveEffects: [
     {
-      id: 'eternal_calculus_base_atk',
+      id: 'eternal-calculus-base-atk',
       name: '絶え間ない演算（基本攻撃力）',
       category: 'BUFF',
       targetStat: 'atk_pct',
@@ -31,7 +31,7 @@ export const eternalCalculus: ILightConeData = {
   eventHandlers: [
     // アクションごとのヒット数を追跡して、同じターゲットを二重カウントしないようにするヘルパー（"敵に命中するごとに"にとっては重要ではないかもしれないが）
     {
-      id: 'eternal_calculus_tracker',
+      id: 'eternal-calculus-tracker',
       name: '絶え間ない演算（トラッカー）',
       events: ['ON_BEFORE_ACTION', 'ON_DAMAGE_DEALT', 'ON_ACTION_COMPLETE'],
       handler: (event, state, unit, superimposition) => {

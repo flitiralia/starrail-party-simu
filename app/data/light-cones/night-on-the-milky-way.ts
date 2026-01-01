@@ -26,7 +26,7 @@ export const nightOnTheMilkyWay: ILightConeData = {
 
     eventHandlers: [
         {
-            id: 'night_on_milky_way_dynamic_atk',
+            id: 'night-on-milky-way-dynamic-atk',
             name: '銀河鉄道の夜（敵数攻撃力UP）',
             events: ['ON_BATTLE_START', 'ON_TURN_START', 'ON_ENEMY_SPAWNED', 'ON_UNIT_DEATH', 'ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {
@@ -60,7 +60,7 @@ export const nightOnTheMilkyWay: ILightConeData = {
             }
         },
         {
-            id: 'night_on_milky_way_break_dmg',
+            id: 'night-on-milky-way-break-dmg',
             name: '銀河鉄道の夜（撃破時与ダメUP）',
             events: ['ON_WEAKNESS_BREAK'],
             handler: (event, state, unit, superimposition) => {

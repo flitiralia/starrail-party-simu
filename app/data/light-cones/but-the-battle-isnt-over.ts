@@ -22,7 +22,7 @@ export const butTheBattleIsntOver: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'but_battle_err',
+            id: 'but-battle-err',
             name: 'だが戦争は終わらない（EP回復効率）',
             category: 'BUFF',
             targetStat: 'energy_regen_rate',
@@ -31,7 +31,7 @@ export const butTheBattleIsntOver: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'but_battle_sp_restore',
+            id: 'but-battle-sp-restore',
             name: 'だが戦争は終わらない（SP回復）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -92,7 +92,7 @@ export const butTheBattleIsntOver: ILightConeData = {
             }
         },
         {
-            id: 'but_battle_next_ally_dmg',
+            id: 'but-battle-next-ally-dmg',
             name: 'だが戦争は終わらない（次行動バフ）',
             events: ['ON_SKILL_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -119,7 +119,7 @@ export const butTheBattleIsntOver: ILightConeData = {
             }
         },
         {
-            id: 'but_battle_watcher_logic',
+            id: 'but-battle-watcher-logic',
             name: '継承者（バフ適用ロジック）',
             events: ['ON_BEFORE_ACTION'],
             handler: (event, state, unit, superimposition) => {

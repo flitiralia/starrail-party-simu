@@ -18,8 +18,8 @@ describe('Light Cones - Functional Tests', () => {
 
         it('passiveEffects should have valid structure', () => {
             allLightCones.forEach(lc => {
-                if (lc.passiveEffects.length > 0) {
-                    lc.passiveEffects.forEach(effect => {
+                if ((lc.passiveEffects ?? []).length > 0) {
+                    lc.passiveEffects!.forEach(effect => {
                         expect(effect.id).toBeDefined();
                         expect(effect.name).toBeDefined();
                         expect(effect.category).toBeDefined();
@@ -34,8 +34,8 @@ describe('Light Cones - Functional Tests', () => {
 
         it('effectValue should scale with superimposition', () => {
             allLightCones.forEach(lc => {
-                if (lc.passiveEffects.length > 0) {
-                    lc.passiveEffects.forEach(effect => {
+                if ((lc.passiveEffects ?? []).length > 0) {
+                    lc.passiveEffects!.forEach(effect => {
                         // Values should generally increase (or stay same) with superimposition
                         const values = effect.effectValue;
                         for (let i = 0; i < values.length - 1; i++) {
@@ -116,7 +116,7 @@ describe('Light Cones - Functional Tests', () => {
             });
 
             it('should have crit rate passive effect', () => {
-                const critEffect = lc?.passiveEffects.find(e => e.targetStat === 'crit_rate');
+                const critEffect = (lc?.passiveEffects ?? []).find(e => e.targetStat === 'crit_rate');
                 expect(critEffect).toBeDefined();
                 expect(critEffect?.effectValue[0]).toBe(0.18); // S1
                 expect(critEffect?.effectValue[4]).toBe(0.30); // S5
@@ -141,7 +141,7 @@ describe('Light Cones - Functional Tests', () => {
             });
 
             it('should have crit dmg passive effect', () => {
-                const critEffect = lc?.passiveEffects.find(e => e.targetStat === 'crit_dmg');
+                const critEffect = (lc?.passiveEffects ?? []).find(e => e.targetStat === 'crit_dmg');
                 expect(critEffect).toBeDefined();
                 expect(critEffect?.effectValue[0]).toBe(0.36); // S1
             });

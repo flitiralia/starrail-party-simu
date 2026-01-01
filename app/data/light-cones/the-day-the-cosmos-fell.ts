@@ -22,7 +22,7 @@ export const theDayTheCosmosFell: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'day_cosmos_fell_atk',
+            id: 'day-cosmos-fell-atk',
             name: '銀河が陥落した日（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -31,7 +31,7 @@ export const theDayTheCosmosFell: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'day_cosmos_fell_cond_buff',
+            id: 'day-cosmos-fell-cond-buff',
             name: '銀河が陥落した日（条件付き会心ダメ）',
             events: ['ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {
@@ -72,7 +72,7 @@ export const theDayTheCosmosFell: ILightConeData = {
             }
         },
         {
-            id: 'day_cosmos_fell_tracker',
+            id: 'day-cosmos-fell-tracker',
             name: '銀河が陥落した日（トラッカー）',
             events: ['ON_BEFORE_ACTION', 'ON_DAMAGE_DEALT', 'ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {

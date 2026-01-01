@@ -21,7 +21,7 @@ export const nowhereToRun: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'nowhere_to_run_atk',
+            id: 'nowhere-to-run-atk',
             name: '逃げ場なし（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const nowhereToRun: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'nowhere_to_run_heal',
+            id: 'nowhere-to-run-heal',
             name: '逃げ場なし（回復）',
             events: ['ON_ENEMY_DEFEATED'],
             handler: (event, state, unit, superimposition) => {

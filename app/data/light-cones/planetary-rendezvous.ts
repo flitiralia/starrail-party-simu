@@ -18,7 +18,7 @@ export const planetaryRendezvous: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'dmg_boost_same_element',
+      id: 'dmg-boost-same-element',
       name: '惑星との出会い（与ダメージ増加）',
       events: ['ON_BEFORE_DAMAGE_CALCULATION'],
       handler: (event, state, unit, superimposition) => {

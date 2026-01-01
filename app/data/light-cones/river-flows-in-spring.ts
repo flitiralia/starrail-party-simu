@@ -22,7 +22,7 @@ export const riverFlowsInSpring: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'river_flows_init',
+            id: 'river-flows-init',
             name: '春水に初生する（初期化）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
@@ -46,7 +46,7 @@ export const riverFlowsInSpring: ILightConeData = {
             }
         },
         {
-            id: 'river_flows_hit_check',
+            id: 'river-flows-hit-check',
             name: '春水に初生する（被弾判定）',
             events: ['ON_AFTER_HIT'],
             handler: (event, state, unit, superimposition) => {

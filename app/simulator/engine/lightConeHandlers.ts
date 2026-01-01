@@ -1,5 +1,5 @@
 import { GameState, Unit, CooldownMetadata } from './types';
-import { Character, StatKey, CooldownResetType } from '@/app/types';
+import { Character, StatKey, CooldownResetType } from '../../types';
 import { IEffect } from '../effect/types';
 import { createUnitId } from './unitId';
 

@@ -24,7 +24,7 @@ export const inTheNameOfTheWorld: ILightConeData = {
     eventHandlers: [
         // 1. 対デバフダメージ（動的）
         {
-            id: 'world_dmg_vs_debuff',
+            id: 'world-dmg-vs-debuff',
             name: '世界の名を以て（デバフ特効）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -52,7 +52,7 @@ export const inTheNameOfTheWorld: ILightConeData = {
         },
         // 2. スキルバフ（効果命中 & 攻撃力）
         {
-            id: 'world_skill_buff',
+            id: 'world-skill-buff',
             name: '世界の名を以て（スキル強化）',
             events: ['ON_BEFORE_ACTION', 'ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {

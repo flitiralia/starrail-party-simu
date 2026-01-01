@@ -1,6 +1,6 @@
 import { GameState, IEvent, IEventHandler, Unit, IEventHandlerLogic, IEventHandlerFactory } from '../types';
 import { createStatEffect } from '../../effect/statEffects';
-import { Element, StatKey } from '@/app/types';
+import { Element, StatKey } from '../../../types';
 import { createUnitId } from '../unitId';
 
 const elementToDmgBoostMap: Record<Element, StatKey> = {

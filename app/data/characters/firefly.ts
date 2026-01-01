@@ -1159,8 +1159,9 @@ const onAfterHit = (
     if (!target) return state;
 
     // A4: 弱点撃破状態の敵に攻撃後、削靭値を超撃破ダメージに変換
-    // 撃破特効200%以上で35%、360%以上で50%
-    const isBroken = target.toughness <= 0;
+    // Dahliaの結界がある場合は非撃破状態でも発動
+    const hasDahliaBarrier = target.effects.some((e: IEffect) => e.id.includes('dahlia-barrier'));
+    const isBroken = target.toughness <= 0 || hasDahliaBarrier;
     if (!isBroken) return state;
 
     const breakEffect = unit.stats.break_effect || 0;
@@ -1171,6 +1172,8 @@ const onAfterHit = (
         conversionRatio = A4_SUPER_BREAK_RATIO_1;
     }
 
+    let newState = state;
+
     if (conversionRatio > 0) {
         // 超撃破ダメージ計算
         // 削靭値は各ヒットのtoughnessReductionの合計を使う
@@ -1178,17 +1181,22 @@ const onAfterHit = (
         const isSkill = (event as any).actionType === 'SKILL';
         const baseToughness = isSkill ? ENHANCED_SKILL_MAIN_TOUGHNESS : ENHANCED_BASIC_TOUGHNESS;
         const superBreakBase = baseToughness * conversionRatio;
-
-        // 超撃破ダメージ = 基礎撃破ダメージ × 超撃破倍率 × (1 + 撃破特効)
-        // 簡略化計算: levelConstant × 超撃破倍率
+        // 超撃破ダメージ計算
         const LEVEL_CONSTANT_80 = 2628.0;
         const superBreakDamage = LEVEL_CONSTANT_80 * superBreakBase * (1 + breakEffect);
 
-        // 付加ダメージとして追加（本来はapplyUnifiedDamageで処理すべきだが、イベントで直接追加）
-        console.log(`[Firefly A4] 超撃破ダメージ: ${superBreakDamage.toFixed(2)} (変換率: ${(conversionRatio * 100).toFixed(0)}%)`);
+        if (superBreakDamage > 0) {
+            const result = applyUnifiedDamage(newState, unit, target, superBreakDamage, {
+                damageType: '超撃破ダメージ',
+                details: `火星オーバーロード: 超撃破 (変換率: ${(conversionRatio * 100).toFixed(0)}%)`,
+                isCrit: false,
+                skipLog: false
+            });
+            newState = result.state;
+        }
     }
 
-    return state;
+    return newState;
 };
 
 // =============================================================================

@@ -5,7 +5,7 @@ import { OrnamentSet } from '../../types';
  * 2セット: 撃破特効+16%。速度145以上で撃破特効+20%追加。
  */
 export const TALIA_KINGDOM_OF_BANDITRY: OrnamentSet = {
-    id: 'talia_kingdom_of_banditry',
+    id: 'talia-kingdom-of-banditry',
     name: '盗賊公国タリア',
     setBonuses: [
         {

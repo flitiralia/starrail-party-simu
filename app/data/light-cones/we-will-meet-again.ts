@@ -22,7 +22,7 @@ export const weWillMeetAgain: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'meet_again_damage',
+            id: 'meet-again-damage',
             name: '交わす拳、言葉の如く',
             events: ['ON_BASIC_ATTACK', 'ON_SKILL_USED'], // 通常攻撃またはスキル
             handler: (event, state, unit, superimposition) => {

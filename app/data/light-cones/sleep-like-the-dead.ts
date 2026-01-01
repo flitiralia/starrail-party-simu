@@ -21,7 +21,7 @@ export const sleepLikeTheDead: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'sleep_crit_dmg',
+            id: 'sleep-crit-dmg',
             name: '泥の如き眠り（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -30,7 +30,7 @@ export const sleepLikeTheDead: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'sleep_crit_proc',
+            id: 'sleep-crit-proc',
             name: '泥の如き眠り（会心率バフ）',
             events: ['ON_DAMAGE_DEALT'],
             // 効果によるカスタムクールダウン追跡

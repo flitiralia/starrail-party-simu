@@ -3,7 +3,7 @@ import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
 
 
 export const PASSERBY_OF_WANDERING_CLOUD: RelicSet = {
-  id: 'passerby_of_wandering_cloud',
+  id: 'passerby-of-wandering-cloud',
   name: '流雲無痕の過客',
   setBonuses: [
     {

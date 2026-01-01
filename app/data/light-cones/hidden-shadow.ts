@@ -23,7 +23,7 @@ export const hiddenShadow: ILightConeData = {
     eventHandlers: [
         // 1. スキル使用時に「次の通常攻撃」をマーク
         {
-            id: 'hidden_shadow_skill',
+            id: 'hidden-shadow-skill',
             name: '機関（装填）',
             events: ['ON_SKILL_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -44,7 +44,7 @@ export const hiddenShadow: ILightConeData = {
         },
         // 2. 通常攻撃時にトリガー
         {
-            id: 'hidden_shadow_proc',
+            id: 'hidden-shadow-proc',
             name: '機関（発動）',
             events: ['ON_BASIC_ATTACK'],
             handler: (event, state, unit, superimposition) => {

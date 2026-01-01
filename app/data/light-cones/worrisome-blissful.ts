@@ -21,14 +21,14 @@ export const worrisomeBlissful: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'worrisome_stats',
+            id: 'worrisome-stats',
             name: '悩んで笑って（ステータス）',
             category: 'BUFF',
             targetStat: 'crit_rate',
             effectValue: [0.18, 0.21, 0.24, 0.27, 0.30]
         },
         {
-            id: 'worrisome_fua_dmg',
+            id: 'worrisome-fua-dmg',
             name: '悩んで笑って（追撃与ダメ）',
             category: 'BUFF',
             targetStat: 'fua_dmg_boost',
@@ -38,7 +38,7 @@ export const worrisomeBlissful: ILightConeData = {
     eventHandlers: [
         // 「従順」付与の処理
         {
-            id: 'worrisome_apply_tame',
+            id: 'worrisome-apply-tame',
             name: '悩んで笑って（従順付与）',
             events: ['ON_FOLLOW_UP_ATTACK'], // "追加攻撃を行った後" -> ON_FOLLOW_UP_ATTACK で動作する
             handler: (event, state, unit, _superimposition) => {
@@ -67,7 +67,7 @@ export const worrisomeBlissful: ILightConeData = {
             }
         },
         {
-            id: 'worrisome_apply_tame_on_hit',
+            id: 'worrisome-apply-tame-on-hit',
             name: '悩んで笑って（従順付与詳細）',
             events: ['ON_DAMAGE_DEALT'],
             handler: (event, state, unit, _superimposition) => {
@@ -96,7 +96,7 @@ export const worrisomeBlissful: ILightConeData = {
         },
         // 「従順」効果の処理（被会心ダメージ）
         {
-            id: 'worrisome_tame_effect',
+            id: 'worrisome-tame-effect',
             name: '悩んで笑って（会心ダメ加算）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

@@ -22,7 +22,7 @@ export const arrows: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'arrows_crit_buff',
+            id: 'arrows-crit-buff',
             name: '矢じり（会心率）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

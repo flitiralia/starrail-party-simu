@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const SPACE_SEALING_STATION: OrnamentSet = {
-    id: 'space_sealing_station',
+    id: 'space-sealing-station',
     name: '宇宙封印ステーション',
     setBonuses: [
         {

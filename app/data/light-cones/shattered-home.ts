@@ -20,7 +20,7 @@ export const shatteredHome: ILightConeData = {
     },
     eventHandlers: [
         {
-            id: 'shattered_home_dmg',
+            id: 'shattered-home-dmg',
             name: '楽壊（条件付き与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

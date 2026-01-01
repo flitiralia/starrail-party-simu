@@ -21,7 +21,7 @@ export const forTomorrowsJourney: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'for_tomorrows_journey_atk',
+            id: 'for-tomorrows-journey-atk',
             name: '明日のための旅路（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const forTomorrowsJourney: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'for_tomorrows_journey_ult_dmg',
+            id: 'for-tomorrows-journey-ult-dmg',
             name: '明日のための旅路（与ダメ）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

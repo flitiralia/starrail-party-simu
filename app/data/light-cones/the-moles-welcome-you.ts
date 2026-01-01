@@ -21,7 +21,7 @@ export const theMolesWelcomeYou: ILightConeData = {
     },
     eventHandlers: [
         {
-            id: 'moles_stack_gain',
+            id: 'moles-stack-gain',
             name: 'わんぱく値獲得',
             events: ['ON_BASIC_ATTACK', 'ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

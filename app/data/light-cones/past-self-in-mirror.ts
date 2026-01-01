@@ -23,7 +23,7 @@ export const pastSelfInMirror: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'past_self_be',
+            id: 'past-self-be',
             name: '鏡の中の私（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -32,7 +32,7 @@ export const pastSelfInMirror: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'past_self_ult_effect',
+            id: 'past-self-ult-effect',
             name: '鏡の中の私（必殺技効果）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -73,7 +73,7 @@ export const pastSelfInMirror: ILightConeData = {
             }
         },
         {
-            id: 'past_self_wave_start',
+            id: 'past-self-wave-start',
             name: '鏡の中の私（ウェーブ開始時EP）',
             events: ['ON_BATTLE_START'], // 定義されていないため ON_WAVE_START を削除
             handler: (event, state, unit, superimposition) => {

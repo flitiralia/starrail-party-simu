@@ -8,7 +8,7 @@ import { IEffect } from '../../simulator/effect/types';
  * 4セット: 装備キャラが攻撃を行う、または攻撃を受けた後、今回の戦闘中の攻撃力+5%、最大で5層累積できる
  */
 export const CHAMPION_OF_STREETWISE_BOXING: RelicSet = {
-    id: 'champion_of_streetwise_boxing',
+    id: 'champion-of-streetwise-boxing',
     name: '成り上がりチャンピオン',
     setBonuses: [
         {

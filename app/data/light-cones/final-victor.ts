@@ -21,7 +21,7 @@ export const finalVictor: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'final_victor_atk',
+            id: 'final-victor-atk',
             name: '最後の勝者（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const finalVictor: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'final_victor_crit_stack',
+            id: 'final-victor-crit-stack',
             name: '最後の勝者（好運）',
             events: ['ON_AFTER_HIT'],
             handler: (event, state, unit, superimposition) => {

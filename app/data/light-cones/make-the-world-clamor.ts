@@ -21,7 +21,7 @@ export const makeTheWorldClamor: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'make_world_clamor_ult_dmg',
+            id: 'make-world-clamor-ult-dmg',
             name: 'この世界に喧噪を（必殺技与ダメ）',
             category: 'BUFF',
             targetStat: 'ult_dmg_boost',
@@ -30,7 +30,7 @@ export const makeTheWorldClamor: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'make_world_clamor_ep',
+            id: 'make-world-clamor-ep',
             name: 'この世界に喧噪を（初期EP）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

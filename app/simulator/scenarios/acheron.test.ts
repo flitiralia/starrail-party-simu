@@ -14,7 +14,6 @@ const enemy1: Enemy = {
     name: 'Enemy 1',
     element: 'Physical',
     toughness: 30, // Added to fix lint error
-    maxToughness: 30, // Added for completeness
     baseStats: { hp: 10000, atk: 100, def: 0, spd: 100, aggro: 0, critRate: 0.05, critDmg: 0.50 } as any,
     baseRes: { Physical: 0, Fire: 0, Ice: 0, Lightning: 0, Wind: 0, Quantum: 0, Imaginary: 0 },
     abilities: {
@@ -120,8 +119,8 @@ describe('Acheron Mechanics', () => {
                 sourceUnitId: u.id,
                 durationType: 'TURN_BASED',
                 duration: 2,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+                apply: (t: any, s: any) => s,
+                remove: (t: any, s: any) => s
             } as any
         });
 

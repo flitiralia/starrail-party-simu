@@ -13,7 +13,7 @@ function getDebuffCount(target: Unit): number {
 
 
 export const PIONEER_DIVER_OF_DEAD_WATERS: RelicSet = {
-  id: 'pioneer_diver_of_dead_waters',
+  id: 'pioneer-diver-of-dead-waters',
   name: '死水に潜る先駆者',
   setBonuses: [
     {

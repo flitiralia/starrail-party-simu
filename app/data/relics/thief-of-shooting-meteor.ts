@@ -3,7 +3,7 @@ import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { publishEvent } from '../../simulator/engine/dispatcher';
 
 export const THIEF_OF_SHOOTING_METEOR: RelicSet = {
-  id: 'thief_of_shooting_meteor',
+  id: 'thief-of-shooting-meteor',
   name: '流星の跡を追う怪盗',
   setBonuses: [
     {

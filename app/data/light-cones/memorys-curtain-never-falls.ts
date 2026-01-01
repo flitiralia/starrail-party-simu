@@ -22,7 +22,7 @@ export const endlessReminiscence: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'spd_percent_boost',
+      id: 'spd-percent-boost',
       name: '徴収（速度）',
       category: 'BUFF',
       targetStat: 'spd_pct',
@@ -32,7 +32,7 @@ export const endlessReminiscence: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'dmg_boost_on_skill',
+      id: 'dmg-boost-on-skill',
       name: '徴収（与ダメバフ）',
       events: ['ON_SKILL_USED'],
       handler: (event, state, unit, superimposition) => {

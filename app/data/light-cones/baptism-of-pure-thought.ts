@@ -22,7 +22,7 @@ export const baptismOfPureThought: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'baptism_crit_dmg',
+            id: 'baptism-crit-dmg',
             name: '純粋なる思惟の洗礼（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -31,7 +31,7 @@ export const baptismOfPureThought: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'baptism_debuff_scaling',
+            id: 'baptism-debuff-scaling',
             name: '純粋なる思惟の洗礼（デバフ条件）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -115,7 +115,7 @@ export const baptismOfPureThought: ILightConeData = {
             }
         },
         {
-            id: 'baptism_disputation_trigger',
+            id: 'baptism-disputation-trigger',
             name: '純粋なる思惟の洗礼（論弁獲得）',
             events: ['ON_DAMAGE_DEALT'],
             // テキスト：「必殺技で敵を攻撃する時」

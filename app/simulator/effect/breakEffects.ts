@@ -6,7 +6,7 @@ import {
 
 import { GameState, Unit } from "../engine/types";
 import { DoTEffect, BreakStatusEffect, DurationType, IEffect, CrowdControlEffect } from "./types";
-import { Element } from "@/app/types";
+import { Element } from "../../types/index";
 import { calculateBreakDoTDamage, calculateBreakAdditionalDamage } from "../damage";
 
 

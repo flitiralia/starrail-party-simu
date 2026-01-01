@@ -36,6 +36,7 @@ describe('Jiaoqiu Character Implementation', () => {
         const enemy: Enemy = {
             id: ENEMY_ID,
             name: 'Test Enemy',
+            element: 'Physical',
             baseStats: { hp: 10000, atk: 500, def: 200, spd: 100, critRate: 0.05, critDmg: 0.50, aggro: 0 },
             abilities: {
                 basic: { id: 'e-basic', name: 'Enemy Basic', type: 'Basic ATK', description: '' },
@@ -44,12 +45,8 @@ describe('Jiaoqiu Character Implementation', () => {
                 talent: { id: 'e-talent', name: 'Enemy Talent', type: 'Talent', description: '' },
                 technique: { id: 'e-tech', name: 'Enemy Tech', type: 'Technique', description: '' }
             },
-            level: 80,
-            element: 'Physical',
-            path: 'Destruction',
-            maxEnergy: 100,
-            baseRes: { Physical: 0.2, Fire: 0.2, Ice: 0.2, Lightning: 0.2, Wind: 0.2, Quantum: 0.2, Imaginary: 0.2 },
-            messages: []
+            toughness: 300,
+            baseRes: { Physical: 0.2, Fire: 0.2, Ice: 0.2, Lightning: 0.2, Wind: 0.2, Quantum: 0.2, Imaginary: 0.2 }
         };
 
         const config: SimulationConfig = {
@@ -158,7 +155,7 @@ describe('Jiaoqiu Advanced Mechanics', () => {
                 talent: { id: 'e-talent', name: 'Enemy Talent', type: 'Talent', description: '' },
                 technique: { id: 'e-tech', name: 'Enemy Tech', type: 'Technique', description: '' }
             },
-            level: 80, element: 'Fire', path: 'Destruction', maxEnergy: 100, baseRes: {}, messages: []
+            toughness: 100, element: 'Fire', baseRes: {}
         };
 
         const config: SimulationConfig = {
@@ -230,7 +227,7 @@ describe('Jiaoqiu Advanced Mechanics', () => {
                 talent: { id: 'e-talent', name: 'Enemy Talent', type: 'Talent', description: '' },
                 technique: { id: 'e-tech', name: 'Enemy Tech', type: 'Technique', description: '' }
             },
-            level: 80, element: 'Fire', path: 'Destruction', maxEnergy: 100, baseRes: {}, messages: []
+            toughness: 100, element: 'Fire', baseRes: {}
         };
 
         const config: SimulationConfig = {

@@ -22,7 +22,7 @@ export const swordplay: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'swordplay_stack',
+            id: 'swordplay-stack',
             name: '論剣（追撃）',
             events: ['ON_AFTER_HIT'], // ヒットごとにトリガーして「多段攻撃でスタック」を速くする
             handler: (event, state, unit, superimposition) => {

@@ -285,10 +285,10 @@ export const evernight: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'to-the-star-shining-in-the-long-night',
+        lightConeId: 'to-evernights-stars',
         superimposition: 1,
-        relicSetId: 'savior_who_recreates_heaven_and_earth',
-        ornamentSetId: 'silent_ossuary',
+        relicSetId: 'world-remaking-deliverer',
+        ornamentSetId: 'bone-collections-serene-demesne',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',
@@ -444,7 +444,7 @@ const onBattleStart = (
             ...newState,
             registry: newState.registry.update(createUnitId(sourceUnitId), u => ({
                 ...u,
-                ep: Math.min(u.stats.max_ep, u.ep + 70)
+                ep: Math.min((u.stats.max_ep ?? 0), u.ep + 70)
             }))
         };
         newState = addMemoria(newState, sourceUnitId, 1, eidolonLevel);
@@ -1041,7 +1041,7 @@ const executeRainAttack = (
         ...newState,
         registry: newState.registry.update(createUnitId(ownerId), u => ({
             ...u,
-            ep: Math.min(u.stats.max_ep, u.ep + 20)
+            ep: Math.min((u.stats.max_ep ?? 0), u.ep + 20)
         }))
     };
 
@@ -1051,7 +1051,7 @@ const executeRainAttack = (
             ...newState,
             registry: newState.registry.update(createUnitId(ownerId), u => ({
                 ...u,
-                ep: Math.min(u.stats.max_ep, u.ep + 5)
+                ep: Math.min((u.stats.max_ep ?? 0), u.ep + 5)
             }))
         };
         newState = addMemoria(newState, ownerId, 1, eidolonLevel);
@@ -1191,7 +1191,7 @@ const executeDreamAttack = (
         ...newState,
         registry: newState.registry.update(createUnitId(ownerId), u => ({
             ...u,
-            ep: Math.min(u.stats.max_ep, u.ep + 10)
+            ep: Math.min((u.stats.max_ep ?? 0), u.ep + 10)
         }))
     };
 
@@ -1343,7 +1343,7 @@ export const evernightHandlerFactory: IEventHandlerFactory = (
                         ...newState,
                         registry: newState.registry.update(createUnitId(sourceUnitId), u => ({
                             ...u,
-                            ep: Math.min(u.stats.max_ep, u.ep + 5)
+                            ep: Math.min((u.stats.max_ep ?? 0), u.ep + 5)
                         }))
                     };
                     newState = addMemoria(newState, sourceUnitId, 1, eidolonLevel);

@@ -23,7 +23,7 @@ export const ninjaRecordSoundHunt: ILightConeData = {
   },
   passiveEffects: [
     {
-      id: 'ninja_record_be',
+      id: 'ninja-record-be',
       name: '忍法帖・繚乱破魔（撃破特効）',
       category: 'BUFF',
       targetStat: 'break_effect',
@@ -32,7 +32,7 @@ export const ninjaRecordSoundHunt: ILightConeData = {
   ],
   eventHandlers: [
     {
-      id: 'ninja_record_battle_start_ep',
+      id: 'ninja-record-battle-start-ep',
       name: '忍法帖・繚乱破魔（開幕EP）',
       events: ['ON_BATTLE_START'],
       handler: (event, state, unit, superimposition) => {
@@ -41,7 +41,7 @@ export const ninjaRecordSoundHunt: ILightConeData = {
       }
     },
     {
-      id: 'ninja_record_raiton_listener',
+      id: 'ninja-record-raiton-listener',
       name: '忍法帖・繚乱破魔（雷遁管理）',
       events: ['ON_ULTIMATE_USED', 'ON_BASIC_ATTACK'],
       handler: (event, state, unit, superimposition) => {

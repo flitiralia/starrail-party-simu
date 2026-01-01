@@ -24,7 +24,7 @@ export const solitudeAndHealing: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'break_effect_boost',
+      id: 'break-effect-boost',
       name: '混沌の霊薬（撃破特効）',
       category: 'BUFF',
       targetStat: 'break_effect',
@@ -34,7 +34,7 @@ export const solitudeAndHealing: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'dot_dmg_on_ultimate',
+      id: 'dot-dmg-on-ultimate',
       name: '混沌の霊薬（持続ダメバフ）',
       events: ['ON_ULTIMATE_USED'],
       handler: (event, state, unit, superimposition) => {
@@ -64,7 +64,7 @@ export const solitudeAndHealing: ILightConeData = {
       }
     },
     {
-      id: 'ep_regen_on_dot_kill',
+      id: 'ep-regen-on-dot-kill',
       name: '混沌の霊薬（EP回復）',
       events: ['ON_ENEMY_DEFEATED'],
       handler: (event, state, unit, superimposition) => {

@@ -22,7 +22,7 @@ export const ifTimeWereAFlower: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'if_time_flower_base_cd',
+            id: 'if-time-flower-base-cd',
             name: 'もしも時が花だったら（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -31,7 +31,7 @@ export const ifTimeWereAFlower: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'if_time_flower_start',
+            id: 'if-time-flower-start',
             name: 'もしも時が花だったら（開幕）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
@@ -41,7 +41,7 @@ export const ifTimeWereAFlower: ILightConeData = {
             }
         },
         {
-            id: 'if_time_flower_fua',
+            id: 'if-time-flower-fua',
             name: 'もしも時が花だったら（追加攻撃）',
             events: ['ON_FOLLOW_UP_ATTACK'],
             handler: (event, state, unit, superimposition) => {

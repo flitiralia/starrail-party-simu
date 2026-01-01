@@ -17,7 +17,7 @@ export const memoriesOfThePast: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'break_effect_boost',
+      id: 'break-effect-boost',
       name: '古い写真（撃破特効）',
       category: 'BUFF',
       targetStat: 'break_effect',
@@ -27,7 +27,7 @@ export const memoriesOfThePast: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'ep_regen_on_attack',
+      id: 'ep-regen-on-attack',
       name: '古い写真（EP回復）',
       events: ['ON_ATTACK'], // 攻撃を行った後
       cooldownResetType: CooldownResetType.WEARER_TURN,

@@ -76,6 +76,8 @@ export interface CharacterBaseStats {
   critRate: 0.05;
   critDmg: 0.5;
   aggro: number;
+  effect_hit_rate?: number;
+  effect_res?: number;
 }
 
 export type AbilityType = 'Basic ATK' | 'Skill' | 'Ultimate' | 'Talent' | 'Technique';
@@ -295,6 +297,12 @@ export interface Character extends IUnitData {
   maxEnergy: number;
   // If true, this character ignores standard energy recovery (e.g. Acheron)
   disableEnergyRecovery?: boolean;
+
+  /**
+   * 必殺技の消費EP（省略時はmaxEnergyと同じ）
+   * セイバーのようにmaxEnergy > 消費EPとなる場合に使用
+   */
+  ultCost?: number;
 
   // 軌跡（追加能力とステータスボーナス）
   traces: Trace[];

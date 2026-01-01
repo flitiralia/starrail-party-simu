@@ -4,7 +4,7 @@ import { appendEquipmentEffect } from '../../simulator/engine/dispatcher';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const EAGLE_OF_TWILIGHT_LINE: RelicSet = {
-  id: 'eagle_of_twilight_line',
+  id: 'eagle-of-twilight-line',
   name: '昼夜の狭間を翔ける鷹',
   setBonuses: [
     {

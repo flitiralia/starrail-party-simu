@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const INERT_SALSOTTO: OrnamentSet = {
-  id: 'inert_salsotto',
+  id: 'inert-salsotto',
   name: '自転が止まったサルソット',
   setBonuses: [
     {
@@ -17,14 +17,14 @@ export const INERT_SALSOTTO: OrnamentSet = {
           stat: 'ult_dmg_boost',
           value: 0.15,
           target: 'self',
-          condition: (stats) => stats.crit_rate >= 0.5,
+          condition: (stats) => (stats.crit_rate ?? 0) >= 0.5,
           evaluationTiming: 'dynamic'
         },
         {
           stat: 'fua_dmg_boost',
           value: 0.15,
           target: 'self',
-          condition: (stats) => stats.crit_rate >= 0.5,
+          condition: (stats) => (stats.crit_rate ?? 0) >= 0.5,
           evaluationTiming: 'dynamic'
         }
       ],

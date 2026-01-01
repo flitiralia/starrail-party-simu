@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const FLEET_OF_THE_AGELESS: OrnamentSet = {
-  id: 'fleet_of_the_ageless',
+  id: 'fleet-of-the-ageless',
   name: '老いぬ者の仙舟',
   setBonuses: [
     {

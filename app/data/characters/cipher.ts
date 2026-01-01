@@ -287,7 +287,7 @@ export const cipher: Character = {
     // デフォルト設定
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'sailing-towards-a-second-life',
+        lightConeId: 'lies-dance-on-the-breeze',
         superimposition: 1,
         relicSetId: 'messenger_traversing_hackerspace',
         ornamentSetId: 'rutilant_arena',

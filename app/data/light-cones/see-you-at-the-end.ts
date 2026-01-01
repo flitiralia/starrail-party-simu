@@ -20,21 +20,21 @@ export const seeYouAtTheEnd: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'see_you_crit_dmg',
+            id: 'see-you-crit-dmg',
             name: '終点でまた会おう（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
             effectValue: [0.24, 0.30, 0.36, 0.42, 0.48]
         },
         {
-            id: 'see_you_skill_dmg',
+            id: 'see-you-skill-dmg',
             name: '終点でまた会おう（スキル与ダメ）',
             category: 'BUFF',
             targetStat: 'skill_dmg_boost',
             effectValue: [0.24, 0.30, 0.36, 0.42, 0.48]
         },
         {
-            id: 'see_you_fua_dmg',
+            id: 'see-you-fua-dmg',
             name: '終点でまた会おう（追加攻撃与ダメ）',
             category: 'BUFF',
             targetStat: 'fua_dmg_boost',

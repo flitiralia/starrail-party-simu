@@ -286,15 +286,15 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
   // 4. Calculate Preliminary Final Stats (for conditional checks)
   const calculateStatsFromRecord = (record: CharacterStats): FinalStats => {
     const result = createEmptyStatRecord() as FinalStats;
-    result.hp = record.base.hp * (1 + record.pct.hp_pct) + record.add.hp;
-    result.atk = record.base.atk * (1 + record.pct.atk_pct) + record.add.atk;
-    result.def = record.base.def * (1 + record.pct.def_pct) + record.add.def;
+    result.hp = record.base.hp * (1 + (record.pct.hp_pct ?? 0)) + (record.add.hp ?? 0);
+    result.atk = record.base.atk * (1 + (record.pct.atk_pct ?? 0)) + (record.add.atk ?? 0);
+    result.def = record.base.def * (1 + (record.pct.def_pct ?? 0)) + (record.add.def ?? 0);
     for (const key of STAT_KEYS) {
       if (key !== 'hp' && key !== 'atk' && key !== 'def' && key !== 'spd') {
-        result[key] = record.base[key] + record.add[key] + record.pct[key];
+        result[key] = (record.base[key] ?? 0) + (record.add[key] ?? 0) + (record.pct[key] ?? 0);
       }
     }
-    result.spd = record.base.spd * (1 + record.pct.spd_pct) + record.add.spd;
+    result.spd = record.base.spd * (1 + (record.pct.spd_pct ?? 0)) + (record.add.spd ?? 0);
     return result;
   };
 
@@ -495,17 +495,17 @@ export function recalculateUnitStats(unit: import('./engine/types').Unit, allUni
 
   // 6. Calculate Final
   const result = createEmptyStatRecord() as FinalStats;
-  result.hp = stats.base.hp * (1 + stats.pct.hp_pct) + stats.add.hp;
-  result.atk = stats.base.atk * (1 + stats.pct.atk_pct) + stats.add.atk;
-  result.def = stats.base.def * (1 + stats.pct.def_pct) + stats.add.def;
+  result.hp = stats.base.hp * (1 + (stats.pct.hp_pct ?? 0)) + (stats.add.hp ?? 0);
+  result.atk = stats.base.atk * (1 + (stats.pct.atk_pct ?? 0)) + (stats.add.atk ?? 0);
+  result.def = stats.base.def * (1 + (stats.pct.def_pct ?? 0)) + (stats.add.def ?? 0);
 
   for (const key of STAT_KEYS) {
     if (key !== 'hp' && key !== 'atk' && key !== 'def' && key !== 'spd' && key !== 'aggro') {
-      result[key] = stats.base[key] + stats.add[key] + stats.pct[key];
+      result[key] = (stats.base[key] ?? 0) + (stats.add[key] ?? 0) + (stats.pct[key] ?? 0);
     }
   }
-  result.spd = stats.base.spd * (1 + stats.pct.spd_pct) + stats.add.spd;
-  result.aggro = stats.base.aggro * (1 + (stats.pct.aggro || 0)) + (stats.add.aggro || 0); // Calculate aggro separately if needed, or included in loop if treated normally. 
+  result.spd = stats.base.spd * (1 + (stats.pct.spd_pct ?? 0)) + (stats.add.spd ?? 0);
+  result.aggro = (stats.base.aggro ?? 0) * (1 + (stats.pct.aggro || 0)) + (stats.add.aggro || 0); // Calculate aggro separately if needed, or included in loop if treated normally. 
   // Ideally aggro is just base + add + pct like others, but let's stick to the pattern used for spd/hp/etc if it's special. 
   // Actually, aggro usually doesn't have a %. But let's follow the pattern.
   // Wait, the loop handles everything ELSE.

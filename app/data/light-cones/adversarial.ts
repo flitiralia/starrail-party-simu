@@ -22,7 +22,7 @@ export const adversarial: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'adversarial_spd_buff',
+            id: 'adversarial-spd-buff',
             name: '相抗（速度）',
             events: ['ON_ENEMY_DEFEATED'],
             handler: (event, state, unit, superimposition) => {

@@ -34,7 +34,7 @@ export const itsShowtime: ILightConeData = {
         // 理想的：ステータスに基づいてターンごとに更新される永続的なバッファー効果？
         // `ON_TURN_START` を介して実装する。
         {
-            id: 'showtime_atk_check',
+            id: 'showtime-atk-check',
             name: '独りの娯楽（攻撃力チェック）',
             category: 'OTHER', // Logic only
             targetStat: 'atk_pct', // Metadata
@@ -44,7 +44,7 @@ export const itsShowtime: ILightConeData = {
     eventHandlers: [
         // 1. Trick Stacks (On Debuff Applied)
         {
-            id: 'showtime_trick_stack',
+            id: 'showtime-trick-stack',
             name: '独りの娯楽（トリック）',
             events: ['ON_DEBUFF_APPLIED'], // このイベントが型で存在/復元されていると仮定
             handler: (event, state, unit, superimposition) => {
@@ -80,7 +80,7 @@ export const itsShowtime: ILightConeData = {
         },
         // 2. ATK Boost (Logic)
         {
-            id: 'showtime_atk_logic',
+            id: 'showtime-atk-logic',
             name: '独りの娯楽（攻撃力）',
             events: ['ON_BATTLE_START', 'ON_TURN_START'],
             handler: (event, state, unit, superimposition) => {

@@ -234,7 +234,7 @@ export const trailblazerHarmony: Character = {
         },
     },
     defaultConfig: {
-        lightConeId: 'chasing-the-wind',
+        lightConeId: 'in-pursuit-of-the-wind',
         superimposition: 1, // 3* LC usually S5, but spec doesn't say. I'll stick to 5 for 3*. Wait, usually default is 1 or 5. I'll use 5 for 3* LC.
         // Actually, I'll use 5 because it's easy to get.
         relicSetId: 'watchmaker_master_of_dream_machinations',
@@ -528,9 +528,10 @@ const onDamageDealt = (
     const backDance = attacker.effects.find(e => e.name === 'バックダンス' && e.sourceUnitId === sourceUnitId);
     if (!backDance) return state;
 
-    // 弱点撃破状態の敵に攻撃した場合のみ発動 (Toughness <= 0 or isBroken flag?)
-    // Note: toughness can be 0 but check state logic. Usually toughness <= 0 implies broken.
-    if (target.toughness > 0) return state;
+    // 弱点撃破状態の敵に攻撃した場合のみ発動
+    // Dahliaの結界がある場合は非撃破状態でも発動
+    const hasDahliaBarrier = target.effects.some(e => e.id.includes('dahlia-barrier'));
+    if (target.toughness > 0 && !hasDahliaBarrier) return state;
 
     // 削靭値の計算 (hitDetailsから合計)
     if (!event.hitDetails || event.hitDetails.length === 0) return state;

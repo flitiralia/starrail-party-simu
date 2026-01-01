@@ -21,7 +21,7 @@ export const subscribeForMore: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'subscribe_for_more_dmg',
+            id: 'subscribe-for-more-dmg',
             name: 'フォローして！（与ダメージ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

@@ -22,7 +22,7 @@ export const todayIsAnotherPeacefulDay: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'peaceful_day_buff',
+            id: 'peaceful-day-buff',
             name: '今日も平和な一日（EP依存与ダメ）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

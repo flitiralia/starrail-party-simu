@@ -2,21 +2,24 @@ import { Character, StatKey } from '../../types/index';
 import { IEventHandlerFactory, GameState, IEvent, GeneralEvent, ActionEvent, Unit } from '../../simulator/engine/types';
 import { IEffect } from '../../simulator/effect/types';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
+import { applyUnifiedDamage, publishEvent } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
+import { createSummon, getActiveSummon, insertSummonAfterOwner } from '../../simulator/engine/summonManager';
+import { FinalStats } from '../../types/stats';
+import { calculateDamageWithCritInfo } from '../../simulator/damage';
 
-// --- Constants ---
+// --- 定数 ---
 const CHAR_ID = 'jing-yuan';
-const LL_ID_SUFFIX = 'lightning-lord'; // Full ID: jing-yuan-lightning-lord-{ownerId} (Wait, ownerId might be 'jing-yuan-1'. Just append suffix)
+const LL_ID_SUFFIX = 'lightning-lord'; // 完全なID: jing-yuan-lightning-lord-{ownerId} (ownerIdが 'jing-yuan-1' の可能性があるため、接尾辞を追加)
 
 const EFFECT_IDS = {
-    LL_STACKS: 'jing-yuan-ll-stacks', // On LL unit
-    A2_CRIT_DMG: 'jing-yuan-a2-crit-dmg', // On LL unit? Or check stacks? Spec: "LL's next turn crit dmg +25%"
-    A6_CRIT_RATE: 'jing-yuan-a6-crit-rate', // On Jing Yuan
-    E2_DMG_BUFF: 'jing-yuan-e2-dmg-buff', // On Jing Yuan
-    E6_VULN: 'jing-yuan-e6-vuln', // On Enemy
+    LL_STACKS: 'jing-yuan-ll-stacks', // 神君ユニット上のスタック
+    A2_CRIT_DMG: 'jing-yuan-a2-crit-dmg', // 神君ユニット上。神君の次のターンの会心ダメージ+25%
+    A6_CRIT_RATE: 'jing-yuan-a6-crit-rate', // 景元上
+    E2_DMG_BUFF: 'jing-yuan-e2-dmg-buff', // 景元上
+    E6_VULN: 'jing-yuan-e6-vuln', // 敵上
 };
 
 const TRACE_IDS = {
@@ -38,8 +41,8 @@ const LL_SPD_PER_STACK = 10;
 const LL_BASE_STACKS = 3;
 const LL_MAX_STACKS = 10;
 
-// Default Stats Helper
-const DEFAULT_STATS = {
+// デフォルトステータスヘルパー
+const DEFAULT_STATS: FinalStats = {
     hp: 1, atk: 0, def: 0, spd: 60, crit_rate: 0, crit_dmg: 0, aggro: 0,
     hp_pct: 0, atk_pct: 0, def_pct: 0, spd_pct: 0,
     break_effect: 0, effect_hit_rate: 0, effect_res: 0,
@@ -57,30 +60,29 @@ const DEFAULT_STATS = {
     physical_vuln: 0, fire_vuln: 0, ice_vuln: 0, lightning_vuln: 0, wind_vuln: 0, quantum_vuln: 0, imaginary_vuln: 0,
     def_reduction: 0, def_ignore: 0,
     break_efficiency_boost: 0, break_dmg_boost: 0, super_break_dmg_boost: 0,
-    fua_dmg_boost: 0, dot_dmg_boost: 0, dot_def_ignore: 0,
+    fua_dmg_boost: 0, fua_crit_dmg: 0, fua_vuln: 0, dot_dmg_boost: 0, dot_def_ignore: 0,
     all_dmg_dealt_reduction: 0, dmg_taken_reduction: 0,
     basic_atk_dmg_boost: 0, skill_dmg_boost: 0, ult_dmg_boost: 0
 };
 
-// --- Helper Functions ---
+// --- ヘルパー関数 ---
 
 function getLightningLordId(ownerId: string): string {
     return `${ownerId}-${LL_ID_SUFFIX}`;
 }
 
-// Helper to calculate LL Speed based on stacks
+// スタック数に基づいて神君の速度を計算するヘルパー
 function calculateLightningLordSpeed(stacks: number): number {
     return LL_BASE_SPD + (stacks * LL_SPD_PER_STACK);
 }
 
-// Update LL Stacks and Speed
+// 神君のスタックと速度を更新
 function updateLightningLordStacks(state: GameState, ownerId: string, amount: number): GameState {
     let newState = state;
     const llId = getLightningLordId(ownerId);
     const llUnit = newState.registry.get(createUnitId(llId));
 
-    // If LL doesn't exist, we might need to create it? 
-    // Usually created at Battle Start. If not found, ignore or log error.
+    // 神君が存在しない場合、無視するかエラーログを出力するかも？通常は戦闘開始時に作成される。
     if (!llUnit) return newState;
 
     const currentStackEffect = llUnit.effects.find(e => e.id === EFFECT_IDS.LL_STACKS);
@@ -88,16 +90,16 @@ function updateLightningLordStacks(state: GameState, ownerId: string, amount: nu
 
     let newStacks = currentStacks + amount;
     if (newStacks > LL_MAX_STACKS) newStacks = LL_MAX_STACKS;
-    if (newStacks < LL_BASE_STACKS) newStacks = LL_BASE_STACKS; // Generally reset to 3, but logic might subtract? No, reset handles that.
+    if (newStacks < LL_BASE_STACKS) newStacks = LL_BASE_STACKS; // 通常は3にリセットされるが、ロジックで減算する可能性があるか？いいえ、リセットで処理されます。
 
-    // Calculate new Speed
+    // 新しい速度を計算
     const oldSpd = calculateLightningLordSpeed(currentStacks);
     const newSpd = calculateLightningLordSpeed(newStacks);
     const spdDiff = newSpd - oldSpd;
 
     const speedBonus = (newStacks - 3) * 10;
 
-    // Update Effect
+    // 効果を更新
     if (currentStackEffect) {
         newState = removeEffect(newState, llUnit.id, EFFECT_IDS.LL_STACKS);
     }
@@ -156,70 +158,47 @@ function spawnLightningLord(state: GameState, ownerId: string, eidolonLevel: num
 
     const llId = getLightningLordId(ownerId);
 
-    // Check if already exists
-    if (newState.registry.get(createUnitId(llId))) return newState;
+    // 既に存在するか確認
+    if (getActiveSummon(newState, ownerId, CHAR_ID)) return newState;
 
-    // Define LL Unit
-    // Inherits stats? "Random enemy ... Jing Yuan's ATK X%".
-    // So LL needs high ATK? Or we use Source as Jing Yuan for damage calculation?
-    // We should use Jing Yuan as the source for damage calc to use his stats/buffs.
-    // But LL triggers the action.
-    // In `applyUnifiedDamage`, we can specify `source`.
-    // But for Turn Order, LL needs to be in registry.
-
-    const llUnit: Unit = {
-        id: createUnitId(llId),
+    // 神君ユニットを定義 (summonManager の標準パターン)
+    const llUnit = createSummon(owner, {
+        idPrefix: CHAR_ID,
         name: '神君',
-        isEnemy: false,
-        isSummon: true,
-        ownerId: createUnitId(ownerId),
         element: 'Lightning',
-        level: owner.level,
+        baseStats: {
+            ...DEFAULT_STATS,
+            spd: LL_BASE_SPD,
+        } as FinalStats,
+        baseSpd: LL_BASE_SPD,
         abilities: {
-            // Mock abilities to satisfy type
             basic: { id: 'll-attack', name: 'Lightning-Lord Attack', type: 'Talent', description: '' },
             skill: { id: 'll-skill', name: 'Lightning-Lord Skill', type: 'Talent', description: '' },
             ultimate: { id: 'll-ult', name: 'Lightning-Lord Ult', type: 'Talent', description: '' },
             talent: { id: 'll-talent', name: 'Lightning-Lord Talent', type: 'Talent', description: '' },
             technique: { id: 'll-tech', name: 'Lightning-Lord Tech', type: 'Technique', description: '' }
         },
-        baseStats: {
-            ...DEFAULT_STATS, // Use default
-            hp: 1, atk: 0, def: 0, spd: 60,
-            crit_rate: 0, crit_dmg: 0, aggro: 0
-        },
-        stats: {
-            ...DEFAULT_STATS,
-            hp: 1, atk: 0, def: 0, spd: 60, crit_rate: 0, crit_dmg: 0, aggro: 0,
-        },
-        hp: 1, ep: 0, shield: 0, toughness: 0, maxToughness: 0,
-        weaknesses: new Set(),
-        modifiers: [],
-        effects: [],
-        actionValue: 10000 / 60, // Initial AV
-        rotationIndex: 0,
-        ultCooldown: 0,
         untargetable: true,
         debuffImmune: true
-    };
+    });
 
     newState = {
         ...newState,
         registry: newState.registry.add(llUnit)
     };
 
-    // Initialize Stacks (3)
-    newState = updateLightningLordStacks(newState, ownerId, 0); // Sets to 3 (Base) + 0 effect
+    // オーナーの直後に挿入 (タイムライン管理の正確性向上)
+    newState = insertSummonAfterOwner(newState, llUnit, ownerId);
 
-    // A4: Start Battle with 15 Energy (Jing Yuan)
+    // スタックを初期化 (3)
+    newState = updateLightningLordStacks(newState, ownerId, 0); // 3（基本）+ 0 効果に設定
+
+    // A4: 戦闘開始時にEP15回復（景元）
     if (owner.traces?.some(t => t.id === TRACE_IDS.A4_SAVANT_PROVIDENCE)) {
-        newState = addEnergyToUnit(newState, ownerId, 15);
+        newState = addEnergyToUnit(newState, ownerId, 0, 15, false, { sourceId: ownerId, publishEventFn: publishEvent });
     }
 
-    // Technique: First turn stacks +3
-    // Handled in `onBattleStart` logic below? Or here?
-    // "秘技を使用した後... 1ターン目の攻撃段数+3"
-    // Check config
+    // 秘技: 最初のターンのスタック+3
     if (owner.config?.useTechnique !== false) {
         newState = updateLightningLordStacks(newState, ownerId, 3);
     }
@@ -234,36 +213,19 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
     const owner = newState.registry.get(createUnitId(ownerId));
     if (!llUnit || !owner) return newState;
 
-    // Verify Crowd Control
-    // Spec: "景元が行動制限系デバフを受けている間、「神君」も行動できない"
-    // Check owner for CC debuffs (Freeze, Imprisonment, Entanglement, Stun, etc.)
-    // Assuming Effect Categories or specific names.
-    // Implementation: Loop effects, check generic "CC" flag or names.
-    // For now, looking for 'Freeze', 'Imprisonment', 'Entanglement', 'Stun', 'Dominated'.
-    const ccKeywords = ['Freeze', 'Imprisonment', 'Entanglement', 'Stun', 'Dominated', 'Outrage'];
+    // 行動制限デバフ（CC）を検証
+    // ゲーム内: 景元がCC状態なら神君も実質的にCC状態。
     const isOwnerCC = owner.effects.some(e =>
-        e.type && ccKeywords.includes(e.type) ||
-        // Also check if effect name contains these?
-        ccKeywords.some(k => e.name.includes(k))
+        e.category === 'DEBUFF' && (
+            e.name.includes('Freeze') || e.name.includes('Imprisonment') ||
+            e.name.includes('Entanglement') || e.name.includes('Stun') ||
+            e.name.includes('Dominated') || e.name.includes('Outrage') ||
+            e.type === 'CrowdControl'
+        )
     );
 
     if (isOwnerCC) {
-        // Skip turn? Or Delay?
-        // Spec usually implies the turn is skipped or delayed until owner is free?
-        // "行動できない" -> Cannot act. Usually means turn is skipped but AV might reset or stay?
-        // In game: LL icon shows 'X'. When turn comes, nothing happens, pass turn.
-        // It does NOT reset stacks. It just waits? Or does it lose the turn completely and reset AV?
-        // Game detail: LL acts immediately after owner recovers? No.
-        // If LL turn comes and JY is CC'd: LL action is skipped. AV resets?
-        // Actually, if JY is CC'd, LL is effectively CC'd.
-        // For simplicity: Skip action, no damage, no stack reset?
-        // Or Stacks preserved?
-        // Wiki: "If Jing Yuan is CC'd when LL's turn comes, LL's turn is skipped and it does not attack. LL requires Jing Yuan to be able to act to launch its attack. Stacks are NOT reset." 
-        // Wait, if stacks are not reset, then next turn it attacks?
-        // Correct behavior: The turn is used up. LL goes back to bottom of AV queue. Stacks remain?
-        // Actually conflicting info. Some say Stacks remain. detailed mechanics say "Action is skipped".
-        // Let's assume ACTION SKIPPED, Stacks PRESERVED for next time.
-        // But AV resets based on current speed.
+        // Wiki: "神君のターンが来たときに景元がCC状態の場合、神君のターンはスキップされ攻撃しない。スタックはリセットされない。"
         return newState;
     }
 
@@ -273,32 +235,17 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
     const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
     const multiplierPerHit = getLeveledValue(ABILITY_VALUES.llDmgMain, talentLevel);
 
-    // A2: If stacks >= 6, Crit DMG +25% for this turn
-    let critDmgBuff = 0;
-    if (owner.traces?.some(t => t.id === TRACE_IDS.A2_BATTLIA_CRUSH) && hits >= 6) {
-        critDmgBuff = 0.25;
-        // Apply temporarily to Owner or use in calculation?
-        // We use Owner's stats. So apply temp buff to Owner?
-    }
-
-    // E6: Vulnerability on Main Target
-    const isE6 = eidolonLevel >= 6;
-
-    // Attack Execution
-    // "1段の攻撃でランダムな敵単 ... 隣接する敵に25%"
-    // Since hits are multiple (up to 10), and targets are random per hit.
-    // We loop 'hits' times.
+    // E6: メインターゲットへの脆弱付与
+    const isE6 = (owner.eidolonLevel || 0) >= 6;
 
     const enemies = newState.registry.getAliveEnemies();
     if (enemies.length === 0) return newState;
 
     for (let i = 0; i < hits; i++) {
-        // Pick random target
+        // ランダムなターゲットを選択 (再現性が必要な場合はシード値を検討)
         const target = enemies[Math.floor(Math.random() * enemies.length)];
         if (!target) continue;
 
-        // Apply E6 Vulnerability before damage? "攻撃を行うたび...被ダメージアップ状態にする"
-        // "その回の攻撃が終了するまで継続" -> Lasts until LL turn ends.
         if (isE6) {
             const e6Effect = target.effects.find(e => e.id === EFFECT_IDS.E6_VULN);
             const currentE6Stacks = e6Effect ? (e6Effect.stackCount || 0) : 0;
@@ -309,80 +256,82 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
                     name: `E6脆弱(${newE6Stacks})`,
                     category: 'DEBUFF',
                     sourceUnitId: ownerId,
-                    durationType: 'TURN_START_BASED', // Technically "Until LL attack ends". Handling requires cleanup at end of function.
+                    durationType: 'TURN_START_BASED',
                     duration: 1,
                     stackCount: newE6Stacks,
-                    modifiers: [{ source: 'E6 Vulnerability', target: 'all_type_dmg_boost' as StatKey, type: 'add', value: 0.12 * newE6Stacks }],
+                    modifiers: [{ source: 'E6 Vulnerability', target: 'all_type_vuln' as StatKey, type: 'add', value: 0.12 * newE6Stacks }],
                     apply: (t, s) => s,
                     remove: (t, s) => s
                 };
-                // Note: Needs strict cleanup
                 newState = addEffect(newState, target.id, vulnEffect);
             }
         }
 
-        // E4: Energy Regen per hit
-        if (eidolonLevel >= 4) {
-            newState = addEnergyToUnit(newState, ownerId, 2);
+        // E4: ヒットごとにEP回復
+        if ((owner.eidolonLevel || 0) >= 4) {
+            newState = addEnergyToUnit(newState, ownerId, 0, 2, false, { sourceId: ownerId, publishEventFn: publishEvent });
         }
 
-        // Damage Main
-        // Modifiers for specific hit? A2 Crit DMG
-        // Since `applyUnifiedDamage` uses current stats, we can't easily inject One-Time Crit Adjust for specific call without modifying state.
-        // We can pass `breakdownMultipliers` override? No.
-        // We can add temp modifier to owner.
+        // A2: スタックが6以上の場合、このターンは会心ダメージ+25%
+        const extraCritDmg = (owner.traces?.some(t => t.id === TRACE_IDS.A2_BATTLIA_CRUSH) && hits >= 6) ? 0.25 : 0;
 
-        if (critDmgBuff > 0) {
-            // Apply, Deal Damage, Remove? Ideally yes but expensive.
-            // Alternative: Add "Crit DMG Boost" to `damageOptions` if we supported it. 
-            // `applyUnifiedDamage` doesn't support custom crit dmg injection easily. 
-            // Let's add modifier to owner ONCE outside loop, remove after.
-        }
+        // ダメージ計算と適用
+        const tempAbility: any = {
+            damage: { scaling: 'atk', type: 'simple', hits: [{ multiplier: multiplierPerHit, toughnessReduction: 10 }] }
+        };
+        const { damage, isCrit, breakdownMultipliers } = calculateDamageWithCritInfo(
+            owner,
+            target,
+            tempAbility,
+            { type: 'FOLLOW_UP_ATTACK' } as any,
+            { critDmg: extraCritDmg }
+        );
 
-        // Calculating Hit
-        applyUnifiedDamage(newState, owner, target, owner.stats.atk * multiplierPerHit, {
+        const damageResult = applyUnifiedDamage(newState, owner, target, damage, {
             damageType: 'Follow-up',
             details: `神君攻撃(${i + 1}/${hits})`,
-            // If Crit DMG buff is active, we hope it's on the owner.
+            isCrit: isCrit,
+            breakdownMultipliers: breakdownMultipliers
         });
+        newState = damageResult.state;
 
-        // Adjacent Damage
-        // "Main target 25% damage"
-        // Target Neighbors
-        // Need to find neighbors in `enemies` array? Or use `adjacentIds`?
-        // Sim doesn't strictly track positions unless `enemies` order is preserved.
-        // Assuming `enemies` array order implies position.
+        // 拡散（隣接）ダメージ
         const targetIndex = enemies.findIndex(e => e.id === target.id);
         const adjacentIndices = [targetIndex - 1, targetIndex + 1];
 
         adjacentIndices.forEach(idx => {
             if (idx >= 0 && idx < enemies.length) {
                 const adjEnemy = enemies[idx];
-                if (adjEnemy.hp > 0) { // Check alive
-                    // E1: Adjacent damage multiplier increases by 25% of Main Multiplier (which is 25% base). 
-                    // Wait. "Multiplier increased by 25% of main target multiplier".
-                    // Base Adjacent = 25% of Main.
-                    // E1: +25% of Main. So Total Adjacent = 50% of Main.
-
+                if (adjEnemy.hp > 0) {
                     let adjRatio = ABILITY_VALUES.llDmgAdjRatio; // 0.25
-                    if (eidolonLevel >= 1) {
+                    if ((owner.eidolonLevel || 0) >= 1) {
                         adjRatio += 0.25;
                     }
 
-                    applyUnifiedDamage(newState, owner, adjEnemy, owner.stats.atk * multiplierPerHit * adjRatio, {
+                    const adjDmgCalc = calculateDamageWithCritInfo(
+                        owner,
+                        adjEnemy,
+                        { damage: { scaling: 'atk', type: 'simple', hits: [{ multiplier: multiplierPerHit * adjRatio, toughnessReduction: 0 }] } } as any,
+                        { type: 'FOLLOW_UP_ATTACK' } as any,
+                        { critDmg: extraCritDmg }
+                    );
+
+                    newState = applyUnifiedDamage(newState, owner, adjEnemy, adjDmgCalc.damage, {
                         damageType: 'Follow-up',
-                        details: `神君拡散(${i + 1}/${hits})`
-                    });
+                        details: `神君拡散(${i + 1}/${hits})`,
+                        isCrit: adjDmgCalc.isCrit,
+                        breakdownMultipliers: adjDmgCalc.breakdownMultipliers
+                    }).state;
                 }
             }
         });
     }
 
-    // Reset Stacks
-    newState = updateLightningLordStacks(newState, ownerId, -100); // Forces reset to base (3)
+    // スタックをリセット
+    newState = updateLightningLordStacks(newState, ownerId, -100);
 
-    // E2: After LL acts, Damage +20% for 2 turns
-    if (eidolonLevel >= 2) {
+    // E2: 神君行動後、2ターンの間ダメージ+20%
+    if ((owner.eidolonLevel || 0) >= 2) {
         const e2Buff: IEffect = {
             id: EFFECT_IDS.E2_DMG_BUFF,
             name: 'E2: 与ダメージ上昇',
@@ -401,7 +350,7 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
         newState = addEffect(newState, ownerId, e2Buff);
     }
 
-    // Clean up E6 Vulnerability from enemies
+    // 敵からE6脆弱をクリーンアップ
     if (isE6) {
         newState.registry.getAliveEnemies().forEach(e => {
             newState = removeEffect(newState, e.id, EFFECT_IDS.E6_VULN);
@@ -411,7 +360,7 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
     return newState;
 }
 
-// --- Handler Logic ---
+// --- ハンドラロジック ---
 
 const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     return spawnLightningLord(state, sourceUnitId, eidolonLevel);
@@ -420,25 +369,25 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
 const onTurnStart = (event: GeneralEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     const llId = getLightningLordId(sourceUnitId);
 
-    // If it is LL's turn
+    // 神君のターンの場合
     if (event.sourceId === llId) {
-        // Execute Attack
+        // 攻撃を実行
         let newState = executeLightningLordAttack(state, llId, sourceUnitId, eidolonLevel);
         return newState;
     }
 
-    // If it is Jing Yuan's turn (A2 Logic could be handled here if it was simpler, but A2 is conditional on stacks at LL turn)
+    // 景元のターンの場合（A2ロジックが単純ならここで処理できたが、A2は神君ターン時のスタックに依存する）
     return state;
 };
 
 const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     let newState = state;
 
-    // Deal Damage
+    // ダメージを与える
     const source = newState.registry.get(createUnitId(sourceUnitId));
     if (!source) return newState;
 
-    const skillLevel = calculateAbilityLevel(eidolonLevel, 5, 'Skill'); // Max 10? Spec says Max 15 for Skill E5
+    const skillLevel = calculateAbilityLevel(eidolonLevel, 5, 'Skill'); // 最大10？仕様ではスキルE5で最大15
     const multiplier = getLeveledValue(ABILITY_VALUES.skillDmg, skillLevel);
 
     const targets = event.targetType === 'all_enemies' ? newState.registry.getAliveEnemies() :
@@ -452,10 +401,10 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
         newState = res.state;
     });
 
-    // Stacks +2
+    // スタック+2
     newState = updateLightningLordStacks(newState, sourceUnitId, 2);
 
-    // A6: Crit Rate +10% for 2 turns
+    // A6: 2ターンの間、会心率+10%
     if (source.traces?.some(t => t.id === TRACE_IDS.A6_WAR_MARSHAL)) {
         const a6Buff: IEffect = {
             id: EFFECT_IDS.A6_CRIT_RATE,
@@ -491,23 +440,23 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         newState = res.state;
     });
 
-    // Stacks +3
+    // スタック+3
     newState = updateLightningLordStacks(newState, sourceUnitId, 3);
 
     return newState;
 };
 
 const onUnitDeath = (event: GeneralEvent, state: GameState, sourceUnitId: string): GameState => {
-    // If Jing Yuan dies, LL disappears
-    if (event.targetId === sourceUnitId) { // event.targetId is the dying unit in ON_UNIT_DEATH?
-        // Check event def. ON_UNIT_DEATH source is likely the dying unit?
-        // Types: targetId? Check types.ts again.
+    // 景元が戦闘不能になった場合、神君は消滅する
+    if (event.targetId === sourceUnitId) { // ON_UNIT_DEATHにおいて、event.targetIdは死亡したユニットか？
+        // イベント定義を確認。ON_UNIT_DEATHのsourceは恐らく死亡したユニット？
+        // 型: targetId？ types.tsを再確認。
         // `export interface GeneralEvent ...type: 'ON_UNIT_DEATH'; targetId ?: string; `
-        // Usually sourceId is the event emitter, but for Death, who emits?
+        // 通常sourceIdはイベント発行者だが、死亡の場合は誰が発行する？
 
-        // Assuming targetId is the dead unit.
-        // Or check `sourceId` for consistency. 
-        // Safer: check both.
+        // targetIdが死亡したユニットであると仮定。
+        // 整合性のためにsourceIdも確認する。
+        // より安全に：両方確認する。
 
         const isDead = event.targetId === sourceUnitId;
         if (isDead) {
@@ -545,7 +494,7 @@ export const jingYuanHandlerFactory: IEventHandlerFactory = (sourceUnitId: strin
     };
 };
 
-// --- Character Definition ---
+// --- キャラクター定義 ---
 
 export const jingYuan: Character = {
     id: CHAR_ID,
@@ -572,8 +521,8 @@ export const jingYuan: Character = {
             targetType: 'single_enemy',
             damage: {
                 type: 'simple',
-                scaling: 'atk', // Blast logic will use hits below
-                hits: [{ multiplier: 1.0, toughnessReduction: 10 }] // Scaling handled in handler if needed, but Basic is simple
+                scaling: 'atk', // 拡散ロジックは以下のヒットを使用
+                hits: [{ multiplier: 1.0, toughnessReduction: 10 }] // 係数は必要ならハンドラで処理するが、通常攻撃はシンプル
             },
             energyGain: 20
         },
@@ -591,7 +540,7 @@ export const jingYuan: Character = {
             name: '我が身の輝き',
             type: 'Ultimate',
             description: '全体攻撃。神君+3段。',
-            targetType: 'all_enemies', // Self? No, hits enemies.
+            targetType: 'all_enemies', // 自分？いいえ、敵にヒット。
             energyGain: 5,
             effects: []
         },
@@ -613,7 +562,7 @@ export const jingYuan: Character = {
         { id: TRACE_IDS.A2_BATTLIA_CRUSH, name: '破陣', type: 'Bonus Ability', description: '神君段数6以上で会心ダメ+25%' },
         { id: TRACE_IDS.A4_SAVANT_PROVIDENCE, name: '先見', type: 'Bonus Ability', description: '戦闘開始時EP15回復' },
         { id: TRACE_IDS.A6_WAR_MARSHAL, name: '遣将', type: 'Bonus Ability', description: 'スキル後会心率+10%' },
-        // Stat Bonuses omitted for brevity but standard layout
+        // ステータスボーナスは簡潔さのために省略されているが、標準的なレイアウト
         { id: 'ji-stat-atk', name: '攻撃力', type: 'Stat Bonus', stat: 'atk_pct', value: 0.28, description: '攻撃力+28%' },
         { id: 'ji-stat-crit', name: '会心率', type: 'Stat Bonus', stat: 'crit_rate', value: 0.12, description: '会心率+12%' },
         { id: 'ji-stat-def', name: '防御力', type: 'Stat Bonus', stat: 'def_pct', value: 0.125, description: '防御力+12.5%' },
@@ -627,8 +576,8 @@ export const jingYuan: Character = {
         e6: { level: 6, name: '威光纏う神霊 敵屠る', description: '神君攻撃毎に敵へ被ダメデバフ' },
     },
     defaultConfig: {
-        lightConeId: 'before-dawn', // Night Before
-        relicSetIds: ['the_ashblazing_grand_duke', 'prisoner_in_deep_confinement'], // Grand Duke
+        lightConeId: 'before-dawn', // Night Before (夜明け前)
+        relicSetIds: ['the_ashblazing_grand_duke', 'prisoner_in_deep_confinement'], // Grand Duke (大公)
         ornamentSetId: 'inert_salsotto',
         mainStats: {
             body: 'crit_rate',

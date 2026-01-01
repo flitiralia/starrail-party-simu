@@ -121,6 +121,23 @@ export const Huohuo: Character = {
         e4: { level: 4, name: "離れぬ悪鬼、絶えぬ揉め事", description: "HPが低いほど治癒量アップ。" },
         e5: { level: 5, name: "勅令のままに妖魔退治", description: "スキルLv+2, 通常Lv+1" },
         e6: { level: 6, name: "苦楽を共にする仲間", description: "治癒時、与ダメージ+50%(2ターン)。" }
+    },
+    defaultConfig: {
+        lightConeId: 'night-of-fright',
+        superimposition: 1,
+        relicSetId: 'passerby_of_wandering_cloud',
+        ornamentSetId: 'broken_keel',
+        mainStats: {
+            body: 'outgoing_healing_boost',
+            feet: 'spd',
+            sphere: 'hp_pct',
+            rope: 'energy_regen_rate',
+        },
+        subStats: [
+            { stat: 'hp_pct', value: 0.20 },
+            { stat: 'effect_res', value: 0.10 },
+            { stat: 'spd', value: 5 },
+        ]
     }
 };
 

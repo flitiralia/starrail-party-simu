@@ -23,7 +23,7 @@ export const cruisingInTheStellarSea: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'crit_rate_boost',
+      id: 'crit-rate-boost',
       name: '猟逐（会心率）',
       category: 'BUFF',
       targetStat: 'crit_rate',
@@ -35,7 +35,7 @@ export const cruisingInTheStellarSea: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'crit_rate_low_hp_enemy',
+      id: 'crit-rate-low-hp-enemy',
       name: '猟逐（HP50%以下会心率）',
       events: ['ON_BEFORE_DAMAGE_CALCULATION'],
       handler: (event, state, unit, superimposition) => {
@@ -64,7 +64,7 @@ export const cruisingInTheStellarSea: ILightConeData = {
       }
     },
     {
-      id: 'atk_boost_on_kill',
+      id: 'atk-boost-on-kill',
       name: '猟逐（攻撃力バフ）',
       events: ['ON_ENEMY_DEFEATED'],
       handler: (event, state, unit, superimposition) => {

@@ -21,7 +21,7 @@ export const weAreTheWildfire: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'dmg_reduction_on_start',
+      id: 'dmg-reduction-on-start',
       name: '袖時雨（被ダメージ減少）',
       events: ['ON_BATTLE_START'],
       handler: (event, state, unit, superimposition) => {
@@ -66,7 +66,7 @@ export const weAreTheWildfire: ILightConeData = {
       }
     },
     {
-      id: 'heal_on_start_lost_hp',
+      id: 'heal-on-start-lost-hp',
       name: '袖時雨（HP回復）',
       events: ['ON_BATTLE_START'],
       handler: (event, state, unit, superimposition) => {

@@ -7,7 +7,7 @@ import { IEffect } from '../../simulator/effect/types';
  * 2セット: 会心率+4%。敵撃破時に会心ダメージ+4%(最大10層)。
  */
 export const IZUMO_GENSEI_AND_TAKAMA_DIVINE_REALM: OrnamentSet = {
-    id: 'izumo_gensei_and_takama_divine_realm',
+    id: 'izumo-gensei-and-takama-divine-realm',
     name: '荒涼の惑星ツガンニヤ',
     setBonuses: [
         {

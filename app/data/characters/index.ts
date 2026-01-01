@@ -12,6 +12,7 @@ export { sunday, sundayHandlerFactory } from './sunday';
 export { trailblazerRemembrance, trailblazerRemembranceHandlerFactory } from './trailblazer-remembrance';
 export { trailblazerHarmony, trailblazerHarmonyHandlerFactory } from './trailblazer-harmony';
 export { herta, hertaHandlerFactory } from './herta';
+export * from './the-herta';
 export { acheron, acheronHandlerFactory } from './acheron';
 export { aglaea, aglaeaHandlerFactory } from './aglaea';
 export { anaxa, anaxaHandlerFactory } from './anaxa';
@@ -32,6 +33,15 @@ export { jingYuan, jingYuanHandlerFactory } from './jing-yuan';
 export { hysilens, hysilensHandlerFactory } from './hysilens';
 export { jade, jadeHandlerFactory } from './jade';
 export { jingliu, jingliuHandlerFactory } from './jingliu';
+export { lingsha, lingshaHandlerFactory } from './lingsha';
+export { mydei, mydeiHandlerFactory } from './mydei';
+export { rappa, rappaHandlerFactory } from './rappa';
+export { robin, robinHandlerFactory } from './robin';
+export { sparkle, sparkleHandlerFactory } from './sparkle';
+export { trailblazerDestruction, trailblazerDestructionHandlerFactory } from './trailblazer-destruction';
+export { trailblazerPreservation, trailblazerPreservationHandlerFactory } from './trailblazer-preservation';
+export { dahlia, dahliaHandlerFactory } from './dahlia';
+export { topazAndNumby, topazAndNumbyHandlerFactory } from './topaz-and-numby';
 
 // Export all characters for easy access
 import { march7th } from './march-7th';
@@ -67,5 +77,19 @@ import { hysilens } from './hysilens';
 import { jade } from './jade';
 import { jingliu } from './jingliu';
 
+import { lingsha } from './lingsha';
+import { mydei } from './mydei';
+import { rappa } from './rappa';
+import { robin } from './robin';
+import { sparkle } from './sparkle';
+import { trailblazerDestruction } from './trailblazer-destruction';
+import { trailblazerPreservation } from './trailblazer-preservation';
+import { dahlia } from './dahlia';
+import { topazAndNumby } from './topaz-and-numby';
 
-export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan, fugue, hysilens, jade, jingliu];
+import { silverWolf, silverWolfHandlerFactory } from './silver-wolf';
+export { silverWolf, silverWolfHandlerFactory };
+import { yunli, yunliHandlerFactory } from './yunli';
+export { yunli, yunliHandlerFactory };
+
+export const ALL_CHARACTERS = [march7th, tribbie, kafka, luocha, archar, DanHengToukou, Hianshi, blade, ruanMei, sunday, trailblazerRemembrance, trailblazerHarmony, herta, acheron, aglaea, anaxa, argenti, aventurine, blackSwan, boothill, bronya, castorice, cipher, guinaifen, evernight, feixiao, firefly, fuXuan, fugue, hysilens, jade, jingliu, lingsha, mydei, rappa, robin, silverWolf, sparkle, dahlia, topazAndNumby, trailblazerDestruction, trailblazerPreservation, yunli];

@@ -8,7 +8,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  * 2セット: 味方追加攻撃時「勲功」獲得(最大5層)、1層につき追加攻撃ダメ+5%、5層で会心ダメ+25%。
  */
 export const DURAN_DYNASTY_OF_RUNNING_WOLVES: OrnamentSet = {
-    id: 'duran_dynasty_of_running_wolves',
+    id: 'duran-dynasty-of-running-wolves',
     name: '奔狼の都藍王朝',
     setBonuses: [
         {

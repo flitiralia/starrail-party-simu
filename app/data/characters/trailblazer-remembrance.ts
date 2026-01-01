@@ -321,14 +321,16 @@ const onSkillUsed = (
             let additionalDmgMult = supportValue;
 
             // A6: 最大EP100超過分10につき+2%（最大20%）
-            if (source.traces?.some(t => t.id === TRACE_IDS.A6) && target.stats.max_ep > 100) {
-                const excess = target.stats.max_ep - 100;
+            // A6: 最大EP100超過分10につき+2%（最大20%）
+            const targetMaxEp = target.stats.max_ep || 0;
+            if (source.traces?.some(t => t.id === TRACE_IDS.A6) && targetMaxEp > 100) {
+                const excess = targetMaxEp - 100;
                 const bonus = Math.min(0.20, Math.floor(excess / 10) * 0.02);
                 additionalDmgMult += bonus;
             }
 
             // E4: 最大EP0の味方はさらに+6%
-            if (eidolonLevel >= 4 && target.stats.max_ep === 0) {
+            if (eidolonLevel >= 4 && targetMaxEp === 0) {
                 additionalDmgMult += E4_ADDITIONAL_DMG_BONUS;
             }
 
@@ -383,8 +385,9 @@ const onSkillUsed = (
             // 詳細情報をログに追加
             if (newState.currentActionLog) {
                 const baseVal = supportValue;
-                const a6Bonus = (source.traces?.some(t => t.id === TRACE_IDS.A6) && target.stats.max_ep > 100) ? Math.min(0.20, Math.floor((target.stats.max_ep - 100) / 10) * 0.02) : 0;
-                const e4Bonus = (eidolonLevel >= 4 && target.stats.max_ep === 0) ? E4_ADDITIONAL_DMG_BONUS : 0;
+                const targetMaxEpLog = target.stats.max_ep || 0;
+                const a6Bonus = (source.traces?.some(t => t.id === TRACE_IDS.A6) && targetMaxEpLog > 100) ? Math.min(0.20, Math.floor((targetMaxEpLog - 100) / 10) * 0.02) : 0;
+                const e4Bonus = (eidolonLevel >= 4 && targetMaxEpLog === 0) ? E4_ADDITIONAL_DMG_BONUS : 0;
 
                 const prefix = newState.currentActionLog.details ? '\n' : '';
                 newState.currentActionLog.details = (newState.currentActionLog.details || '') +
@@ -439,7 +442,7 @@ const onSkillUsed = (
         // Assuming Spirit Talent scales with Talent level (E3)
         const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Talent');
         const spiritTalent = getLeveledValue(ABILITY_VALUES.spiritTalent, talentLevel);
-        const critDmgBuff = murion.stats.crit_dmg * spiritTalent.critDmgMult + spiritTalent.critDmgFlat;
+        const critDmgBuff = (murion.stats.crit_dmg || 0) * spiritTalent.critDmgMult + spiritTalent.critDmgFlat;
 
         const allies = TargetSelector.select(source, newState, { type: 'all_allies' });
         for (const ally of allies) {
@@ -628,7 +631,7 @@ const onBeforeDamageCalculation = (
                     ...state,
                     damageModifiers: {
                         ...state.damageModifiers,
-                        critRate: (state.damageModifiers.critRate || 0) + (1.0 - source.stats.crit_rate)
+                        critRate: (state.damageModifiers.critRate || 0) + (1.0 - (source.stats.crit_rate || 0))
                     }
                 };
             }
@@ -698,7 +701,7 @@ const onFollowUpAttack = (
         ...state,
         registry: state.registry.update(createUnitId(sourceUnitId), u => ({
             ...u,
-            ep: Math.min(source.stats.max_ep, source.ep + E2_EP_RECOVERY)
+            ep: Math.min(source.stats.max_ep || 0, source.ep + E2_EP_RECOVERY)
         }))
     };
 
@@ -870,7 +873,7 @@ export const trailblazerRemembrance: Character = {
     },
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'memorys-curtain-never-falls',
+        lightConeId: 'fly-into-a-pink-tomorrow',
         superimposition: 1,
         relicSetId: 'hero_who_raises_the_battle_song',
         ornamentSetId: 'omphalos_eternal_grounds',

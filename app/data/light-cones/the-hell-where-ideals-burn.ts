@@ -21,7 +21,7 @@ export const theHellWhereIdealsBurn: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'ideals_burn_crit',
+            id: 'ideals-burn-crit',
             name: '理想を焼く奈落で（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const theHellWhereIdealsBurn: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'ideals_burn_sp_check',
+            id: 'ideals-burn-sp-check',
             name: '理想を焼く奈落で（SP条件）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
@@ -54,7 +54,7 @@ export const theHellWhereIdealsBurn: ILightConeData = {
             }
         },
         {
-            id: 'ideals_burn_skill_stack',
+            id: 'ideals-burn-skill-stack',
             name: '理想を焼く奈落で（スキルスタック）',
             events: ['ON_SKILL_USED'], // スキル使用時にこのイベントが発火すると仮定
             handler: (event, state, unit, superimposition) => {

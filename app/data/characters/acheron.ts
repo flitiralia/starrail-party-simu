@@ -586,7 +586,7 @@ const countNihilityAllies = (state: GameState, sourceUnitId: string): number => 
 const canUseUltimate = (state: GameState, sourceUnitId: string): boolean => {
     const unit = state.registry.get(createUnitId(sourceUnitId));
     if (!unit) return false;
-    return unit.ep >= unit.stats.max_ep;
+    return unit.ep >= (unit.stats.max_ep ?? 0);
 };
 
 // =============================================================================

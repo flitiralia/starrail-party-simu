@@ -4,7 +4,7 @@ import { IEffect } from '../../simulator/effect/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const LONGEVOUS_DISCIPLE: RelicSet = {
-  id: 'longevous_disciple',
+  id: 'longevous-disciple',
   name: '宝命長存の蒔者',
   setBonuses: [
     {

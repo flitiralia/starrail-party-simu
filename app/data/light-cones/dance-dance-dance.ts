@@ -17,7 +17,7 @@ export const danceDanceDance: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'action_forward_on_ultimate',
+      id: 'action-forward-on-ultimate',
       name: '止まらないよぉ！',
       events: ['ON_ULTIMATE_USED'],
       handler: (event, state, unit, superimposition) => {

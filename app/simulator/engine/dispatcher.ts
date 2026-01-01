@@ -28,7 +28,8 @@ export function initializeCurrentActionLog(
   state: GameState,
   sourceId: string,
   sourceName: string,
-  actionType: string
+  actionType: string,
+  targetId?: string
 ): GameState {
   // === リソーススナップショットの取得 ===
   const epSnapshot = new Map<string, { unitName: string; value: number }>();
@@ -60,6 +61,7 @@ export function initializeCurrentActionLog(
     primarySourceId: sourceId,
     primarySourceName: sourceName,
     primaryActionType: actionType,
+    primaryTargetId: targetId,
     startTime: state.time,
     primaryDamage: {
       hitDetails: [],
@@ -932,6 +934,9 @@ function stepPayCost(context: ActionContext): ActionContext {
     } else if (epOption === 'argenti_180') {
       // アルジェンティ180EP版: 180EP消費
       updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - 180) };
+    } else if (updatedSource.ultCost !== undefined) {
+      // 指定コストがある場合（セイバーなど）
+      updatedSource = { ...updatedSource, ep: Math.max(0, updatedSource.ep - updatedSource.ultCost) };
     } else {
       // 通常: 全消費
       updatedSource = { ...updatedSource, ep: 0 };
@@ -1193,6 +1198,7 @@ function stepProcessHits(context: ActionContext): ActionContext {
       value: 0,
       element: source.element,
       subType: action.type, // アクションタイプを含める（E6防御無視等で使用）
+      isMainTarget: hit.isMainTarget,
     };
     newState = publishEvent(newState, beforeDmgEvent);
     currentDamageModifiers = newState.damageModifiers;
@@ -1632,7 +1638,8 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
 
   if (snapshot) {
     // EP変化を計算
-    for (const [unitId, snapshotData] of snapshot.ep) {
+    // EP変化を計算
+    snapshot.ep.forEach((snapshotData, unitId) => {
       const currentUnit = state.registry.get(createUnitId(unitId));
       if (currentUnit) {
         const before = snapshotData.value;
@@ -1651,7 +1658,7 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
           });
         }
       }
-    }
+    });
 
     // 蓄積値変化を計算（新規追加・変化・削除）
     const currentAccumulators = new Map<string, { unitName: string; key: string; value: number }>();
@@ -1673,7 +1680,7 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
 
     // スナップショットと現在を比較
     // 既存の蓄積値の変化をチェック
-    for (const [accKey, snapshotData] of snapshot.accumulators) {
+    snapshot.accumulators.forEach((snapshotData, accKey) => {
       const currentData = currentAccumulators.get(accKey);
       const before = snapshotData.value;
       const after = currentData ? currentData.value : 0;
@@ -1690,10 +1697,10 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
           change
         });
       }
-    }
+    });
 
     // 新規追加された蓄積値をチェック
-    for (const [accKey, currentData] of currentAccumulators) {
+    currentAccumulators.forEach((currentData, accKey) => {
       if (!snapshot.accumulators.has(accKey)) {
         resourceChanges.push({
           unitId: accKey.split(':')[0],
@@ -1705,7 +1712,7 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
           change: currentData.value
         });
       }
-    }
+    });
 
     // SP変化を計算
     if (snapshot.sp !== undefined) {
@@ -2164,7 +2171,8 @@ function stepPublishActionCompleteEvent(context: ActionContext): ActionContext {
     targetId: undefined, // No single target for this event
     value: totalDamage,  // Total damage dealt by the action
     subType: action.type,
-    targetCount: targets.length
+    targetCount: targets.length,
+    actionType: action.type // Added actionType
   };
 
   const newState = publishEvent(state, event);
@@ -2253,7 +2261,8 @@ function resolveAction(state: GameState, action: Action): GameState {
   const previousAdditionalDamage = context.state.currentActionLog?.additionalDamage || [];
   const previousDamageTaken = context.state.currentActionLog?.damageTaken || [];
 
-  context.state = initializeCurrentActionLog(context.state, source.id, source.name, actionTypeName);
+  const targetId = (action as CombatAction).targetId;
+  context.state = initializeCurrentActionLog(context.state, source.id, source.name, actionTypeName, targetId);
 
   // ★保存したDoTダメージを復元
   if ((previousAdditionalDamage.length > 0 || previousDamageTaken.length > 0) && context.state.currentActionLog) {

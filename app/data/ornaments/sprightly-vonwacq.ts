@@ -3,7 +3,7 @@ import { advanceAction } from '../../simulator/engine/utils';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const SPRIGHTLY_VONWACQ: OrnamentSet = {
-  id: 'sprightly_vonwacq',
+  id: 'sprightly-vonwacq',
   name: '生命のウェンワーク',
   setBonuses: [
     {

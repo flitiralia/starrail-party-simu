@@ -22,7 +22,7 @@ export const somethingIrreplaceable: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'something_irreplaceable_atk',
+            id: 'something-irreplaceable-atk',
             name: 'かけがえのないもの（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -31,7 +31,7 @@ export const somethingIrreplaceable: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'something_irreplaceable_proc',
+            id: 'something-irreplaceable-proc',
             name: 'かけがえのないもの（発動）',
             events: ['ON_ENEMY_DEFEATED', 'ON_AFTER_HIT'],
             cooldownResetType: CooldownResetType.WEARER_TURN,

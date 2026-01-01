@@ -21,7 +21,7 @@ export const iVentureForthToHunt: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'venture_hunt_crit',
+            id: 'venture-hunt-crit',
             name: '我が征く巡狩の道（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const iVentureForthToHunt: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'venture_hunt_stack_gain',
+            id: 'venture-hunt-stack-gain',
             name: '我が征く巡狩の道（流光獲得）',
             events: ['ON_FOLLOW_UP_ATTACK'],
             handler: (event, state, unit, superimposition) => {
@@ -66,7 +66,7 @@ export const iVentureForthToHunt: ILightConeData = {
             }
         },
         {
-            id: 'venture_hunt_def_ignore',
+            id: 'venture-hunt-def-ignore',
             name: '我が征く巡狩の道（防御無視）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -94,7 +94,7 @@ export const iVentureForthToHunt: ILightConeData = {
             }
         },
         {
-            id: 'venture_hunt_stack_decay',
+            id: 'venture-hunt-stack-decay',
             name: '我が征く巡狩の道（解除）',
             events: ['ON_TURN_END'],
             handler: (event, state, unit, superimposition) => {

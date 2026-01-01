@@ -20,7 +20,7 @@ export const collapsingSky: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'collapsing_sky_basic_skill',
+            id: 'collapsing-sky-basic-skill',
             name: '天傾',
             category: 'BUFF',
             targetStat: 'basic_atk_dmg_boost',
@@ -30,7 +30,7 @@ export const collapsingSky: ILightConeData = {
             effectValue: [0.20, 0.25, 0.30, 0.35, 0.40]
         },
         {
-            id: 'collapsing_sky_skill',
+            id: 'collapsing-sky-skill',
             name: '天傾（スキル）',
             category: 'BUFF',
             targetStat: 'skill_dmg_boost',

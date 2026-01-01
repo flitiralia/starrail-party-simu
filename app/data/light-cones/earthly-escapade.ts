@@ -21,7 +21,7 @@ export const earthlyEscapade: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'earthly_escapade_cd',
+            id: 'earthly-escapade-cd',
             name: '人生は遊び（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -30,7 +30,7 @@ export const earthlyEscapade: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'earthly_escapade_mask_init',
+            id: 'earthly-escapade-mask-init',
             name: '人生は遊び（仮面初期付与）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
@@ -38,7 +38,7 @@ export const earthlyEscapade: ILightConeData = {
             }
         },
         {
-            id: 'earthly_escapade_sp_listener',
+            id: 'earthly-escapade-sp-listener',
             name: '人生は遊び（SP回復監視）',
             events: ['ON_SP_GAINED'],
             handler: (event, state, unit, superimposition) => {

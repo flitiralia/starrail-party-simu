@@ -23,7 +23,7 @@ export const resolutionShinesAsPearlsOfSweat: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'resolution_ensnared_apply',
+            id: 'resolution-ensnared-apply',
             name: '振り返って（陥落付与）',
             events: ['ON_DAMAGE_DEALT'], // On Hit
             handler: (event, state, unit, superimposition) => {

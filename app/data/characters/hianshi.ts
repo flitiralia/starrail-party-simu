@@ -635,10 +635,10 @@ export const Hianshi: Character = {
     },
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'so-the-rainbow-doesnt-fade',
+        lightConeId: 'long-may-rainbows-adorn-the-sky',
         superimposition: 1,
-        relicSetId: 'warlord_of_blazing_sun_and_thunderous_roar',
-        ornamentSetId: 'giant_tree_immersed_in_deep_thought',
+        relicSetId: 'warrior-goddess-of-sun-and-thunder',
+        ornamentSetId: 'giant-tree-of-rapt-brooding',
         mainStats: {
             body: 'outgoing_healing_boost',
             feet: 'spd',

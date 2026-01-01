@@ -22,7 +22,7 @@ export const dartingArrow: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'darting_arrow_atk_buff',
+            id: 'darting-arrow-atk-buff',
             name: '離弦（攻撃力）',
             events: ['ON_ENEMY_DEFEATED'],
             handler: (event, state, unit, superimposition) => {

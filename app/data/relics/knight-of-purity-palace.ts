@@ -6,7 +6,7 @@ import { RelicSet } from '../../types';
  * 4セット: 装備キャラが付与するバリアの耐久値+20%
  */
 export const KNIGHT_OF_PURITY_PALACE: RelicSet = {
-  id: 'knight_of_purity_palace',
+  id: 'knight-of-purity-palace',
   name: '純庭教会の聖騎士',
   setBonuses: [
     {

@@ -21,14 +21,14 @@ export const flameOfBloodBlazeMyPath: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'flame_blood_hp',
+            id: 'flame-blood-hp',
             name: '前途燃やす血の如き炎（HP）',
             category: 'BUFF',
             targetStat: 'hp_pct',
             effectValue: [0.18, 0.21, 0.24, 0.27, 0.30]
         },
         {
-            id: 'flame_blood_inc_healing',
+            id: 'flame-blood-inc-healing',
             name: '前途燃やす血の如き炎（被治癒）',
             category: 'BUFF',
             targetStat: 'incoming_heal_boost',
@@ -37,7 +37,7 @@ export const flameOfBloodBlazeMyPath: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'flame_blood_activity',
+            id: 'flame-blood-activity',
             name: '前途燃やす血の如き炎（発動）',
             events: ['ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -82,7 +82,7 @@ export const flameOfBloodBlazeMyPath: ILightConeData = {
             }
         },
         {
-            id: 'flame_blood_cleanup',
+            id: 'flame-blood-cleanup',
             name: '前途燃やす血の如き炎（解除）',
             events: ['ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {

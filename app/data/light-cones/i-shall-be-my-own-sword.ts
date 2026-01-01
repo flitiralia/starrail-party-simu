@@ -21,7 +21,7 @@ export const iShallBeMyOwnSword: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'i_shall_be_my_own_sword_crit_dmg',
+            id: 'i-shall-be-my-own-sword-crit-dmg',
             name: 'この身は剣なり（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -30,7 +30,7 @@ export const iShallBeMyOwnSword: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'eclipse_stack_gain',
+            id: 'eclipse-stack-gain',
             name: '月蝕獲得',
             events: ['ON_AFTER_HIT'],
             // ON_HP_CHANGEDはここでは理論的なもので、以前のロジックと一致させます。
@@ -97,7 +97,7 @@ export const iShallBeMyOwnSword: ILightConeData = {
         },
         {
             // Handling the 3-stack bonus and removal
-            id: 'eclipse_bonus_and_reset',
+            id: 'eclipse-bonus-and-reset',
             name: '月蝕（防御無視＆解除）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION', 'ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {

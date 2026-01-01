@@ -285,7 +285,7 @@ export const sunday: Character = {
 function createBlessedOneEffect(
     sourceId: string,
     targetId: string,
-    sundayStats: { crit_dmg: number },
+    sundayStats: { crit_dmg: number | undefined },
     duration: number,
     eidolonLevel: number
 ): IEffect {
@@ -295,7 +295,7 @@ function createBlessedOneEffect(
     const critDmgFlat = getLeveledValue(ABILITY_VALUES.ultCritDmgFlat, ultLevel);
 
     // サンデーの会心ダメージを基に計算
-    const critDmgBoost = sundayStats.crit_dmg * critDmgMult + critDmgFlat;
+    const critDmgBoost = (sundayStats.crit_dmg ?? 0.5) * critDmgMult + critDmgFlat;
 
     // E2: 「祝福されし者」の与ダメージ+30%
     const e2DmgBoost = eidolonLevel >= 2 ? E2_BLESSED_DMG_BOOST : 0;
@@ -725,7 +725,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
 
     console.log(`[Sunday Handler] Ultimate used on ${targetUnit.name}`);
     // 1. EP回復（最大EP×20%、ERR非適用）
-    let epRecovery = targetUnit.stats.max_ep * ULT_EP_RECOVERY_PERCENT;
+    let epRecovery = (targetUnit.stats.max_ep ?? 100) * ULT_EP_RECOVERY_PERCENT;
 
     // A2 軌跡: EP回復が40未満なら40まで引き上げ
     const traceA2 = unit.traces?.find(t => t.id === TRACE_IDS.A2);
@@ -744,7 +744,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         const blessedEffect = createBlessedOneEffect(
             sourceUnitId,
             targetId,
-            { crit_dmg: freshSunday.stats.crit_dmg },
+            { crit_dmg: freshSunday.stats.crit_dmg ?? 0.5 },
             ULT_BLESSED_DURATION,
             eidolonLevel
         );
@@ -760,7 +760,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
             const summonBlessed = createBlessedOneEffect(
                 sourceUnitId,
                 summon.id,
-                { crit_dmg: freshSunday.stats.crit_dmg },
+                { crit_dmg: freshSunday.stats.crit_dmg ?? 0.5 },
                 ULT_BLESSED_DURATION,
                 eidolonLevel
             );
@@ -821,7 +821,7 @@ const onBeforeDamageCalculation = (event: BeforeDamageCalcEvent, state: GameStat
 
         if (hasTalentBuff) {
             // 会心率が100%を超えている場合、超過分を会心ダメージに変換
-            const critRate = attacker.stats.crit_rate;
+            const critRate = attacker.stats.crit_rate ?? 0.05;
             if (critRate > 1.0) {
                 const excessCritRate = critRate - 1.0;
                 const bonusCritDmg = excessCritRate * 100 * E6_CRIT_TO_CRIT_DMG_RATIO;

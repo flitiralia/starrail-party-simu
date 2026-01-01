@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const RUTILANT_ARENA: OrnamentSet = {
-  id: 'rutilant_arena',
+  id: 'rutilant-arena',
   name: '星々の競技場',
   setBonuses: [
     {
@@ -17,14 +17,14 @@ export const RUTILANT_ARENA: OrnamentSet = {
           stat: 'basic_atk_dmg_boost',
           value: 0.20,
           target: 'self',
-          condition: (stats) => stats.crit_rate >= 0.7,
+          condition: (stats) => (stats.crit_rate ?? 0) >= 0.7,
           evaluationTiming: 'dynamic'
         },
         {
           stat: 'skill_dmg_boost',
           value: 0.20,
           target: 'self',
-          condition: (stats) => stats.crit_rate >= 0.7,
+          condition: (stats) => (stats.crit_rate ?? 0) >= 0.7,
           evaluationTiming: 'dynamic'
         }
       ],

@@ -22,7 +22,7 @@ export const incessantRain: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'incessant_rain_ehr',
+            id: 'incessant-rain-ehr',
             name: '幻想と現実（効果命中）',
             category: 'BUFF',
             targetStat: 'effect_hit_rate',
@@ -31,7 +31,7 @@ export const incessantRain: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'incessant_rain_crit',
+            id: 'incessant-rain-crit',
             name: '幻想と現実（会心率）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -57,7 +57,7 @@ export const incessantRain: ILightConeData = {
             }
         },
         {
-            id: 'incessant_rain_aether_code',
+            id: 'incessant-rain-aether-code',
             name: '幻想と現実（エーテルコード）',
             events: ['ON_ATTACK'],
             handler: (event, state, unit, superimposition) => {

@@ -8,7 +8,7 @@ import { IEffect } from '../../simulator/effect/types';
  * 4セット: 装備キャラが必殺技を発動した時、会心ダメージ+25%、2ターン継続
  */
 export const HUNTER_OF_GLACIAL_FOREST: RelicSet = {
-    id: 'hunter_of_glacial_forest',
+    id: 'hunter-of-glacial-forest',
     name: '雪の密林の狩人',
     setBonuses: [
         {

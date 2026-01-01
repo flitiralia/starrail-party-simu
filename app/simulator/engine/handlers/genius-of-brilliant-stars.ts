@@ -1,5 +1,5 @@
 import { GameState, IEvent, IEventHandler, IEventHandlerLogic, IEventHandlerFactory, Unit } from '../types';
-import { Element } from '@/app/types';
+import { Element } from '../../../types';
 import { createUnitId } from '../unitId';
 
 /**

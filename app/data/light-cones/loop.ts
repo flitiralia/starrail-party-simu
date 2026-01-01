@@ -22,7 +22,7 @@ export const loop: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'loop_dmg_cond',
+            id: 'loop-dmg-cond',
             name: '窮追（与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

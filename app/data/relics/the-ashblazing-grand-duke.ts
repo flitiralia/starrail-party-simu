@@ -3,7 +3,7 @@ import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
 
 export const THE_ASHBLAZING_GRAND_DUKE: RelicSet = {
-  id: 'the_ashblazing_grand_duke',
+  id: 'the-ashblazing-grand-duke',
   name: '灰燼を燃やし尽くす大公',
   setBonuses: [
     {

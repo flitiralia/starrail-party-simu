@@ -21,7 +21,7 @@ export const theBirthOfTheSelf: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'birth_of_self_base_fua',
+            id: 'birth-of-self-base-fua',
             name: '「私」の誕生（追加攻撃与ダメ）',
             category: 'BUFF',
             targetStat: 'fua_dmg_boost',
@@ -30,7 +30,7 @@ export const theBirthOfTheSelf: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'birth_of_self_conditional_fua',
+            id: 'birth-of-self-conditional-fua',
             name: '「私」の誕生（条件付き与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

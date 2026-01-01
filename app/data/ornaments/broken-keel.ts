@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const BROKEN_KEEL: OrnamentSet = {
-  id: 'broken_keel',
+  id: 'broken-keel',
   name: '折れた竜骨',
   setBonuses: [
     {
@@ -17,7 +17,7 @@ export const BROKEN_KEEL: OrnamentSet = {
           stat: 'crit_dmg',
           value: 0.1,
           target: 'all_allies',
-          condition: (stats) => stats.effect_res >= 0.3,
+          condition: (stats) => (stats.effect_res ?? 0) >= 0.3,
           evaluationTiming: 'dynamic'
         },
       ],

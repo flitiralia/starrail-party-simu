@@ -190,7 +190,7 @@ function determineNextAction(unit: Unit, state: GameState): Action {
         // console.log(`[Debug] determineNextAction for ${unit.name} (${unit.id})`);
     }
 
-    if (unit.ep >= unit.stats.max_ep && unit.ultCooldown === 0 && config.ultStrategy !== 'immediate') {
+    if (unit.ep >= (unit.stats.max_ep ?? 0) && unit.ultCooldown === 0 && config.ultStrategy !== 'immediate') {
         if (config.ultStrategy === 'cooldown') { // 'cooldown' 戦略などの場合
             return { type: 'ULTIMATE', sourceId: unit.id };
         }
@@ -328,7 +328,7 @@ function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
     // キャラクターのみ（召喚物除く）を対象にするのが安全だが、元のロジックに合わせてAliveAlliesを使用
     // filter(u => !u.isSummon) を追加して明示的にキャラクターのみにする
     const characters = newState.registry.getAliveAllies().filter(u => !u.isSummon);
-    const epLog = characters.map(c => `${c.name}:${c.ep.toFixed(1)}/${c.stats.max_ep.toFixed(0)}`).join(', ');
+    const epLog = characters.map(c => `${c.name}:${c.ep.toFixed(1)}/${(c.stats.max_ep ?? 0).toFixed(0)}`).join(', ');
     console.log(`ultimate check [${epLog}]`);
 
     // Limit recursion/loops to prevent infinite Ultimate chains if something is broken
@@ -359,14 +359,15 @@ function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
                     continue;
                 }
 
-                if (strategy === 'immediate' && char.ep >= char.stats.max_ep) {
-                    shouldTrigger = true;
-                } else if (strategy === 'immediate' && char.config.ultEpOption === 'argenti_90' && char.ep >= 90) {
-                    // アルジェンティ90EP: 即時発動モード
-                    shouldTrigger = true;
-                } else if (strategy === 'immediate' && char.config.ultEpOption === 'argenti_180' && char.ep >= 180) {
-                    // アルジェンティ180EP: 即時発動モード
-                    shouldTrigger = true;
+                if (strategy === 'immediate') {
+                    const requiredEp = char.ultCost ?? (char.stats.max_ep ?? 0);
+                    if (char.config.ultEpOption === 'argenti_90') {
+                        if (char.ep >= 90) shouldTrigger = true;
+                    } else if (char.config.ultEpOption === 'argenti_180') {
+                        if (char.ep >= 180) shouldTrigger = true;
+                    } else if (char.ep >= requiredEp) {
+                        shouldTrigger = true;
+                    }
                 }
                 // クールダウンモードでも同様にultEpOptionを考慮
                 // （クールダウンはultCooldownで制御されるため、ここではimmediateのみ）
@@ -731,7 +732,7 @@ export function stepSimulation(state: GameState): GameState {
 
     // ★敵のターンの場合、アクションログを初期化（DoT被ダメージを記録するため）
     if (currentActingUnit.isEnemy) {
-        newState = initializeCurrentActionLog(newState, currentActingUnit.id, currentActingUnit.name, 'ターン開始');
+        newState = initializeCurrentActionLog(newState, currentActingUnit.id, currentActingUnit.name, 'ターン開始', currentActingUnit.id);
     }
 
     // ★DoT処理
@@ -774,6 +775,48 @@ export function stepSimulation(state: GameState): GameState {
 
     // ★敵のターンの場合、DoT被ダメージを含んだcurrentActionLogは維持
     // アクション処理（dispatch）後にログが最終化されるため、ここでは最終化しない
+
+    // ★ SKIP_ACTIONタグによるターンスキップ処理（ロビンの協奏状態など）
+    // 味方のエフェクトでターンをスキップさせる場合
+    const skipActionEffect = currentActingUnit!.effects.find(e => e.tags?.includes('SKIP_ACTION'));
+    if (skipActionEffect && !currentActingUnit!.isEnemy) {
+        // ターンスキップログ
+        newState = {
+            ...newState,
+            log: [...newState.log, {
+                characterName: currentActingUnit!.name,
+                actionTime: newState.time,
+                actionType: 'ターンスキップ',
+                details: `${skipActionEffect.name} (行動不可)`,
+                sourceId: currentActingUnit!.id,
+                skillPointsAfterAction: newState.skillPoints,
+                damageDealt: 0,
+                healingDone: 0,
+                shieldApplied: 0,
+                sourceHpState: `${currentActingUnit!.hp.toFixed(0)}+${currentActingUnit!.shield.toFixed(0)}/${currentActingUnit!.stats.hp.toFixed(0)}`,
+                targetHpState: '',
+                targetToughness: '',
+                currentEp: currentActingUnit!.ep,
+                activeEffects: currentActingUnit!.effects.map(e => ({
+                    name: e.name,
+                    duration: e.durationType === 'PERMANENT' ? '∞' : e.duration,
+                    stackCount: e.stackCount,
+                    owner: e.sourceUnitId
+                }))
+            } as SimulationLogEntry]
+        };
+
+        // ターン終了処理（他のエフェクトの時間減少、AV リセット）
+        newState = updateTurnEndState(newState, currentActingUnit!, { type: 'TURN_SKIP', sourceId: currentActingUnit!.id, reason: skipActionEffect.name });
+
+        newState = updateActionQueue(newState);
+
+        // ★ 割り込みチェックフェーズ (End of Turn Skip) ★
+        newState = checkAndExecuteInterruptingUltimates(newState);
+
+        // ターンスキップ：通常行動をスキップして終了
+        return newState;
+    }
 
     // ★行動制限デバフ（Crowd Control）処理
     // 凍結、もつれ、禁錮などの行動制限デバフがある場合、処理順序：

@@ -21,7 +21,7 @@ export const yetHopeIsPriceless: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'yet_hope_priceless_crit',
+            id: 'yet-hope-priceless-crit',
             name: 'されど希望の銘は無価（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const yetHopeIsPriceless: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'yet_hope_priceless_dynamic_fua',
+            id: 'yet-hope-priceless-dynamic-fua',
             name: 'されど希望の銘は無価（追撃与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -62,7 +62,7 @@ export const yetHopeIsPriceless: ILightConeData = {
         },
         // 防御無視効果
         {
-            id: 'yet_hope_priceless_def_ignore_applier',
+            id: 'yet-hope-priceless-def-ignore-applier',
             name: 'されど希望の銘は無価（防御無視付与）',
             events: ['ON_BATTLE_START', 'ON_BASIC_ATTACK'],
             handler: (event, state, unit, superimposition) => {
@@ -91,7 +91,7 @@ export const yetHopeIsPriceless: ILightConeData = {
             }
         },
         {
-            id: 'yet_hope_priceless_def_ignore_logic',
+            id: 'yet-hope-priceless-def-ignore-logic',
             name: 'されど希望の銘は無価（防御無視計算）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

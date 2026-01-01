@@ -16,7 +16,7 @@ export const dreamvilleAdventure: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'dreamville_trigger',
+            id: 'dreamville-trigger',
             name: 'ドリームタウンの大冒険（童心付与）',
             events: ['ON_BASIC_ATTACK', 'ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

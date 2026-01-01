@@ -27,9 +27,15 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
         // Update existing effect
         const currentStack = duplicateEffect.stackCount || 1;
         const maxStack = effect.maxStacks || duplicateEffect.maxStacks || 1;
-        const newStack = Math.min(currentStack + 1, maxStack);
 
-        console.log(`[EffectManager] Updating effect ${effect.name}: stack ${currentStack} -> ${newStack}, duration refreshed to ${effect.duration}`);
+        // If the incoming effect specifies a stack count (e.g. calculated total), use it if it's valid.
+        // Otherwise, default to incrementing by 1.
+        let candidateStack = currentStack + 1;
+        if (effect.stackCount !== undefined && effect.stackCount > currentStack) {
+            candidateStack = effect.stackCount;
+        }
+
+        const newStack = Math.min(candidateStack, maxStack);
 
         duplicateEffect.stackCount = newStack;
         duplicateEffect.duration = effect.duration;

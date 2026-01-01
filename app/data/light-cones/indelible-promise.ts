@@ -21,7 +21,7 @@ export const indeliblePromise: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'indelible_promise_be',
+            id: 'indelible-promise-be',
             name: '心に刻まれた約束（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const indeliblePromise: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'indelible_promise_crit',
+            id: 'indelible-promise-crit',
             name: '心に刻まれた約束（会心率）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

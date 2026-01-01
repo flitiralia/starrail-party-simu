@@ -243,10 +243,10 @@ export const anaxa: Character = {
         }
     },
     defaultConfig: {
-        lightConeId: 'life-should-be-burned', // 生命、焼滅すべし
+        lightConeId: 'life-should-be-cast-to-flames', // 生命、焼滅すべし
         superimposition: 1,
-        relicSetId: 'genius_of_bright_stars',       // 星の如く輝く天才
-        ornamentSetId: 'stellar_arena',             // 星々の競技場
+        relicSetId: 'genius-of-brilliant-stars',       // 星の如く輝く天才
+        ornamentSetId: 'rutilant-arena',             // 星々の競技場
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',

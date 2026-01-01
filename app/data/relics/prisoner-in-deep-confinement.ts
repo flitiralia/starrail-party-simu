@@ -2,7 +2,7 @@ import { RelicSet } from '../../types';
 import { createDefIgnoreHandler, createDotCountCondition } from '../../simulator/effect/relicEffectHelpers';
 
 export const PRISONER_IN_DEEP_CONFINEMENT: RelicSet = {
-  id: 'prisoner_in_deep_confinement',
+  id: 'prisoner-in-deep-confinement',
   name: '深い牢獄の囚人',
   setBonuses: [
     {

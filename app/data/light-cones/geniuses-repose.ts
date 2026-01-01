@@ -21,7 +21,7 @@ export const geniusesRepose: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'geniuses_repose_atk',
+            id: 'geniuses-repose-atk',
             name: '天才たちの休息（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const geniusesRepose: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'geniuses_repose_kill_buff',
+            id: 'geniuses-repose-kill-buff',
             name: '天才たちの休息（撃破時会心ダメ）',
             events: ['ON_ENEMY_DEFEATED'], // キル時にトリガー
             handler: (event, state, unit, superimposition) => {

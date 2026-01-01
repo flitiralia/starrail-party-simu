@@ -140,10 +140,13 @@ export class UnitRegistry<T extends IUnit = IUnit> {
      * 条件に一致する最初のユニットを取得
      */
     find(predicate: (unit: T) => boolean): T | undefined {
-        for (const unit of this.units.values()) {
-            if (predicate(unit)) return unit;
-        }
-        return undefined;
+        let result: T | undefined;
+        this.units.forEach(unit => {
+            if (!result && predicate(unit)) {
+                result = unit;
+            }
+        });
+        return result;
     }
 
     /**

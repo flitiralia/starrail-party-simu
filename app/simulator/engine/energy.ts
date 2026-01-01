@@ -31,7 +31,7 @@ export function addEnergy(unit: Unit, baseEp: number, flatEp: number = 0, skipER
     const err = unit.stats.energy_regen_rate || 0;
     const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);
     const gain = baseGain + flatEp;
-    const newEp = Math.min(unit.stats.max_ep, unit.ep + gain);
+    const newEp = Math.min((unit.stats.max_ep ?? 0), unit.ep + gain);
 
     return {
         ...unit,
@@ -78,7 +78,7 @@ export function addEnergyToUnit(
     const baseGain = skipERR ? baseEp : calculateEnergyGain(baseEp, err);
     const gain = baseGain + flatEp;
     const oldEp = unit.ep;
-    const newEp = Math.min(unit.stats.max_ep, unit.ep + gain);
+    const newEp = Math.min((unit.stats.max_ep ?? 0), unit.ep + gain);
     const actualGain = newEp - oldEp;
 
     if (actualGain <= 0) return state;
@@ -110,9 +110,10 @@ export function addEnergyToUnit(
  * @returns The updated unit.
  */
 export function initializeEnergy(unit: Unit, percentage: number = 0.5): Unit {
-    const startEp = unit.stats.max_ep * percentage;
+    const maxEp = unit.stats.max_ep ?? 0;
+    const startEp = maxEp * percentage;
     return {
         ...unit,
-        ep: Math.min(unit.stats.max_ep, startEp)
+        ep: Math.min(maxEp, startEp)
     };
 }

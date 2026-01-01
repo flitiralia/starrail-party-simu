@@ -27,6 +27,8 @@ export const STAT_KEYS = [
   'break_dmg_boost', // Break Damage Boost (Source)
   'super_break_dmg_boost', // Super Break damage boost
   'fua_dmg_boost', // Follow-up attack damage boost
+  'fua_crit_dmg', // Follow-up attack crit damage boost (追加攻撃会心ダメージ)
+  'fua_vuln', // Follow-up attack vulnerability (追加攻撃被ダメージアップ)
   'dot_dmg_boost', // DoT damage boost
   'dot_def_ignore', // DoT DEF ignore
   'all_type_dmg_boost', // All type damage boost
@@ -59,9 +61,10 @@ export interface Modifier { // NOTE: This interface might be deprecated in favor
 
 /**
  * A record to hold the value for each stat.
- * This ensures type safety as all `StatKey` must be present.
+ * Using Partial to allow characters to omit specific stats,
+ * but core stats remain theoretically required for consistency.
  */
-type StatRecord = Record<StatKey, number>;
+type StatRecord = Partial<Record<StatKey, number>> & Pick<Record<StatKey, number>, 'hp' | 'atk' | 'def' | 'spd'>;
 
 /**
  * A comprehensive structure to hold all character stats, separating

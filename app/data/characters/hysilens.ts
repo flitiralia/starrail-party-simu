@@ -290,10 +290,10 @@ export const hysilens: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'for-whom-the-sea-sings',
+        lightConeId: 'why-does-the-ocean-sing',
         superimposition: 1,
-        relicSetId: 'prisoner_in_deep_confinement',
-        ornamentSetId: 'drunken_seas',
+        relicSetId: 'prisoner-in-deep-confinement',
+        ornamentSetId: 'revelry-by-the-sea',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'atk_pct',

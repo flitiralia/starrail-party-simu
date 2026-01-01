@@ -655,7 +655,7 @@ const onUltimate = (event: ActionEvent, state: GameState, sourceUnitId: string, 
     const atkBuff = createUltimateAtkBoostEffect(sourceUnitId, ULT_DURATION, eidolonLevel);
     const critDmgBuff = createUltimateCritDmgBoostEffect(
         sourceUnitId,
-        { crit_dmg: unit.stats.crit_dmg },
+        { crit_dmg: unit.stats.crit_dmg ?? 0 },
         ULT_DURATION,
         eidolonLevel
     );

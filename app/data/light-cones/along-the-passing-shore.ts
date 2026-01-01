@@ -22,7 +22,7 @@ export const alongThePassingShore: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'shore_cd',
+            id: 'shore-cd',
             name: '渡し守（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -32,7 +32,7 @@ export const alongThePassingShore: ILightConeData = {
     eventHandlers: [
         // 1. 命中時に泡影を付与
         {
-            id: 'shore_apply_mirage',
+            id: 'shore-apply-mirage',
             name: '渡し守（泡影付与）',
             events: ['ON_DAMAGE_DEALT'], // 命中時
             handler: (event, state, unit, superimposition) => {
@@ -64,7 +64,7 @@ export const alongThePassingShore: ILightConeData = {
         },
         // 2. 泡影に対する与ダメージボーナス
         {
-            id: 'shore_dmg_boost',
+            id: 'shore-dmg-boost',
             name: '渡し守（与ダメUP）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

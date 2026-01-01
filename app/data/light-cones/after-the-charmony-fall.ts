@@ -21,7 +21,7 @@ export const afterTheCharmonyFall: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'charmony_fall_be',
+            id: 'charmony-fall-be',
             name: '調和が沈黙した後（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const afterTheCharmonyFall: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'charmony_fall_spd_buff',
+            id: 'charmony-fall-spd-buff',
             name: '調和が沈黙した後（速度UP）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

@@ -16,7 +16,7 @@ export const onTheFallOfAnAeon: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'atk_percent_on_attack_stacking',
+      id: 'atk-percent-on-attack-stacking',
       name: '火に飛び込む（攻撃力スタック）',
       events: ['ON_BASIC_ATTACK', 'ON_SKILL_USED', 'ON_ULTIMATE_USED'],
       handler: (event, state, unit, superimposition) => {
@@ -47,7 +47,7 @@ export const onTheFallOfAnAeon: ILightConeData = {
       }
     },
     {
-      id: 'dmg_percent_on_weakness_break',
+      id: 'dmg-percent-on-weakness-break',
       name: '火に飛び込む（与ダメバフ）',
       events: ['ON_WEAKNESS_BREAK'],
       handler: (event, state, unit, superimposition) => {

@@ -21,7 +21,7 @@ export const anInstantBeforeAGaze: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'instant_before_gaze_crit',
+            id: 'instant-before-gaze-crit',
             name: 'その一刻、目に焼き付けて（会心ダメ）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
@@ -30,7 +30,7 @@ export const anInstantBeforeAGaze: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'instant_before_gaze_ult_dmg',
+            id: 'instant-before-gaze-ult-dmg',
             name: 'その一刻、目に焼き付けて（必殺技与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

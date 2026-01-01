@@ -18,7 +18,7 @@ export const meshingCogs: ILightConeData = {
   /*
   passiveEffects: [
     {
-      id: 'energy_regen_rate_boost',
+      id: 'energy-regen-rate-boost',
       name: '速決（EP回復効率）',
       category: 'BUFF',
       targetStat: 'energy_regen_rate',
@@ -28,7 +28,7 @@ export const meshingCogs: ILightConeData = {
 
   eventHandlers: [
     {
-      id: 'ep_regen_on_attack_or_hit',
+      id: 'ep-regen-on-attack-or-hit',
       name: '速決（EP回復）',
       events: ['ON_ATTACK', 'ON_BEFORE_HIT'], // 攻撃を行った後 or 命中を受けた時
       cooldownResetType: CooldownResetType.ANY_TURN, // 重要: 被弾でもトリガーするため、任意のターン開始でリセット

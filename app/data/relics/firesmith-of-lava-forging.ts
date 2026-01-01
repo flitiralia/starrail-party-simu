@@ -8,7 +8,7 @@ import { IEffect } from '../../simulator/effect/types';
  * 4セット: 装備キャラの戦闘スキルの与ダメージ+12%。必殺技を発動した後、次の攻撃の炎属性与ダメージ+12%
  */
 export const FIRESMITH_OF_LAVA_FORGING: RelicSet = {
-    id: 'firesmith_of_lava_forging',
+    id: 'firesmith-of-lava-forging',
     name: '溶岩で鍛造する火匠',
     setBonuses: [
         {

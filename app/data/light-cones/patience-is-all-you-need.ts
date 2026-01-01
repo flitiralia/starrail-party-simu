@@ -22,7 +22,7 @@ export const patienceIsAllYouNeed: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'patience_dmg',
+            id: 'patience-dmg',
             name: '蜘蛛の巣（与ダメ）',
             category: 'BUFF',
             targetStat: 'all_type_dmg_boost',
@@ -31,7 +31,7 @@ export const patienceIsAllYouNeed: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'patience_speed_stack',
+            id: 'patience-speed-stack',
             name: '蜘蛛の巣（速度スタック）',
             events: ['ON_ATTACK'],
             handler: (event, state, unit, superimposition) => {
@@ -64,7 +64,7 @@ export const patienceIsAllYouNeed: ILightConeData = {
             }
         },
         {
-            id: 'patience_erode',
+            id: 'patience-erode',
             name: '蜘蛛の巣（遊糸）',
             events: ['ON_DAMAGE_DEALT'],
             handler: (event, state, unit, superimposition) => {

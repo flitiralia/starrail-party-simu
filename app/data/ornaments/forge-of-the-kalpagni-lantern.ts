@@ -4,7 +4,7 @@ import { IEffect } from '../../simulator/effect/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const FORGE_OF_THE_KALPAGNI_LANTERN: OrnamentSet = {
-  id: 'forge_of_the_kalpagni_lantern',
+  id: 'forge-of-the-kalpagni-lantern',
   name: '劫火と蓮灯の鋳煉宮',
   setBonuses: [
     {

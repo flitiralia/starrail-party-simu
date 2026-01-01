@@ -160,6 +160,7 @@ function calculateResMultiplier(source: Unit, target: Unit, modifiers: DamageCal
 function calculateVulnerabilityMultiplier(
   source: Unit,
   target: Unit,
+  action: Action,
   modifiers: DamageCalculationModifiers = {}
 ): number {
   // All-type vulnerability
@@ -176,7 +177,16 @@ function calculateVulnerabilityMultiplier(
   const totalReduction = staticReduction + dynamicReduction;
 
   // Total vulnerability (additive) - damage reduction (subtractive)
-  const totalVulnerability = allTypeVuln + elementVuln - totalReduction;
+  let totalVulnerability = allTypeVuln + elementVuln - totalReduction;
+
+  // 追加攻撃被ダメージアップ (fua_vuln)
+  if (modifiers.fuaVuln) {
+    totalVulnerability += modifiers.fuaVuln;
+  }
+  // ターゲット自身のステータスとしての fua_vuln
+  if (action.type === 'FOLLOW_UP_ATTACK') {
+    totalVulnerability += (target.stats.fua_vuln || 0);
+  }
 
   return 1 + totalVulnerability;
 }
@@ -211,12 +221,16 @@ export interface DamageCalculationModifiers {
   dmgTakenReduction?: number; // 動的被ダメ軽減（ブートヒルA4等）
   toughnessFlat?: number; // 削靭値固定加算（ブートヒル天賦等）
   toughnessMultiplier?: number; // 削靭倍率（ホタルA2等）
+  fuaVuln?: number; // 動的追加攻撃被ダメージアップ
 
   // E6キャストリス: 弱点無視で靭性削り
   ignoreToughnessWeakness?: boolean;
 
   // E6キャストリス: 弱点撃破効果の属性を強制
   forceBreakElement?: Element;
+
+  // 超撃破ダメージ倍率の強制（通常は100%だが、これを上書きする）
+  overrideSuperBreakMultiplier?: number;
 }
 
 export interface DamageResultWithCritInfo {
@@ -262,7 +276,7 @@ export function calculateDamageWithCritInfo(
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target, modifiers);
+  const vulnerabilityMultiplier = calculateVulnerabilityMultiplier(source, target, action, modifiers);
 
   let finalDamage = baseDmg * critResult.multiplier * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnerabilityMultiplier * toughnessBrokenMultiplier;
 
@@ -397,7 +411,7 @@ export function calculateBreakDamage(
   const resMultiplier = calculateResMultiplier(source, target);
 
   // 7. Vulnerability Multiplier
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
 
   // 8. Toughness Broken Multiplier (User requested)
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
@@ -431,7 +445,7 @@ export function calculateBreakDamageWithBreakdown(
   const toughnessMultiplier = 0.5 + (target.maxToughness / 40);
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   const baseDmg = baseBreakDmg * elementMultiplier * toughnessMultiplier;
@@ -462,8 +476,11 @@ export function calculateSuperBreakDamage(
   toughnessReduction: number,
   modifiers: DamageCalculationModifiers = {}
 ): number {
-  // 0. Check if Super Break is enabled (usually via a buff providing super_break_dmg_boost)
-  const superBreakMultiplier = source.stats.super_break_dmg_boost || 0;
+  // 0. Check if Super Break is enabled
+  const superBreakMultiplier = modifiers.overrideSuperBreakMultiplier !== undefined
+    ? modifiers.overrideSuperBreakMultiplier
+    : (source.stats.super_break_dmg_boost || 0);
+
   if (superBreakMultiplier <= 0) return 0;
 
   // 1. Level Multiplier
@@ -481,7 +498,7 @@ export function calculateSuperBreakDamage(
   // 4. Def/Res/Vuln
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
 
   // 5. Toughness Broken Multiplier
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
@@ -498,7 +515,10 @@ export function calculateSuperBreakDamageWithBreakdown(
   toughnessReduction: number,
   modifiers: DamageCalculationModifiers = {}
 ): DamageResultWithCritInfo {
-  const superBreakMultiplier = source.stats.super_break_dmg_boost || 0;
+  const superBreakMultiplier = modifiers.overrideSuperBreakMultiplier !== undefined
+    ? modifiers.overrideSuperBreakMultiplier
+    : (source.stats.super_break_dmg_boost || 0);
+
   if (superBreakMultiplier <= 0) {
     return {
       damage: 0,
@@ -520,7 +540,7 @@ export function calculateSuperBreakDamageWithBreakdown(
   const breakEffect = source.stats.break_effect || 0;
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   const baseDmg = levelMultiplier * toughnessFactor * superBreakMultiplier;
@@ -566,7 +586,7 @@ export function calculateBreakDoTDamageWithBreakdown(
   const breakEffect = source.stats.break_effect || 0;
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const dotBoost = source.stats.dot_dmg_boost || 0;
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
@@ -628,7 +648,7 @@ export function calculateNormalDoTDamageWithBreakdown(
   const dmgBoostMultiplier = 1 + elementalDmgBoost + allTypeDmgBoost + dotBoost + dynamicDmgBoost;
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   const finalDamage = baseDamage * dmgBoostMultiplier * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
@@ -664,7 +684,7 @@ export function calculateBreakAdditionalDamage(
   const breakEffect = source.stats.break_effect || 0;
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   return baseDamage * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
@@ -682,7 +702,7 @@ export function calculateBreakAdditionalDamageWithBreakdown(
   const breakEffect = source.stats.break_effect || 0;
   const defMultiplier = calculateDefMultiplier(source, target, modifiers.defIgnore || 0);
   const resMultiplier = calculateResMultiplier(source, target);
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);
 
   const damage = baseDamage * (1 + breakEffect) * defMultiplier * resMultiplier * vulnMultiplier * toughnessBrokenMultiplier;
@@ -749,7 +769,7 @@ export function calculateNormalAdditionalDamageWithCritInfo(
   const resMultiplier = calculateResMultiplier(source, target);
 
   // 5. Vulnerability Multiplier
-  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target);
+  const vulnMultiplier = calculateVulnerabilityMultiplier(source, target, { type: 'BATTLE_START' } as Action);
 
   // 6. Toughness Broken Multiplier
   const toughnessBrokenMultiplier = calculateToughnessBrokenMultiplier(target);

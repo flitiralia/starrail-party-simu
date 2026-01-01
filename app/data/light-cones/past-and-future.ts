@@ -22,7 +22,7 @@ export const pastAndFuture: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'past_future_watcher',
+            id: 'past-future-watcher',
             name: '過去と未来（次行動監視）',
             events: ['ON_SKILL_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -44,7 +44,7 @@ export const pastAndFuture: ILightConeData = {
             }
         },
         {
-            id: 'past_future_trigger',
+            id: 'past-future-trigger',
             name: '過去と未来（バフ適用）',
             events: ['ON_BEFORE_ACTION'],
             handler: (event, state, unit, superimposition) => {

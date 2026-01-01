@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createInitialGameState } from '../engine/gameState';
 import { dispatch, publishEvent } from '../engine/dispatcher';
 import { anaxa, anaxaHandlerFactory } from '../../data/characters';
-import { lifeShouldBeBurned } from '../../data/light-cones';
+import { LIFE_SHOULD_BE_CAST_TO_FLAMES } from '../../data/light-cones';
 import { Character, Enemy, PartyConfig } from '../../types';
 import { GameState, Unit } from '../engine/types';
 import { createUnitId } from '../engine/unitId';
@@ -29,7 +29,7 @@ describe('Anaxa Light Cone Scenario Test', () => {
                 ...anaxa,
                 id: ANAXA_ID,
                 equippedLightCone: {
-                    lightCone: lifeShouldBeBurned,
+                    lightCone: LIFE_SHOULD_BE_CAST_TO_FLAMES,
                     level: 80,
                     superimposition: 1
                 }
@@ -87,14 +87,14 @@ describe('Anaxa Light Cone Scenario Test', () => {
         // But here we are manually adding handlers.
 
         // Let's manually register LC handlers for the test to be safe.
-        const lcHandlers = lifeShouldBeBurned.eventHandlers?.map(h => ({
+        const lcHandlers = LIFE_SHOULD_BE_CAST_TO_FLAMES.eventHandlers?.map(h => ({
             id: `${h.id}-${ANAXA_ID}`,
             name: `${h.name} (${ANAXA_ID})`,
             subscribesTo: h.events as import('../engine/types').EventType[], // Map events to subscribesTo
             sourceId: ANAXA_ID
         })) || [];
 
-        const lcHandlerLogics = lifeShouldBeBurned.eventHandlers?.reduce((acc, h) => {
+        const lcHandlerLogics = LIFE_SHOULD_BE_CAST_TO_FLAMES.eventHandlers?.reduce((acc, h) => {
             acc[`${h.id}-${ANAXA_ID}`] = (event: any, state: GameState) =>
                 h.handler(event, state, getAnaxa(state)!, 1);
             return acc;

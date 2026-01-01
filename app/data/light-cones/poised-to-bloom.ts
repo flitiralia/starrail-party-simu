@@ -21,7 +21,7 @@ export const poisedToBloom: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'poised_to_bloom_atk',
+            id: 'poised-to-bloom-atk',
             name: '美しき華よ今咲かん（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const poisedToBloom: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'poised_to_bloom_path_check',
+            id: 'poised-to-bloom-path-check',
             name: '美しき華よ今咲かん（運命チェック）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {

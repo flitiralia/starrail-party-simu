@@ -21,7 +21,7 @@ export const underTheBlueSky: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'under_the_blue_sky_atk',
+            id: 'under-the-blue-sky-atk',
             name: '青空の下で（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -30,7 +30,7 @@ export const underTheBlueSky: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'under_the_blue_sky_proc',
+            id: 'under-the-blue-sky-proc',
             name: '青空の下で（会心率）',
             events: ['ON_ENEMY_DEFEATED'],
             handler: (event, state, unit, superimposition) => {

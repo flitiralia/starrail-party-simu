@@ -308,7 +308,7 @@ export const feixiao: Character = {
     },
 
     defaultConfig: {
-        lightConeId: 'weighing-the-hundred-million-stars',  // 重なる万象（仮）
+        lightConeId: 'i-venture-forth-to-hunt',  // 重なる万象（仮）
         superimposition: 1,
         relicSetId: 'eagle_of_twilight_line',  // 風を弄ぶ、荒野の客
         ornamentSetId: 'rutilant_arena',  // 星々の競技場

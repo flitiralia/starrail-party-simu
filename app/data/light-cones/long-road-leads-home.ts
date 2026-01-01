@@ -21,7 +21,7 @@ export const longRoadLeadsHome: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'long_road_be',
+            id: 'long-road-be',
             name: '新生（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -30,7 +30,7 @@ export const longRoadLeadsHome: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'long_road_ignition',
+            id: 'long-road-ignition',
             name: '新生（着火）',
             events: ['ON_WEAKNESS_BREAK'], // グローバル？ "敵が弱点撃破される時"
             // 装備キャラが存在する必要があるか？はい（装備済み）。

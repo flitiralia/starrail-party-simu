@@ -23,7 +23,7 @@ export const flowingNightglow: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'flowing_nightglow_gain_stack',
+            id: 'flowing-nightglow-gain-stack',
             name: '光あふれる夜（朗唱獲得）',
             events: ['ON_ATTACK'], // "味方が攻撃を行うたび"
             handler: (event, state, unit, superimposition) => {
@@ -57,7 +57,7 @@ export const flowingNightglow: ILightConeData = {
             }
         },
         {
-            id: 'flowing_nightglow_ult_trigger',
+            id: 'flowing-nightglow-ult-trigger',
             name: '光あふれる夜（華彩発動）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

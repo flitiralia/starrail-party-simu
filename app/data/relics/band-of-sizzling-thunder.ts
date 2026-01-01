@@ -8,7 +8,7 @@ import { IEffect } from '../../simulator/effect/types';
  * 4セット: 装備キャラが戦闘スキルを発動した時、装備キャラの攻撃力+20%、1ターン継続
  */
 export const BAND_OF_SIZZLING_THUNDER: RelicSet = {
-    id: 'band_of_sizzling_thunder',
+    id: 'band-of-sizzling-thunder',
     name: '雷鳴轟くバンド',
     setBonuses: [
         {

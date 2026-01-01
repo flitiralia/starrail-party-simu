@@ -22,7 +22,7 @@ export const sagacity: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'sagacity_atk_buff',
+            id: 'sagacity-atk-buff',
             name: '見識（攻撃力UP）',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {

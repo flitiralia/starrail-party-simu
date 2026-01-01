@@ -15,14 +15,14 @@ export const preysGaze: ILightConeData = {
 
   passiveEffects: [
     {
-      id: 'effect_hit_rate_boost',
+      id: 'effect-hit-rate-boost',
       name: '自信（効果命中）',
       category: 'BUFF',
       targetStat: 'effect_hit_rate',
       effectValue: [0.2, 0.25, 0.3, 0.35, 0.4]
     },
     {
-      id: 'dot_dmg_boost',
+      id: 'dot-dmg-boost',
       name: '自信（持続与ダメージ）',
       category: 'BUFF',
       targetStat: 'dot_dmg_boost',

@@ -8,7 +8,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  *          装備キャラの撃破特効が250%以上の時、さらに敵に与える超撃破ダメージが防御力を15%無視する。
  */
 export const IRON_CAVALRY_AGAINST_SCOURGE: RelicSet = {
-    id: 'iron_cavalry_against_scourge',
+    id: 'iron-cavalry-against-scourge',
     name: '蝗害を一掃せし鉄騎',
     setBonuses: [
         {

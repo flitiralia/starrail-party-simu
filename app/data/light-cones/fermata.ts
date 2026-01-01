@@ -20,7 +20,7 @@ export const fermata: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'fermata_be',
+            id: 'fermata-be',
             name: '休符（撃破特効）',
             category: 'BUFF',
             targetStat: 'break_effect',
@@ -29,7 +29,7 @@ export const fermata: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'fermata_dmg_cond',
+            id: 'fermata-dmg-cond',
             name: '休符（与ダメ特効）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

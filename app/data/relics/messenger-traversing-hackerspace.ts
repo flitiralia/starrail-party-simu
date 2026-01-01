@@ -5,7 +5,7 @@ import { Unit } from '../../simulator/engine/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 
 export const MESSENGER_TRAVERSING_HACKERSPACE: RelicSet = {
-  id: 'messenger_traversing_hackerspace',
+  id: 'messenger-traversing-hackerspace',
   name: '仮想空間を漫遊するメッセンジャー',
   setBonuses: [
     {

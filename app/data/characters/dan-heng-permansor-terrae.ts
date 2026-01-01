@@ -694,7 +694,7 @@ export const DanHengToukou: Character = {
         technique: { id: 'tech', name: 'Technique', type: 'Technique', description: '戦闘開始時にスキル自動発動' }
     },
     defaultConfig: {
-        lightConeId: 'we-are-wildfire',
+        lightConeId: 'brighter-than-the-sun',
         rotation: ['s', 'b', 'b'], rotationMode: 'sequence', ultStrategy: 'immediate', ultCooldown: 3,
         relicSetId: 'hermit_who_hid_the_light_of_the_stars',
         ornamentSetId: 'lusaka_by_the_sunken_sea',

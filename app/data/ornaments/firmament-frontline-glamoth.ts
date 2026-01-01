@@ -1,7 +1,7 @@
 import { OrnamentSet } from '../../types';
 
 export const FIRMAMENT_FRONTLINE_GLAMOTH: OrnamentSet = {
-  id: 'firmament_frontline_glamoth',
+  id: 'firmament-frontline-glamoth',
   name: '蒼穹戦線グラモス',
   setBonuses: [
     {

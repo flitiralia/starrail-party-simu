@@ -21,14 +21,14 @@ export const beforeDawn: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'before_dawn_crit',
+            id: 'before-dawn-crit',
             name: '夜明け前（ステータス）',
             category: 'BUFF',
             targetStat: 'crit_dmg',
             effectValue: [0.36, 0.42, 0.48, 0.54, 0.60]
         },
         {
-            id: 'before_dawn_skill_ult_dmg',
+            id: 'before-dawn-skill-ult-dmg',
             name: '夜明け前（スキル・必殺技与ダメ）',
             category: 'BUFF',
             targetStat: 'skill_dmg_boost',
@@ -37,7 +37,7 @@ export const beforeDawn: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'before_dawn_passive_stats',
+            id: 'before-dawn-passive-stats',
             name: '夜明け前（常時バフ）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
@@ -60,7 +60,7 @@ export const beforeDawn: ILightConeData = {
             }
         },
         {
-            id: 'before_dawn_somnus_gain',
+            id: 'before-dawn-somnus-gain',
             name: '夜明け前（夢身獲得）',
             events: ['ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -82,7 +82,7 @@ export const beforeDawn: ILightConeData = {
             }
         },
         {
-            id: 'before_dawn_somnus_consume',
+            id: 'before-dawn-somnus-consume',
             name: '夜明け前（夢身消費）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION', 'ON_ACTION_COMPLETE'],
             handler: (event, state, unit, superimposition) => {

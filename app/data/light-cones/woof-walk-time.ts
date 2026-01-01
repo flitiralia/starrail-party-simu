@@ -20,7 +20,7 @@ export const woofWalkTime: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'woof_walk_time_atk',
+            id: 'woof-walk-time-atk',
             name: 'ワン！散歩の時間！（攻撃力）',
             category: 'BUFF',
             targetStat: 'atk_pct',
@@ -29,7 +29,7 @@ export const woofWalkTime: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'woof_walk_time_dmg',
+            id: 'woof-walk-time-dmg',
             name: 'ワン！散歩の時間！（条件付き与ダメ）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

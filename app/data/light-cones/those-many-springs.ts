@@ -22,7 +22,7 @@ export const thoseManySprings: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'springs_ehr',
+            id: 'springs-ehr',
             name: '世事は跡を残さず（効果命中）',
             category: 'BUFF',
             targetStat: 'effect_hit_rate',
@@ -31,7 +31,7 @@ export const thoseManySprings: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'springs_debuff_application',
+            id: 'springs-debuff-application',
             name: '世事は跡を残さず（デバフ付与）',
             events: ['ON_ATTACK'], // 攻撃後
             handler: (event, state, unit, superimposition) => {

@@ -383,7 +383,7 @@ function triggerTalentFollowUp(state: GameState, unitId: string, eidolonLevel: n
             details: '天賦: 追加攻撃',
             breakdownMultipliers: { // Necessary?
                 baseDmg: unit.stats.atk * dmgMult,
-                critMult: 1 + unit.stats.crit_dmg,
+                critMult: 1 + (unit.stats.crit_dmg || 0),
                 dmgBoostMult: 1,
                 defMult: 0.5,
                 resMult: 1.0,

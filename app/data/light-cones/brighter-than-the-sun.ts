@@ -21,7 +21,7 @@ export const brighterThanTheSun: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'brighter_than_the_sun_crit',
+            id: 'brighter-than-the-sun-crit',
             name: '陽光より輝くもの（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
@@ -30,7 +30,7 @@ export const brighterThanTheSun: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'brighter_than_the_sun_proc',
+            id: 'brighter-than-the-sun-proc',
             name: '陽光より輝くもの（龍吟）',
             events: ['ON_BASIC_ATTACK'],
             handler: (event, state, unit, superimposition) => {

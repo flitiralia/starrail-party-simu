@@ -7,7 +7,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
  * 4セット: デバフ状態の敵にダメージを与えた時、装備キャラの会心率+10%。禁錮状態の敵にダメージを与えた時、会心ダメージ+20%
  */
 export const WASTELANDER_OF_BANDITRY_DESERT: RelicSet = {
-    id: 'wastelander_of_banditry_desert',
+    id: 'wastelander-of-banditry-desert',
     name: '荒地で盗みを働く廃土客',
     setBonuses: [
         {

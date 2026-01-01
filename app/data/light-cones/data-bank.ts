@@ -20,7 +20,7 @@ export const dataBank: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'data_bank_ult_dmg',
+            id: 'data-bank-ult-dmg',
             name: 'アーカイブ（必殺技与ダメ）',
             category: 'BUFF',
             targetStat: 'ult_dmg_boost',

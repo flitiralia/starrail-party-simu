@@ -2,7 +2,7 @@ import { RelicSet } from '../../types';
 import { createDefIgnoreHandler, createWeaknessCondition } from '../../simulator/effect/relicEffectHelpers';
 
 export const GENIUS_OF_BRILLIANT_STARS: RelicSet = {
-  id: 'genius_of_brilliant_stars',
+  id: 'genius-of-brilliant-stars',
   name: '星の如く輝く天才',
   setBonuses: [
     {

@@ -21,7 +21,7 @@ export const flamesAfar: ILightConeData = {
     },
     eventHandlers: [
         {
-            id: 'flames_afar_proc',
+            id: 'flames-afar-proc',
             name: '烈火の彼方（発動）',
             events: ['ON_DAMAGE_DEALT', 'ON_SKILL_USED', 'ON_ULTIMATE_USED'],
             // 変更点: HP減少を検出するために ON_DAMAGE_DEALT を追加。

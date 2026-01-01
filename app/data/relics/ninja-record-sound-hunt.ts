@@ -5,7 +5,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
 import { HpConsumeEvent } from '../../simulator/engine/types';
 
 export const NINJA_RECORD_SOUND_HUNT: RelicSet = {
-    id: 'ninja_record_sound_hunt',
+    id: 'ninja-record-sound-hunt',
     name: '忍事録・音律狩猟',
     setBonuses: [
         {

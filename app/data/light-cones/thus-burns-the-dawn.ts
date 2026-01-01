@@ -21,7 +21,7 @@ export const thusBurnsTheDawn: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'thus_burns_the_dawn_spd',
+            id: 'thus-burns-the-dawn-spd',
             name: '燃え盛る黎明のように（速度）',
             category: 'BUFF',
             targetStat: 'spd',
@@ -30,7 +30,7 @@ export const thusBurnsTheDawn: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'thus_burns_the_dawn_def_ignore',
+            id: 'thus-burns-the-dawn-def-ignore',
             name: '燃え盛る黎明のように（防御無視）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {
@@ -42,7 +42,7 @@ export const thusBurnsTheDawn: ILightConeData = {
             }
         },
         {
-            id: 'thus_burns_the_dawn_proc',
+            id: 'thus-burns-the-dawn-proc',
             name: '烈日獲得',
             events: ['ON_ULTIMATE_USED'],
             handler: (event, state, unit, superimposition) => {
@@ -71,7 +71,7 @@ export const thusBurnsTheDawn: ILightConeData = {
             }
         },
         {
-            id: 'thus_burns_the_dawn_remove',
+            id: 'thus-burns-the-dawn-remove',
             name: '烈日解除',
             events: ['ON_TURN_START'],
             handler: (event, state, unit, superimposition) => {

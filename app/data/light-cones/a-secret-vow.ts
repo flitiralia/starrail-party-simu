@@ -20,7 +20,7 @@ export const aSecretVow: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'a_secret_vow_dmg',
+            id: 'a-secret-vow-dmg',
             name: '秘密の誓い（常時）',
             category: 'BUFF',
             targetStat: 'all_type_dmg_boost',
@@ -29,7 +29,7 @@ export const aSecretVow: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'a_secret_vow_conditional',
+            id: 'a-secret-vow-conditional',
             name: '秘密の誓い（条件付き）',
             events: ['ON_BEFORE_DAMAGE_CALCULATION'],
             handler: (event, state, unit, superimposition) => {

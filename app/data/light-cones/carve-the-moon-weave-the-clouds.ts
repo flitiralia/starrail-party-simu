@@ -22,7 +22,7 @@ export const carveTheMoonWeaveTheClouds: ILightConeData = {
     passiveEffects: [],
     eventHandlers: [
         {
-            id: 'carve_moon_trigger',
+            id: 'carve-moon-trigger',
             name: '彫月裁雲の意（ランダム効果）',
             events: ['ON_BATTLE_START', 'ON_TURN_START'],
             handler: (event, state, unit, superimposition) => {

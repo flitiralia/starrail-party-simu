@@ -22,7 +22,7 @@ export const reforgedRemembrance: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'reforged_ehr',
+            id: 'reforged-ehr',
             name: '結晶（効果命中）',
             category: 'BUFF',
             targetStat: 'effect_hit_rate',
@@ -31,7 +31,7 @@ export const reforgedRemembrance: ILightConeData = {
     ],
     eventHandlers: [
         {
-            id: 'reforged_prophet_stack',
+            id: 'reforged-prophet-stack',
             name: '結晶（予見スタック）',
             events: ['ON_DAMAGE_DEALT'],
             handler: (event, state, unit, superimposition) => {

@@ -20,21 +20,21 @@ export const aTrailOfBygoneBlood: ILightConeData = {
     },
     passiveEffects: [
         {
-            id: 'bygone_blood_crit',
+            id: 'bygone-blood-crit',
             name: '古より受け継がれる血（会心率）',
             category: 'BUFF',
             targetStat: 'crit_rate',
             effectValue: [0.12, 0.15, 0.18, 0.21, 0.24]
         },
         {
-            id: 'bygone_blood_skill_dmg',
+            id: 'bygone-blood-skill-dmg',
             name: '古より受け継がれる血（スキルダメ）',
             category: 'BUFF',
             targetStat: 'skill_dmg_boost',
             effectValue: [0.24, 0.30, 0.36, 0.42, 0.48]
         },
         {
-            id: 'bygone_blood_ult_dmg',
+            id: 'bygone-blood-ult-dmg',
             name: '古より受け継がれる血（必殺技ダメ）',
             category: 'BUFF',
             targetStat: 'ult_dmg_boost',
