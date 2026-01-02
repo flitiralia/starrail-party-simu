@@ -465,9 +465,7 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
         stackCount: MAX_TALENT_CHARGES,
         maxStacks: MAX_TALENT_CHARGES,
         onApply: (t: Unit, s: GameState) => s,
-        onRemove: (t: Unit, s: GameState) => s,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, talentCharges);
 
@@ -539,8 +537,8 @@ const applyTortureBuffs = (state: GameState, sourceUnitId: string): GameState =>
                 durationType: 'PERMANENT',
                 duration: -1,
                 modifiers: [{ target: 'atk_pct' as StatKey, value: 1.0, type: 'add', source: '苛み' }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, ally.id, tortureBuff);
         } else if (effectHit < 0.75 && hasBuff) {
@@ -678,11 +676,12 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
             name: '受DoT+30%',
             category: 'DEBUFF',
             sourceUnitId: sourceUnitId,
-            durationType: 'TURN_START_BASED',
+            durationType: 'TURN_END_BASED',
             duration: 2,
+            skipFirstTurnDecrement: true,
             modifiers: [{ target: 'dot_taken' as StatKey, value: 0.30, type: 'add', source: 'E1' }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, targetId, dotVulnDebuff);
     }

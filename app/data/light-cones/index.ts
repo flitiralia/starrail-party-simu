@@ -1,7 +1,5 @@
 export * from './before-the-tutorial-mission-starts';
 export * from './cruising-in-the-stellar-sea';
-export * from './dance-dance-dance';
-export * from './memorys-curtain-never-falls';
 export * from './eternal-calculus';
 export * from './memories-of-the-past';
 export * from './meshing-cogs';
@@ -154,7 +152,7 @@ export { multiplication } from './multiplication';
 
 // Remembrance Light Cones
 export * from './time-woven-into-gold';
-export { endlessRemembrance } from './endless-remembrance';
+export { memorysCurtainNeverFalls } from './memorys-curtain-never-falls';
 export * from './make-farewells-more-beautiful';
 export * from './long-may-rainbows-adorn-the-sky';
 export * from './to-evernights-stars';

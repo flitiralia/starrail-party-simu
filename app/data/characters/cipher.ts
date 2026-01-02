@@ -370,8 +370,8 @@ function setCustomer(state: GameState, sourceId: string, targetId: string): Game
         durationType: 'PERMANENT',
         duration: -1,
         tags: ['CUSTOMER'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     newState = addEffect(newState, targetId, customerEffect);
@@ -448,8 +448,8 @@ function addDamageRecord(state: GameState, sourceId: string, amount: number, eid
             durationType: 'PERMANENT',
             duration: -1,
             recordedDamage: newRecord,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceId, recordEffect);
     }
@@ -491,8 +491,8 @@ function markFollowUpUsed(state: GameState, sourceId: string): GameState {
         durationType: 'TURN_START_BASED',
         duration: 1,
         skipFirstTurnDecrement: false,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(state, sourceId, flagEffect);
@@ -647,8 +647,8 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
             modifiers: [
                 { target: 'all_type_dmg' as StatKey, value: -SKILL_ENEMY_DMG_REDUCTION, type: 'add', source: '虚弱' }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, actionEvent.targetId, weaknessDebuff);
     }
@@ -669,8 +669,8 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
                 modifiers: [
                     { target: 'all_type_dmg' as StatKey, value: -SKILL_ENEMY_DMG_REDUCTION, type: 'add', source: '虚弱' }
                 ],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, adjId, weaknessDebuff);
         }
@@ -687,8 +687,8 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
         modifiers: [
             { target: 'atk_pct' as StatKey, value: SKILL_SELF_ATK_BOOST, type: 'add', source: 'スキル' }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, atkBuff);
 
@@ -1003,8 +1003,8 @@ const executeFollowUpAttack = (state: GameState, sourceUnitId: string, targetId:
             modifiers: [
                 { target: 'atk_pct' as StatKey, value: E1_ATK_BOOST, type: 'add', source: 'E1' }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e1Buff);
     }
@@ -1080,8 +1080,8 @@ const onAfterHit = (event: IEvent, state: GameState, sourceUnitId: string, eidol
             modifiers: [
                 { target: 'all_type_vuln' as StatKey, value: E2_DMG_TAKEN, type: 'add', source: 'E2' }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         return addEffect(state, targetId, e2Debuff);
     }

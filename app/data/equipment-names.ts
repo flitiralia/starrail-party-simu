@@ -14,6 +14,8 @@ export const EQUIPMENT_NAMES: Record<string, string> = {
     'guard_of_wuthering_snow': '吹雪と対峙する兵士',
     'hermit_who_hid_the_light_of_the_stars': '星の光を隠した隠者',
     'hero_who_raises_the_battle_song': '凱歌を揚げる英雄',
+    'hero-of-triumphant-song': '凱歌を揚げる英雄', // 定義ID対応
+    'hero_of_triumphant_song': '凱歌を揚げる英雄', // アンダースコア区切りバリエーション対応
     'hunter_of_glacial_forest': '雪の密林の狩人',
     'iron_cavalry_against_scourge': '蝗害を一掃せし鉄騎',
     'knight_of_purity_palace': '純庭教会の聖騎士',
@@ -40,7 +42,9 @@ export const EQUIPMENT_NAMES: Record<string, string> = {
     'broken_keel': '折れた竜骨',
     'celestial_differentiator': '天体階差機関',
     'duran_dynasty_of_running_wolves': '奔狼の都藍王朝',
-    'fairy_tale_theater_of_night': '夢を紡ぐ妖精の楽園',
+    'arcadia_of_woven_dreams': '夢を紡ぐ妖精の楽園', // 定義ID対応 (arcadia-of-woven-dreams)
+    'arcadia-of-woven-dreams': '夢を紡ぐ妖精の楽園', // 定義ID対応
+    'fairy_tale_theater_of_night': '夢を紡ぐ妖精の楽園', // 旧ID対応（念のため）
     'firmament_frontline_glamoth': '蒼穹戦線グラモス',
     'fleet_of_the_ageless': '老いぬ者の仙舟',
     'forge_of_the_kalpagni_lantern': '劫火と蓮灯の鋳煉宮',
@@ -52,13 +56,28 @@ export const EQUIPMENT_NAMES: Record<string, string> = {
     'omphalos_eternal_grounds': '永遠の地オンパロス',
     'pan_cosmic_commercial_enterprise': '汎銀河商事会社',
     'penacony_land_of_dreams': '夢の地ピノコニー',
+    'the-wondrous-bananamusement-park': '奇想天外のバナダイス', // 定義ID対応
+    'the_wondrous_bananamusement_park': '奇想天外のバナダイス', // アンダースコア区切りバリエーション対応
     'rutilant_arena': '星々の競技場',
+    'amphoreus_the_eternal_land': '永遠の地オンパロス', // 定義ID対応
+    'amphoreus-the-eternal-land': '永遠の地オンパロス', // 定義ID対応
     'sea_of_intoxication': '酩酊の海域',
     'silent_ossuary': '静謐な拾骨地',
     'space_sealing_station': '宇宙封印ステーション',
     'sprightly_vonwacq': '生命のウェンワーク',
     'talia_kingdom_of_banditry': '盗賊公国タリア',
+    'tengoku_livestream': '天国@配信ルーム', // 推定
+    'tengoku-livestream': '天国@配信ルーム', // 推定
+    'bone_collections_serene_demesne': '骸の収集と安らぎの領地', // 推定
+    'bone-collections-serene-demesne': '骸の収集と安らぎの領地', // 推定(bone-collections-serene-demesne.ts)
     'unforeseen_vanadise': '奇想天外のバナダイス',
+    'warrior_goddess_of_sun_and_thunder': '烈陽と雷鳴の武神',
+    'warrior-goddess-of-sun-and-thunder': '烈陽と雷鳴の武神', // 定義ID対応
+    'sacerdos_relived_ordeal': '再び苦難の道を歩む司祭',
+    'sacerdos-relived-ordeal': '再び苦難の道を歩む司祭', // 定義ID対応
+    'scholar_lost_in_erudition': '知識の海に溺れる学者',
+    'scholar-lost-in-erudition': '知識の海に溺れる学者', // 定義ID対応
+    'revelry-by-the-sea': '酩酊の海域', // 推定
 };
 
 /**

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { SimulationLogEntry, HitDetail, AdditionalDamageEntry, HealingEntry, ShieldEntry, DotDetonationEntry, DamageTakenEntry, EquipmentEffectEntry, EffectSummary, ResourceChangeEntry } from '@/app/types';
+import { getStatDisplayName } from '@/app/utils/statUtils';
 
 interface SimulationLogTableProps {
   logs: SimulationLogEntry[];
@@ -734,32 +735,7 @@ const ResourceChangesDetails: React.FC<{ entries: ResourceChangeEntry[] }> = ({ 
 
 // 統計名のフォーマット関数（共通）
 const formatStatName = (key: string) => {
-  const map: { [key: string]: string } = {
-    atk_pct: '攻撃%',
-    atk: '攻撃',
-    crit_rate: '会心率',
-    crit_dmg: '会心ダメ',
-    all_type_dmg_boost: '与ダメ',
-    def_ignore: '防御無視',
-    res_pen: '耐性貫通',
-    spd_pct: '速度%',
-    spd: '速度',
-    speed: '速度',
-    hp_pct: 'HP%',
-    hp: 'HP',
-    def_pct: '防御%',
-    def: '防御',
-    break_effect: '撃破特効',
-    weakness_break_efficiency: '撃破効率',
-    effect_hit_rate: '効果命中',
-    effect_res: '効果抵抗',
-    dmg_taken_boost: '被ダメ',
-    def_reduction: '防御ダウン',
-    res_reduction: '耐性ダウン',
-    max_ep: '最大EP',
-    aggro: 'ヘイト',
-  };
-  return map[key] || key;
+  return getStatDisplayName(key);
 };
 
 // 値のフォーマット関数（共通）

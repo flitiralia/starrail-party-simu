@@ -382,8 +382,8 @@ function updatePocketAdvantage(state: GameState, unitId: string, delta: number, 
             stackCount: newStacks,
             maxStacks: MAX_POCKET_ADVANTAGE,
             // 靭性削りボーナスは適用時に計算
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, unitId, pocketEffect);
     }
@@ -426,8 +426,8 @@ function startStandoff(
         skipFirstTurnDecrement: true,
         tags: ['ENHANCED_BASIC', 'SKILL_SILENCE', 'STANDOFF'],
         modifiers: selfModifiers,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, sourceId, selfEffect);
 
@@ -444,8 +444,8 @@ function startStandoff(
         modifiers: [
             { target: 'dmg_taken' as StatKey, value: STANDOFF_ENEMY_DMG_TAKEN_INCREASE, type: 'add', source: '九死の決闘' }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, targetId, enemyEffect);
 
@@ -471,6 +471,9 @@ function applyPhysicalWeakness(
     targetId: string,
     duration: number
 ): GameState {
+    // クロージャで「このエフェクトが弱点を追加したか」を追跡
+    let addedByThisEffect = false;
+
     const weaknessEffect: IEffect = {
         id: EFFECT_IDS.PHYSICAL_WEAKNESS(sourceId, targetId),
         name: '物理弱点（埋め込み）',
@@ -480,9 +483,10 @@ function applyPhysicalWeakness(
         duration: duration,
         tags: ['PHYSICAL_WEAKNESS', 'IMPLANTED_WEAKNESS'],
         // 物理弱点を持つように設定
-        apply: (t, s) => {
+        onApply: (t, s) => {
             const currentWeaknesses = t.weaknesses || new Set();
             if (!currentWeaknesses.has('Physical')) {
+                addedByThisEffect = true;
                 const updatedWeaknesses = new Set(currentWeaknesses);
                 updatedWeaknesses.add('Physical');
                 return {
@@ -490,11 +494,20 @@ function applyPhysicalWeakness(
                     registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
                 };
             }
+            addedByThisEffect = false;
             return s;
         },
-        remove: (t, s) => {
+        onRemove: (t, s) => {
             // 埋め込み弱点を削除時に物理弱点を元に戻す
-            // 注意: 元々物理弱点を持っていた場合は削除しない
+            // 注意: 元々物理弱点を持っていた場合（addedByThisEffect = false）は削除しない
+            if (addedByThisEffect) {
+                const updatedWeaknesses = new Set(t.weaknesses);
+                updatedWeaknesses.delete('Physical');
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                };
+            }
             return s;
         }
     };
@@ -531,8 +544,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
         durationType: 'PERMANENT',
         duration: -1,
         tags: ['TECHNIQUE_FLAG'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, techniqueFlag);
 
@@ -639,8 +652,8 @@ const onWeaknessBreak = (event: ActionEvent, state: GameState, sourceUnitId: str
                 modifiers: [
                     { target: 'break_effect' as StatKey, value: E2_BREAK_EFFECT_BOOST, type: 'add', source: 'E2' }
                 ],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, e2Buff);
         }

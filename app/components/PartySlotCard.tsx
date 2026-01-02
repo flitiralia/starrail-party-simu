@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterRotationConfig } from '@/app/types';
-import { getAssetUrl, getCharacterIconPath } from '@/app/utils/assetUtils';
+import { getAssetUrl, getCharacterIconPath, PATH_NAME_MAP } from '@/app/utils/assetUtils';
+import { IconPicker, IconPickerItem } from './IconPicker';
 
 // Internal component for handling rotation input with local state
 const RotationInput = ({ config, onUpdate }: { config: CharacterRotationConfig, onUpdate: (rotation: string[]) => void }) => {
@@ -219,35 +220,18 @@ export default function PartySlotCard({
                 </button>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
-                {iconUrl && (
-                    <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        backgroundColor: '#000',
-                        border: '1px solid #444',
-                        flexShrink: 0
-                    }}>
-                        <img src={iconUrl} alt={character.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                )}
-                <select
-                    style={selectorStyle}
-                    value={character.id}
-                    onChange={(e) => {
-                        e.stopPropagation();
-                        onCharacterSelect(e.target.value);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {characterList.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.name}
-                        </option>
-                    ))}
-                </select>
+            <div style={{ position: 'relative', zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
+                <IconPicker
+                    items={characterList.map((c): IconPickerItem => ({
+                        id: c.id,
+                        name: c.name,
+                        iconUrl: getAssetUrl(getCharacterIconPath(c.id)),
+                        group: PATH_NAME_MAP[c.path] || c.path,
+                    }))}
+                    selectedId={character.id}
+                    onSelect={(charId) => onCharacterSelect(charId)}
+                    placeholder="キャラクター選択"
+                />
             </div>
 
             {/* 凸数表示 (Read-only) */}

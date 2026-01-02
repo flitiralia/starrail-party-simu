@@ -292,8 +292,6 @@ function createDivineRevelationAura(sourceId: string, duration: number, eidolonL
                             registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
                         };
                     },
-                    apply: (target, state) => state,
-                    remove: (target, state) => state
                 };
                 newState = addEffect(newState, u.id, buff);
             });
@@ -307,8 +305,8 @@ function createDivineRevelationAura(sourceId: string, duration: number, eidolonL
             });
             return newState;
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 }
 
@@ -373,8 +371,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         duration: -1,
                         onApply: (t, s) => s,
                         onRemove: (t, s) => s,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, ally.id, talentReadyEffect);
                 });
@@ -449,8 +447,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                             registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                         };
                     },
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 };
                 newState = addEffect(newState, sourceUnitId, fieldEffect);
 
@@ -490,8 +488,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                 registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                             };
                         },
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, enemy.id, vulnDebuff);
                 });
@@ -532,8 +530,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                 registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                             };
                         },
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, e6Buff);
                     newState = {
@@ -558,8 +556,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         duration: -1,
                         onApply: (t, s) => s,
                         onRemove: (t, s) => s,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, ally.id, talentReadyEffect);
                 });
@@ -761,7 +759,7 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                 source: '形跡 1 ダメージアップ',
                                 target: 'all_type_dmg_boost' as StatKey,
                                 type: 'add' as const,
-                                value: 0.72 * stackCount
+                                value: TRACE1_DMG_BOOST_PER_STACK  // stackCountによる自動乗算
                             }];
                             return {
                                 ...s,
@@ -775,8 +773,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                 registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                             };
                         },
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     (buff as any).stackCount = stackCount; // Hack to store stack count
 
@@ -827,8 +825,8 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                                         registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                                     };
                                 },
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             };
                             newState = addEffect(newState, newEnemy.id, vulnDebuff);
                         }

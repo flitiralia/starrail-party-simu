@@ -1,4 +1,4 @@
-import { Character, Enemy, Element, SimulationLogEntry } from '../../types';
+import { Character, Enemy, Element, SimulationLogEntry, EnemyData } from '../../types';
 import { createInitialGameState } from './gameState';
 import { dispatch, publishEvent, applyDamage, applyUnifiedDamage, appendDamageTaken, appendAdditionalDamage, initializeCurrentActionLog, finalizeEnemyTurnLog, finalizeSpiritTurnLog } from './dispatcher';
 import { GameState, Unit, CharacterConfig, IEventHandler, IEventHandlerLogic, SimulationConfig, IEventHandlerFactory, Action, RegisterHandlersAction, EventType, IEvent, DoTDamageEvent } from './types';
@@ -9,8 +9,8 @@ import { LightConeRegistry, RelicRegistry } from './handlers/registry';
 import { createGenericLightConeHandlerFactory } from './handlers/generic';
 import { march7thHandlerFactory } from '../../data/characters/march-7th';
 import { tribbieHandlerFactory } from '../../data/characters/tribbie';
-import { DoTEffect, BreakStatusEffect, IEffect, CrowdControlEffect } from '../effect/types';
-import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect, isNewCrowdControlEffect } from '../effect/utils';
+import { DoTEffect, BreakStatusEffect, IEffect, CrowdControlEffect, TauntEffect } from '../effect/types';
+import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect, isNewCrowdControlEffect, isTauntEffect } from '../effect/utils';
 import { calculateBreakDoTDamage, calculateNormalDoTDamage, calculateBreakAdditionalDamage, calculateNormalDoTDamageWithBreakdown, calculateBreakDoTDamageWithBreakdown } from '../damage';
 import { LEVEL_CONSTANT_80, FREEZE_REMOVAL_AV_ADVANCE } from './constants';
 import * as relicData from '../../data/relics';
@@ -89,21 +89,32 @@ function checkTurnEndConditions(state: GameState): { shouldEndTurn: boolean; sta
 }
 
 
-// Helper to select target based on Aggro
-function selectTarget(units: Unit[]): UnitId | '' {
+/**
+ * 敵のターゲット選択（aggro重み付きランダム）
+ * @param actingEnemy 行動中の敵ユニット
+ * @param units ターゲット候補の味方ユニット群
+ */
+function selectTarget(actingEnemy: Unit, units: Unit[]): UnitId | '' {
     if (units.length === 0) return '';
 
-    // Sort logic (optional, but good for deterministic fallback if needed)
-    // Calculate total aggro
-    const totalAggro = units.reduce((sum, u) => sum + (u.stats.aggro || u.baseStats.aggro || 100), 0);
+    // ★挑発チェック: TauntEffectがあれば強制的にそのターゲットを攻撃
+    const tauntEffect = actingEnemy.effects.find(e => isTauntEffect(e)) as TauntEffect | undefined;
+    if (tauntEffect) {
+        const forcedTarget = units.find(u => u.id === tauntEffect.targetAllyId);
+        if (forcedTarget && forcedTarget.hp > 0) {
+            console.log(`[selectTarget] ${actingEnemy.name} is taunted to attack ${forcedTarget.name}`);
+            return forcedTarget.id;
+        }
+        // 挑発対象が死亡している場合は通常のaggro選択にフォールバック
+        console.log(`[selectTarget] Taunt target not found or dead, falling back to aggro selection`);
+    }
 
-    // Random value
+    // 通常のaggro重み付きランダム選択
+    const totalAggro = units.reduce((sum, u) => sum + (u.stats.aggro || u.baseStats.aggro || 100), 0);
     const rand = Math.random() * totalAggro;
 
     let currentSum = 0;
     for (const unit of units) {
-        // Use current calculated aggro if available, valid fallback to base or default
-        // Note: unit.stats.aggro should be populated by calculateFinalStats
         const unitAggro = unit.stats.aggro || unit.baseStats.aggro || 100;
         currentSum += unitAggro;
         if (rand < currentSum) {
@@ -177,11 +188,44 @@ function determineNextAction(unit: Unit, state: GameState): Action {
             return { type: 'SKILL', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
         }
 
-        // 敵の場合は通常攻撃
+        // 敵の行動ロジック
         // untargetableフラグがtrueのユニット（龍霊など）はターゲットにならない
         // 記憶の精霊（untargetable: false）はターゲット可能
         const aliveAllies = state.registry.getAliveAllies().filter(u => !u.untargetable);
-        const targetId = selectTarget(aliveAllies);
+        let targetId = selectTarget(unit, aliveAllies); // デフォルトターゲット
+
+        // 1. 行動パターン（actionPattern）がある場合
+        // EnemyData型にキャストしてactionPatternにアクセスする（Unit型には含まれていない可能性があるため）
+        const enemyData = unit as unknown as Partial<EnemyData>; // 簡易的なアクセス
+        if (enemyData.actionPattern && enemyData.actionPattern.length > 0) {
+            // 現在のターン数（またはrotationIndex）に基づいて行動を決定
+            // 敵もrotationIndexを持っているのでそれを使用する
+            const patternIndex = (unit.rotationIndex || 0) % enemyData.actionPattern.length;
+            const actionType = enemyData.actionPattern[patternIndex];
+
+            console.log(`[determineNextAction] Enemy ${unit.name} using pattern[${patternIndex}]: ${actionType}`);
+
+            if (actionType === 'Skill') {
+                return { type: 'SKILL', sourceId: unit.id, targetId: targetId };
+            } else if (actionType === 'Ultimate') {
+                // 必殺技（敵の必殺技も通常ターン消費型として扱う場合）
+                return { type: 'ULTIMATE', sourceId: unit.id, targetId: targetId };
+            } else {
+                // デフォルトまたは 'Basic ATK'
+                return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
+            }
+        }
+
+        // 2. 行動パターンがない場合（ランダム or デフォルト）
+        // 現状はすべて 'BASIC_ATTACK' とするが、将来的には abilities から選択可能にする
+        // サンプルボスなどはスキルを持っているため、ランダム使用ロジックなどをここに追加可能
+
+        // 簡易AI: 30%の確率でスキルを使用（スキルがある場合）
+        if (unit.abilities.skill && Math.random() < 0.3) {
+            console.log(`[determineNextAction] Enemy ${unit.name} randomly selected SKILL`);
+            return { type: 'SKILL', sourceId: unit.id, targetId: targetId };
+        }
+
         return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
     }
 
@@ -200,7 +244,7 @@ function determineNextAction(unit: Unit, state: GameState): Action {
     const aliveEnemies = state.registry.getAliveEnemies();
 
     // 2. Custom Logic Override (e.g. Archer Continuous Skill)
-    if (unit.id === 'archar' && config.rotationMode === 'spam_skill') {
+    if (unit.id.startsWith('archar') && config.rotationMode === 'spam_skill') {
         const circuitBuff = unit.effects.find(e => e.id === `archar-circuit-${unit.id}`);
         const triggerSp = config.spamSkillTriggerSp ?? 4;
         // If in Circuit Connection OR SP >= trigger, force Skill
@@ -1157,9 +1201,23 @@ export function runSimulation(config: SimulationConfig): GameState {
     const maxActionTime = config.rounds * 100 + 50;
 
     state.registry.toArray().forEach(unit => {
+        // キャラクター固有ハンドラの登録
         const factory = registry.getCharacterFactory(unit.id);
         if (factory) {
             const { handlerMetadata, handlerLogic } = factory(unit.id, unit.level, unit.eidolonLevel || 0);
+            const action: RegisterHandlersAction = {
+                type: 'REGISTER_HANDLERS',
+                handlers: [{ metadata: handlerMetadata, logic: handlerLogic }]
+            };
+            state = dispatch(state, action);
+        }
+
+        // 光円錐ハンドラの登録（データ定義に基づく汎用登録）
+        if (unit.equippedLightCone) {
+            const lc = unit.equippedLightCone.lightCone;
+            const s = unit.equippedLightCone.superimposition;
+            const lcFactory = createGenericLightConeHandlerFactory(lc, s);
+            const { handlerMetadata, handlerLogic } = lcFactory(unit.id, unit.level);
             const action: RegisterHandlersAction = {
                 type: 'REGISTER_HANDLERS',
                 handlers: [{ metadata: handlerMetadata, logic: handlerLogic }]
@@ -1170,7 +1228,6 @@ export function runSimulation(config: SimulationConfig): GameState {
 
     // --- Battle Start ---
     const initialHandlers: RegisterHandlersAction['handlers'] = [];
-    // (Light Cone / Relic registration omitted for brevity in this fix, can be added back)
 
     state = dispatch(state, { type: 'REGISTER_HANDLERS', handlers: initialHandlers });
     state = dispatch(state, { type: 'BATTLE_START' });

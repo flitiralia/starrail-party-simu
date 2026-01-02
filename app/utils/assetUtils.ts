@@ -1,9 +1,9 @@
-import { CHARACTER_ID_MAP, RELIC_SET_ID_MAP, ORNAMENT_SET_ID_MAP } from './assetMappings';
+import { CHARACTER_ID_MAP, RELIC_SET_ID_MAP, ORNAMENT_SET_ID_MAP, LIGHTCONE_ID_MAP } from './assetMappings';
 
 /**
  * StarRailStaticAPI のベースURL
  */
-const BASE_URL = 'https://vizualabstract.github.io/StarRailStaticAPI/assets';
+const BASE_URL = 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master';
 
 /**
  * アイコンのフルURLを取得する
@@ -29,11 +29,12 @@ export const getCharacterIconPath = (tag: string): string | undefined => {
 
 /**
  * 光円錐のアイコンパスを生成する
- * @param id 光円錐のID（数値または数値文字列）
+ * @param tagOrId 光円錐の内部タグまたは数値ID
  * @returns アイコンパス
  */
-export const getLightConeIconPath = (id: string | number): string => {
-    return `icon/light_cone/${id}.png`;
+export const getLightConeIconPath = (tagOrId: string | number): string | undefined => {
+    const id = LIGHTCONE_ID_MAP[String(tagOrId)] || (typeof tagOrId === 'number' || !isNaN(Number(tagOrId)) ? String(tagOrId) : undefined);
+    return id ? `icon/light_cone/${id}.png` : undefined;
 };
 
 /**
@@ -46,5 +47,31 @@ export const getRelicSetIconPath = (setId: string): string | undefined => {
     return id ? `icon/relic/${id}.png` : undefined;
 };
 
-// マップ自体の再エクスポートも念のため残す（コンポーネントで参照されている可能性があるため）
-export { CHARACTER_ID_MAP, RELIC_SET_ID_MAP, ORNAMENT_SET_ID_MAP };
+/**
+ * 運命の日本語名マッピング
+ */
+export const PATH_NAME_MAP: Record<string, string> = {
+    'The Hunt': '巡狩',
+    'Erudition': '知恵',
+    'Destruction': '壊滅',
+    'Harmony': '調和',
+    'Nihility': '虚無',
+    'Preservation': '存護',
+    'Abundance': '豊穣',
+    'Remembrance': '記憶',
+};
+
+/**
+ * 属性の日本語名マッピング
+ */
+export const ELEMENT_NAME_MAP: Record<string, string> = {
+    'Physical': '物理',
+    'Fire': '炎',
+    'Ice': '氷',
+    'Lightning': '雷',
+    'Wind': '風',
+    'Quantum': '量子',
+    'Imaginary': '虚数',
+};
+
+export { CHARACTER_ID_MAP, RELIC_SET_ID_MAP, ORNAMENT_SET_ID_MAP, LIGHTCONE_ID_MAP };

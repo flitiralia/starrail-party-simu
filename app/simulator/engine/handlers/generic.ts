@@ -202,13 +202,15 @@ export function createGenericLightConeHandlerFactory(lightCone: ILightConeData, 
                         const existingModifierIndex = currentUnit.modifiers.findIndex(m => m.source === modifierId);
 
                         if (conditionMet && existingModifierIndex === -1) {
-                            newState = effect.apply(currentUnit, newState, event);
+                            if (effect.onApply) newState = effect.onApply(currentUnit, newState);
+                            else if (effect.apply) newState = effect.apply(currentUnit, newState, event);
                             // Sync unit from registry
                             const freshUnit = newState.registry.get(createUnitId(sourceUnitId));
                             if (freshUnit) currentUnit = { ...freshUnit };
                             statsChanged = true;
                         } else if (!conditionMet && existingModifierIndex !== -1) {
-                            newState = effect.remove(currentUnit, newState, event);
+                            if (effect.onRemove) newState = effect.onRemove(currentUnit, newState);
+                            else if (effect.remove) newState = effect.remove(currentUnit, newState, event);
                             // Sync unit from registry
                             const freshUnit = newState.registry.get(createUnitId(sourceUnitId));
                             if (freshUnit) currentUnit = { ...freshUnit };
@@ -216,7 +218,8 @@ export function createGenericLightConeHandlerFactory(lightCone: ILightConeData, 
                         }
                     } else {
                         // If no condition, just call apply (e.g. permanent dynamic buff or event trigger)
-                        newState = effect.apply(currentUnit, newState, event);
+                        if (effect.onApply) newState = effect.onApply(currentUnit, newState);
+                        else if (effect.apply) newState = effect.apply(currentUnit, newState, event);
                         const freshUnit = newState.registry.get(createUnitId(sourceUnitId));
                         if (freshUnit) currentUnit = { ...freshUnit };
                         statsChanged = true;

@@ -144,7 +144,7 @@ export const aglaea: Character = {
         spd: 102,
         critRate: 0.05,
         critDmg: 0.50,
-        aggro: 75  // 記憶標準
+        aggro: 100  // 記憶標準
     },
 
     abilities: {
@@ -325,6 +325,7 @@ function createRaftraDefinition(owner: Unit, eidolonLevel: number): IMemorySpiri
         name: 'ラフトラ',
         element: 'Lightning',
         hpMultiplier: talentValues.mult,
+        baseAggro: 125, // 仕様通り（記憶標準100より高い）
         baseSpd: Math.floor(owner.stats.spd * 0.35),  // 天賦: 速度35%
         abilities: {
             basic: {
@@ -411,8 +412,8 @@ const applyThreadingPeril = (state: GameState, sourceUnitId: string, targetId: s
         durationType: 'PERMANENT',
         duration: -1,
         modifiers,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     return addEffect(newState, targetId, threadingPerilEffect);
@@ -541,8 +542,8 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
             stackCount: newStacks,
             maxStacks: maxStacks,
             modifiers,
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(state, spiritId, speedStackEffect);
     }
@@ -941,8 +942,8 @@ const onUltimateUsed = (
         duration: -1,
         modifiers: spdModifiers,
         tags: ['ENHANCED_BASIC', 'SKILL_SILENCE'],  // 強化通常攻撃使用、スキル発動不可
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, supremeStanceEffect);
 
@@ -957,8 +958,8 @@ const onUltimateUsed = (
             duration: 0,
             linkedEffectId: EFFECT_IDS.SUPREME_STANCE(sourceUnitId),
             tags: ['CC_IMMUNE'],  // 行動制限系デバフに抵抗
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, raftra.id as string, ccImmuneEffect);
     }
@@ -981,8 +982,8 @@ const onUltimateUsed = (
             duration: 0,
             linkedEffectId: EFFECT_IDS.SUPREME_STANCE(sourceUnitId),
             modifiers: e6Modifiers,
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, e6Effect);
 
@@ -1044,8 +1045,8 @@ const onTurnStart = (
                         durationType: 'PERMANENT',
                         duration: -1,
                         stackCount: Math.min(1, speedStacks),
-                        apply: (t: Unit, s: GameState) => s,
-                        remove: (t: Unit, s: GameState) => s
+                        onApply: (t: Unit, s: GameState) => s,
+                        onRemove: (t: Unit, s: GameState) => s
                     };
                     newState = addEffect(newState, sourceUnitId, preserveEffect);
                 }
@@ -1132,8 +1133,8 @@ const onActionComplete = (
                     stackCount: newStacks,
                     maxStacks: E2_MAX_STACKS,
                     modifiers: defIgnoreModifiers,
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s,
+                    onRemove: (t: Unit, s: GameState) => s
                 };
                 newState = addEffect(newState, sourceUnitId, defIgnoreEffect);
             }
@@ -1164,8 +1165,8 @@ const onActionComplete = (
                         stackCount: newStacks,
                         maxStacks: E2_MAX_STACKS,
                         modifiers: defIgnoreModifiers,
-                        apply: (t: Unit, s: GameState) => s,
-                        remove: (t: Unit, s: GameState) => s
+                        onApply: (t: Unit, s: GameState) => s,
+                        onRemove: (t: Unit, s: GameState) => s
                     };
                     newState = addEffect(newState, raftra.id as string, raftraDefIgnoreEffect);
                 }

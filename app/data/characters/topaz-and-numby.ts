@@ -71,8 +71,8 @@ function applyProofOfDebt(state: GameState, sourceId: string, targetId: string, 
         modifiers: [
             { target: 'fua_vuln', value: fuaVuln, type: 'add', source: '負債証明' }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     });
 }
 
@@ -166,6 +166,8 @@ function executeNumbyAttack(state: GameState, numby: Unit, topaz: Unit, isFromTo
         damageType: 'FOLLOW_UP_ATTACK',
         details: isFromTopazSkill ? 'トパーズの戦闘スキルによる指示' : 'カブ自身のターンによる攻撃',
         events: [{ type: 'ON_FOLLOW_UP_ATTACK' }],
+        skipLog: true,
+        skipStats: true,
         additionalDamageEntry: {
             source: 'カブ',
             name: enhancedStatus ? '「心踊る上昇幅！」' : 'カブ',
@@ -255,8 +257,8 @@ export const topazAndNumbyHandlerFactory: IEventHandlerFactory = (sourceId, _lev
                         duration: -1,
                         durationType: 'PERMANENT',
                         modifiers: [],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s,
+
+
                     });
                 }
                 return newState;
@@ -295,8 +297,8 @@ export const topazAndNumbyHandlerFactory: IEventHandlerFactory = (sourceId, _lev
                             durationType: 'PERMANENT',
                             stackCount: ultStacks,
                             modifiers: [],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s,
+
+
                         });
                     }
                 }
@@ -355,11 +357,13 @@ export const topazAndNumbyHandlerFactory: IEventHandlerFactory = (sourceId, _lev
                         duration: -1,
                         durationType: 'PERMANENT',
                         stackCount: stacks,
+                        maxStacks: 2,
+                        stackStrategy: 'replace',  // 明示的にスタック数を指定
                         modifiers: [
-                            { target: 'fua_crit_dmg', value: 0.25 * stacks, type: 'add', source: 'E1: 強制執行' }
+                            { target: 'fua_crit_dmg', value: 0.25, type: 'add', source: 'E1: 強制執行' }
                         ],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s,
+
+
                     });
                 }
             }
@@ -416,15 +420,23 @@ export const topazAndNumby: Character = {
         e6: { level: 6, name: 'インセンティブ', description: '強化カブ攻撃回数+1, 炎耐性貫通+10%' },
     },
     defaultConfig: {
+        eidolonLevel: 0,
         lightConeId: 'worrisome-blissful', // 悩んで笑って
+        superimposition: 1,
         relicSetId: 'pioneer_diver_of_dead_waters', // 死水に潜る先駆者
-        ornamentSetId: 'duran_salsotto_dynasty', // 奔狼の都藍王朝
+        ornamentSetId: 'duran_dynasty_of_running_wolves', // 奔狼の都藍王朝
         rotation: ['s'], rotationMode: 'spam_skill', ultStrategy: 'immediate', ultCooldown: 0,
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',
             sphere: 'fire_dmg_boost',
             rope: 'atk_pct'
-        }
+        },
+        subStats: [
+            { stat: 'crit_rate', value: 0.10 },
+            { stat: 'crit_dmg', value: 0.50 },
+            { stat: 'atk_pct', value: 0.15 },
+            { stat: 'spd', value: 8 },
+        ],
     }
 };

@@ -17,6 +17,7 @@ import { getAccumulatedValue } from './accumulator';
 import { recalculateUnitStats } from '../statBuilder';
 import { removeAurasBySource, getAurasForLog } from './auraManager';
 import { getEquipmentNameById } from '../../data/equipment-names';
+import { getStatDisplayName } from '../../utils/statUtils';
 
 // === ログ蓄積ヘルパー関数 ===
 
@@ -364,11 +365,14 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
       // セットIDとオーナメントフラグを組み合わせたキー
       const displayKey = `${isOrnament ? 'ornament:' : 'relic:'}${setId || m.source}`;
 
+      const statKey = m.target as string;
+      const statName = getStatDisplayName(statKey);
+
       if (!modifiersBySource.has(displayKey)) {
         modifiersBySource.set(displayKey, []);
       }
       modifiersBySource.get(displayKey)!.push({
-        stat: m.target as string,
+        stat: statName,
         value: m.value,
         isOrnament
       });
@@ -449,7 +453,7 @@ function extractRelicStatsForLog(unit: Unit): EffectSummary[] {
       name: relicSlotNames[relic.type] || relic.type, // フォールバックで英語名
       duration: '∞' as const,
       modifiers: [{
-        stat: relic.mainStat.stat,
+        stat: getStatDisplayName(relic.mainStat.stat),
         value: relic.mainStat.value,
       }],
       owner: unit.name,
@@ -474,7 +478,7 @@ function extractRelicStatsForLog(unit: Unit): EffectSummary[] {
       name: 'サブステ合計',
       duration: '∞' as const,
       modifiers: Object.entries(subStatTotals).map(([stat, value]) => ({
-        stat,
+        stat: getStatDisplayName(stat),
         value,
       })),
       owner: unit.name,
@@ -762,7 +766,7 @@ export function applyUnifiedDamage(
       targetHpState: `${targetAfterDamage.hp.toFixed(0)}/${target.stats.hp.toFixed(0)}`,
       targetToughness: '',
       currentEp: source.ep,
-      activeEffects: [],
+      activeEffects: extractBuffsForLogWithAuras(source, source.name, newState, newState.registry.toArray()),
       details: options.details || ''
     } as any);
   }

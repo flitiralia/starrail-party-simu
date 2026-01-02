@@ -188,6 +188,7 @@ export const jiaoqiu: Character = {
             { stat: 'atk_pct', value: 0.5 },
         ],
         rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
     }
 };
 
@@ -288,8 +289,8 @@ function addAshenRoast(state: GameState, targetId: string, sourceId: string, sta
         damageCalculation: 'multiplier',
         multiplier: dotMult,
         modifiers: modifiers,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 
     newState = addEffect(newState, targetId, ashenRoast);
@@ -390,8 +391,8 @@ function createFieldEffect(sourceId: string, ultLevel: number, eidolonLevel: num
         durationType: 'TURN_START_BASED', // 椒丘のターン開始時に減少
         duration: FIELD_DURATION,
         miscData: { triggerCount: FIELD_TRIGGER_LIMIT },
-        apply: (t, s) => s, // ロジックはハンドラーで処理
-        remove: (t, s) => s,
+        // ロジックはハンドラーで処理
+
     };
 }
 

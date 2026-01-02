@@ -351,8 +351,9 @@ function applyFirekiss(
             name: '火喰い (1層)',
             category: 'DEBUFF',
             sourceUnitId: source.id,
-            durationType: 'TURN_START_BASED',
+            durationType: 'TURN_END_BASED',
             duration: FIREKISS_DURATION,
+            skipFirstTurnDecrement: true,
             stackCount: 1,
             maxStacks: maxStacks,
             modifiers: [{
@@ -361,8 +362,8 @@ function applyFirekiss(
                 type: 'add',
                 source: '火喰い'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
 
         return addEffect(state, target.id, firekissEffect);
@@ -498,16 +499,17 @@ const onSkillUsed = (
                 name: '効果抵抗-10%',
                 category: 'DEBUFF',
                 sourceUnitId: sourceUnitId,
-                durationType: 'TURN_START_BASED',
+                durationType: 'TURN_END_BASED',
                 duration: E1_RES_DOWN_DURATION,
+                skipFirstTurnDecrement: true,
                 modifiers: [{
                     target: 'effect_res' as StatKey,
                     value: -E1_RES_DOWN_VALUE,
                     type: 'add',
                     source: 'E1'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, tId, resDownDebuff);
         }

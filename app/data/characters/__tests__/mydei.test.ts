@@ -57,7 +57,7 @@ describe('Mydei Character Implementation', () => {
             partyConfig: {
                 members: [{
                     character: mydei,
-                    config: { rotation: ['s', 'b'], ultStrategy: 'immediate', ultCooldown: 0 },
+                    config: { rotation: ['s', 'b'], ultStrategy: 'immediate', ultCooldown: 0, useTechnique: false },
                     enabled: true,
                     eidolonLevel: 0
                 }]

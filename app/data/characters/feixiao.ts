@@ -389,8 +389,8 @@ const setAttackCounter = (state: GameState, sourceUnitId: string, count: number)
             durationType: 'PERMANENT',
             duration: -1,
             stackCount: count,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, counterEffect);
     }
@@ -442,8 +442,8 @@ const setTalentAvailable = (state: GameState, sourceUnitId: string, available: b
             durationType: 'TURN_END_BASED',
             duration: 1,
             skipFirstTurnDecrement: true,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         return addEffect(state, sourceUnitId, effect);
     } else {
@@ -524,8 +524,8 @@ const applyTalentDmgBoost = (state: GameState, sourceUnitId: string, eidolonLeve
             type: 'add',
             source: '雷狩'
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(newState, sourceUnitId, effect);
@@ -564,8 +564,8 @@ const onBattleStart = (
                 type: 'add',
                 source: '滅却'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4CritBuff);
     }
@@ -587,8 +587,8 @@ const onBattleStart = (
                     type: 'add',
                     source: '飛霄E1'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, enemy.id, e1Debuff);
         });
@@ -684,8 +684,8 @@ const onUltimateUsed = (
         durationType: 'TURN_END_BASED',
         duration: 1,
         skipFirstTurnDecrement: true,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, ultInProgressEffect);
 
@@ -705,8 +705,8 @@ const onUltimateUsed = (
                 type: 'add',
                 source: '滅却'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4CritDmgBuff);
     }

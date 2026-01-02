@@ -367,8 +367,8 @@ function updateLostHp(state: GameState, unitId: string, amount: number): GameSta
             durationType: 'PERMANENT',
             duration: -1,
             lostHpAmount: newLostHp,
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         } as any;
         return addEffect(state, unitId, lostHpEffect);
     }
@@ -409,8 +409,8 @@ function updateCharges(state: GameState, unitId: string, delta: number, eidolonL
             duration: -1,
             stackCount: newCharges,
             maxStacks: maxCharges,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         return addEffect(state, unitId, chargesEffect);
     }
@@ -491,8 +491,8 @@ const checkE4Trigger = (state: GameState, sourceUnitId: string, prevHpRatio: num
                     stackCount: 1,
                     maxStacks: E4_MAX_STACKS,
                     modifiers: [{ target: 'hp_pct' as StatKey, value: E4_HP_BOOST, type: 'add', source: 'E4' }],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+                   
+                    /* remove removed */
                 };
                 newState = addEffect(newState, sourceUnitId, e4Effect);
             }
@@ -526,8 +526,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
             durationType: 'PERMANENT',
             duration: -1,
             modifiers: [{ target: 'incoming_heal_boost' as StatKey, value: A4_HEAL_BOOST, type: 'add', source: 'A4' }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, a4HealBuff);
     }
@@ -543,8 +543,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
             durationType: 'PERMANENT',
             duration: -1,
             modifiers: [{ target: 'fua_dmg_boost' as StatKey, value: A6_TALENT_DMG_BOOST, type: 'add', source: 'A6' }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, a6DmgBuff);
     }
@@ -646,8 +646,8 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
             { target: 'aggro' as StatKey, value: 10.0, type: 'pct', source: '地獄変' } // +1000%
         ],
         tags: ['HELLSCAPE', 'SKILL_SILENCE', 'ENHANCED_BASIC'], // スキル使用不可、強化通常攻撃を使用
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, hellscapeEffect);
 
@@ -673,8 +673,8 @@ const onSkillUsed = (event: IEvent, state: GameState, sourceUnitId: string, eido
             duration: 0,
             linkedEffectId: `${EFFECT_IDS.HELLSCAPE}-${sourceUnitId}`,
             modifiers: [{ target: 'crit_rate' as StatKey, value: E2_CRIT_RATE_BOOST, type: 'add', source: 'E2' }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e2CritBuff);
     }

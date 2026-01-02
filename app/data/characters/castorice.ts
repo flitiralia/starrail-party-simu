@@ -162,7 +162,7 @@ export const castorice: Character = {
         spd: 95,
         critRate: 0.05,
         critDmg: 0.50,
-        aggro: 75 // 記憶標準
+        aggro: 100 // 記憶標準
     },
 
     abilities: {
@@ -466,8 +466,8 @@ const setSiryuTurnCount = (state: GameState, spiritId: string, count: number): G
             duration: -1,
             stackCount: count,
             modifiers: [],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         return addEffect(state, spiritId, turnCountEffect);
     }
@@ -536,8 +536,8 @@ const onBattleStart = (
                     type: 'add' as const,
                     source: '静寂を揺るがす怒哮'
                 }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, ally.id as string, roarEffect);
         }
@@ -716,8 +716,8 @@ const onUltimateUsed = (
             stackCount: E2_SHII_STACKS,
             maxStacks: 2,
             modifiers: [],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, shiiEffect);
 
@@ -762,8 +762,8 @@ const onTurnStart = (
                     type: 'add' as const,
                     source: 'A4'
                 }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, a4Effect);
         } else if (hpPct < A4_HP_THRESHOLD && hasA4Buff) {
@@ -913,8 +913,8 @@ const onUnitHealed = (
                     durationType: 'PERMANENT',
                     duration: -1,
                     modifiers: [],
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s,
+                    onRemove: (t: Unit, s: GameState) => s
                 };
                 (updatedConvertEffect as any).accumulated = newAccumulated;
                 newState = addEffect(newState, target.id as string, updatedConvertEffect);
@@ -1127,8 +1127,8 @@ const applyA6BreathBuff = (state: GameState, siryuId: string): GameState => {
             type: 'add' as const,
             source: 'A6'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     return addEffect(state, siryuId, buffEffect);
@@ -1393,8 +1393,8 @@ const applyRealmEffect = (state: GameState, sourceUnitId: string, eidolonLevel: 
                 type: 'add' as const,
                 source: '遺世の冥域'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, enemy.id as string, realmEffect);
     }
@@ -1431,8 +1431,8 @@ const applyTalentDmgBuff = (state: GameState, sourceUnitId: string): GameState =
             type: 'add' as const,
             source: '天賦'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     let newState = addEffect(state, sourceUnitId, buffEffect);

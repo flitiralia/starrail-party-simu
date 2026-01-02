@@ -319,8 +319,8 @@ function createArcanaEffect(sourceId: string, targetId: string, stacks: number =
         maxStacks: MAX_ARCANA_STACKS,
         isArcana: true,
         isCleansable: false,  // アルカナは解除不可
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -348,14 +348,15 @@ function createEpiphanyEffect(sourceId: string, targetId: string, dmgUp: number,
         name: '開示',
         category: 'DEBUFF',
         sourceUnitId: sourceId,
-        durationType: 'TURN_START_BASED',
+        durationType: 'TURN_END_BASED',
         duration: 2,
+        skipFirstTurnDecrement: true,
         modifiers,
         isEpiphany: true,
         resetSkipUsed: false,
         epRecoveryUsed: false,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -366,16 +367,17 @@ function createDefDownEffect(sourceId: string, targetId: string, defDown: number
         name: '防御力ダウン',
         category: 'DEBUFF',
         sourceUnitId: sourceId,
-        durationType: 'TURN_START_BASED',
+        durationType: 'TURN_END_BASED',
         duration: 3,
+        skipFirstTurnDecrement: true,
         modifiers: [{
             target: 'def_pct' as StatKey,
             value: -defDown,
             type: 'add' as const,
             source: '失墜、偽神の黄昏'
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 

@@ -431,8 +431,8 @@ const onBattleStart = (
                 type: 'add' as const,
                 source: 'A2'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, a2Effect);
         newState = addEffect(newState, choya.id as string, a2Effect);
@@ -465,8 +465,8 @@ const onBattleStart = (
             type: 'add' as const,
             source: '精霊天賦'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, spiritDmgEffect);
     newState = addEffect(newState, choya.id as string, spiritDmgEffect);
@@ -531,8 +531,8 @@ const applySkillCritDmgBuff = (
                 type: 'add' as const,
                 source: '戦闘スキル'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, spirit.id as string, buffEffect);
     }
@@ -618,8 +618,8 @@ const onSkillUsed = (
                 type: 'add' as const,
                 source: 'A2'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, a2CritDmgEffect);
         newState = addEffect(newState, choya.id as string, {
@@ -676,8 +676,8 @@ const onUltimateUsed = (
                 type: 'add' as const,
                 source: '至暗の謎'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, enemy.id as string, vulnEffect);
     }
@@ -725,8 +725,8 @@ const onUltimateUsed = (
             source: '至暗の謎',
             scalingStrategy: 'fixed'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, dmgBoostEffect);
     newState = addEffect(newState, choya.id as string, {
@@ -797,8 +797,8 @@ const onHpConsumed = (
         durationType: 'TURN_END_BASED',
         duration: 1,
         modifiers: [],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, hpConsumedFlag);
 
@@ -822,8 +822,8 @@ const onHpConsumed = (
             type: 'add' as const,
             source: '天賦'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     // 長夜月と長夜の両方に付与
@@ -855,8 +855,8 @@ const onHpConsumed = (
                 durationType: 'PERMANENT',
                 duration: -1,
                 modifiers: [],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, flagEffect);
         }
@@ -1236,8 +1236,8 @@ const dismissSpiritWithSpeedBuff = (
             type: 'add' as const,
             source: '退場時'
         }],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     newState = addEffect(newState, ownerId, spdEffect);

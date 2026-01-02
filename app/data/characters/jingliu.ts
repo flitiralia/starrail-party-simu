@@ -102,8 +102,8 @@ function updateSyzygy(state: GameState, unitId: string, delta: number, eidolonLe
                 duration: -1,
                 stackCount: nextStack,
                 maxStacks: maxSyzygy,
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+
+
             };
             newState = addEffect(newState, unitId, effect);
         }
@@ -146,8 +146,8 @@ function enterTransmigration(state: GameState, unitId: string, eidolonLevel: num
             { target: 'crit_rate' as StatKey, value: critRate, type: 'add' as const, source: '転魄' }
         ],
         tags: ['TRANSMIGRATION'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     const hasA2 = unit.traces?.some(t => t.id === TRACE_IDS.A2_DEATH_REALM);
@@ -253,8 +253,8 @@ function addMoonlight(state: GameState, unitId: string, amount: number, eidolonL
             maxStacks: MOONLIGHT_CAP,
             modifiers: [{ target: 'crit_dmg' as StatKey, value: totalCritDmg, type: 'add' as const, source: '月光' }],
             tags: ['MOONLIGHT'],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         return addEffect(state, unitId, effect);
     }
@@ -441,9 +441,11 @@ export const jingliu: Character = {
         },
         subStats: [
             { stat: 'crit_rate', value: 0.10 },
-            { stat: 'crit_dmg', value: 0.50 }
+            { stat: 'crit_dmg', value: 0.50 },
+            { stat: 'atk_pct', value: 0.15 },
         ],
-        ultStrategy: 'immediate'
+        rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
     }
 };
 
@@ -488,8 +490,8 @@ export const jingliuHandlerFactory: IEventHandlerFactory = (sourceUnitId, eidolo
                                 durationType: 'TURN_START_BASED',
                                 duration: 1, // 1 turn
                                 tags: ['FREEZE', 'CROWD_CONTROL'],
-                                apply: (t, s) => s, // logic handled by engine
-                                remove: (t, s) => s
+                                // logic handled by engine
+                                /* remove removed */
                             };
                             newState = addEffect(newState, enemy.id, freezeEffect);
                         }
@@ -540,8 +542,8 @@ export const jingliuHandlerFactory: IEventHandlerFactory = (sourceUnitId, eidolo
                         durationType: 'PERMANENT',
                         duration: -1,
                         modifiers: [{ target: 'dmg_boost' as StatKey, value: E2_NEXT_ENHANCED_DMG, type: 'add' as const, source: 'E2' }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, e2Effect);
                 }

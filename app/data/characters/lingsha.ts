@@ -192,8 +192,8 @@ function updateFuyuanCount(state: GameState, ownerId: string, amount: number): G
         duration: -1,
         stackCount: newCount,
         maxStacks: FUYUAN_MAX_COUNT,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
 
@@ -276,8 +276,8 @@ function spawnFuyuan(state: GameState, ownerId: string, initialCount: number = F
         duration: -1,
         stackCount: initialCount,
         maxStacks: FUYUAN_MAX_COUNT,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, fuyuanUnit.id, countEffect);
 
@@ -429,8 +429,8 @@ function applyA2Buff(state: GameState, ownerId: string): GameState {
             { source: 'A2', target: 'atk_pct', type: 'add', value: atkBuff },
             { source: 'A2', target: 'outgoing_healing_boost', type: 'add', value: healBuff }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, ownerId, effect);
@@ -454,8 +454,8 @@ function applyBefog(state: GameState, ownerId: string, targetId: string, eidolon
         modifiers: [
             { source: '芳酔', target: 'break_dmg_taken', type: 'add', value: breakDmgUp }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, targetId, effect);
@@ -477,7 +477,7 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
             durationType: 'PERMANENT',
             duration: -1,
             modifiers: [{ source: 'E1', target: 'break_efficiency_boost', type: 'add', value: 0.50 }],
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e1Buff);
     }
@@ -573,7 +573,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
                 durationType: 'TURN_START_BASED',
                 duration: 3,
                 modifiers: [{ source: 'E2', target: 'break_effect', type: 'add', value: 0.40 }],
-                apply: (t, s) => s, remove: (t, s) => s
+                /* remove removed */
             };
             newState = addEffect(newState, ally.id, e2Buff);
         });
@@ -649,7 +649,7 @@ const checkA6Trigger = (event: IEvent, state: GameState, sourceUnitId: string, e
             sourceUnitId: sourceUnitId,
             durationType: 'TURN_START_BASED',
             duration: 2,
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, cooldown);
         return newState;
@@ -695,8 +695,8 @@ export const lingshaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                             durationType: 'TURN_START_BASED',
                             duration: 2,
                             modifiers: [{ source: 'E1', target: 'def_reduction' as StatKey, type: 'add', value: 0.20 }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         return addEffect(state, tId, e1DefDebuff);
                     }
@@ -812,6 +812,10 @@ export const lingsha: Character = {
             { stat: 'break_effect', value: 0.30 },
             { stat: 'spd', value: 5 },
             { stat: 'atk_pct', value: 0.10 },
-        ]
+            { stat: 'hp_pct', value: 0.10 },
+        ],
+        rotationMode: 'sequence',
+        rotation: ['s', 'b', 'b'],
+        ultStrategy: 'immediate',
     }
 };

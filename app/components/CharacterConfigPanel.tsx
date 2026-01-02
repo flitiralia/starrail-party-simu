@@ -12,7 +12,8 @@ import {
 } from '@/app/types';
 import { RelicEditor } from './RelicEditor';
 import { getLightConeDescription } from '@/app/utils/lightConeUtils';
-import { getAssetUrl, getCharacterIconPath, getLightConeIconPath } from '@/app/utils/assetUtils';
+import { getAssetUrl, getCharacterIconPath, getLightConeIconPath, PATH_NAME_MAP } from '@/app/utils/assetUtils';
+import { IconPicker, IconPickerItem } from './IconPicker';
 
 interface CharacterConfigPanelProps {
     character: Character;
@@ -153,20 +154,21 @@ export default function CharacterConfigPanel({
             {/* 光円錐選択 */}
             <div style={sectionStyle}>
                 <label style={labelStyle}>光円錐</label>
-                <select
-                    style={selectorStyle}
-                    value={selectedLightCone?.id || ''}
-                    onChange={(e) => handleLightConeChange(e.target.value)}
-                >
-                    <option value="">装備なし</option>
-                    {lightConeList
+                <IconPicker
+                    items={lightConeList
                         .filter((lc) => lc.path === character.path)
-                        .map((lc) => (
-                            <option key={lc.id} value={lc.id}>
-                                {lc.name}
-                            </option>
-                        ))}
-                </select>
+                        .map((lc): IconPickerItem => ({
+                            id: lc.id,
+                            name: lc.name,
+                            iconUrl: getAssetUrl(getLightConeIconPath(lc.id)),
+                            group: PATH_NAME_MAP[lc.path] || lc.path,
+                        }))}
+                    selectedId={selectedLightCone?.id || ''}
+                    onSelect={(lcId) => handleLightConeChange(lcId)}
+                    placeholder="光円錐選択"
+                    emptyOption={true}
+                    emptyOptionLabel="装備なし"
+                />
 
                 {selectedLightCone && (
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>

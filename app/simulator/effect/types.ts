@@ -26,6 +26,14 @@ export interface IEffect {
   duration: number; // ターン数など
   stackCount?: number;
   maxStacks?: number;
+  /**
+   * スタック数の更新戦略
+   * - 'auto': 現在の挙動 (Math.max(current + 1, newStack)) ※デフォルト
+   * - 'add': 加算 (current + (newStack || 1))
+   * - 'replace': 上書き (newStack)
+   * - 'max': 最大値維持 (Math.max(current, newStack))
+   */
+  stackStrategy?: 'auto' | 'add' | 'replace' | 'max';
 
   // バフ獲得ターン減少スキップ用フラグ（TURN_END_BASED専用）
   // trueの場合、獲得ターンのターン終了時はdurationが減少しない
@@ -55,9 +63,10 @@ export interface IEffect {
   // ステータス修正用モディファイア（NEW）
   modifiers?: import('../../types/stats').Modifier[];
 
-  // Legacy support (to be deprecated or integrated)
-  apply: (target: Unit, state: GameState, event?: IEvent) => GameState;
-  remove: (target: Unit, state: GameState, event?: IEvent) => GameState;
+  /** @deprecated Use onApply instead */
+  apply?: (target: Unit, state: GameState, event?: IEvent) => GameState;
+  /** @deprecated Use onRemove instead */
+  remove?: (target: Unit, state: GameState, event?: IEvent) => GameState;
 
   // 汎用データストア（カスタム実装用）
   miscData?: Record<string, any>;
@@ -152,3 +161,15 @@ export interface CrowdControlEffect extends IEffect {
   readonly avAdvanceOnRemoval?: number;
 }
 
+/**
+ * 挑発効果
+ * 
+ * 付与された敵は、指定された味方を必ず攻撃する。
+ * IDは `taunt-${targetEnemyId}` 形式で、敵1体につき1つの挑発のみ有効。
+ * 後から付与された挑発は前の挑発を上書きする。
+ */
+export interface TauntEffect extends IEffect {
+  readonly type: 'Taunt';
+  /** 強制的に攻撃させるターゲット（味方のユニットID） */
+  readonly targetAllyId: string;
+}

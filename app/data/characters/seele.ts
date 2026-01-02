@@ -6,7 +6,7 @@ import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { IEffect } from '../../simulator/effect/types';
 import { advanceAction } from '../../simulator/engine/utils';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
-import { publishEvent } from '../../simulator/engine/dispatcher';
+import { publishEvent, applyUnifiedDamage } from '../../simulator/engine/dispatcher';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { calculateDamageWithCritInfo } from '../../simulator/damage';
 
@@ -259,8 +259,8 @@ function createBuffedStateEffect(
         duration: 1,
         modifiers: modifiers,
         skipFirstTurnDecrement: true, // Persist through the end of the current turn (trigger turn), used in next turn (standard or resurgence)
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -290,8 +290,8 @@ function applySkillSpeedBoost(state: GameState, sourceId: string, eidolonLevel: 
             type: 'add',
             value: SKILL_SPD_BOOST_PCT // StatBuilder multiplies by stack count automatically
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, sourceId, effect);
@@ -326,8 +326,8 @@ function updateA2AggroState(state: GameState, sourceId: string): GameState {
                     type: 'pct',
                     value: -0.50 // Aggro drop
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             return addEffect(state, sourceId, aggroEffect);
         }
@@ -437,8 +437,8 @@ const onActionHandlers: IEventHandlerFactory = (sourceUnitId, level, param) => {
                         duration: 1,
                         skipFirstTurnDecrement: true, // Lasts 1 turn.
                         modifiers: [], // Logic handled separately
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, event.targetId, butterflyEffect);
                 }
@@ -522,8 +522,8 @@ const onActionHandlers: IEventHandlerFactory = (sourceUnitId, level, param) => {
                                 sourceUnitId: sourceUnitId,
                                 durationType: 'TURN_END_BASED',
                                 duration: 1, // Will be removed manually anyway
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             };
                             newState = addEffect(newState, sourceUnitId, resurgenceMarker);
 
@@ -625,7 +625,7 @@ const onE6AdditionalDmgHandler: IEventHandlerFactory = (sourceUnitId, level, par
                 mockAction as any
             );
 
-            const applyResult = require('../../simulator/engine/dispatcher').applyUnifiedDamage(
+            const applyResult = applyUnifiedDamage(
                 state, // Use current state (which is 'state' passed to handler)
                 seele,
                 target,
@@ -634,24 +634,19 @@ const onE6AdditionalDmgHandler: IEventHandlerFactory = (sourceUnitId, level, par
                     damageType: 'ADDITIONAL_DAMAGE',
                     details: '乱れ蝶・付加ダメージ',
                     isCrit: dmgResult.isCrit,
-                    breakdownMultipliers: dmgResult.breakdownMultipliers
+                    breakdownMultipliers: dmgResult.breakdownMultipliers,
+                    skipLog: true,
+                    additionalDamageEntry: {
+                        source: seele.name,
+                        name: '乱れ蝶・付加ダメージ',
+                        damageType: 'additional',
+                        isCrit: dmgResult.isCrit,
+                        breakdownMultipliers: dmgResult.breakdownMultipliers
+                    }
                 }
             );
 
             let newState = applyResult.state;
-
-            require('../../simulator/engine/dispatcher').appendAdditionalDamage(
-                newState,
-                {
-                    source: seele.name,
-                    name: '乱れ蝶・付加ダメージ',
-                    damage: applyResult.totalDamage,
-                    target: target.name,
-                    damageType: 'additional',
-                    isCrit: dmgResult.isCrit,
-                    breakdownMultipliers: dmgResult.breakdownMultipliers
-                }
-            );
 
             return newState;
         }

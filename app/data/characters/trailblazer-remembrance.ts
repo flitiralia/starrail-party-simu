@@ -211,8 +211,8 @@ function addMurionCharge(
             duration: 1,
             modifiers: [],
             tags: ['ENHANCED_SKILL'],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         });
     }
 
@@ -345,8 +345,8 @@ const onSkillUsed = (
                 duration: 3,
                 modifiers: [],
                 additionalDmgMult: additionalDmgMult,
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
 
             newState = addEffect(newState, target.id, supportEffect);
@@ -367,8 +367,8 @@ const onSkillUsed = (
                         type: 'add',
                         source: 'E1'
                     }],
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s,
+                    onRemove: (t: Unit, s: GameState) => s
                 });
 
                 // E1: 味方が精霊を持つ場合、精霊にも応援効果適用
@@ -460,8 +460,8 @@ const onSkillUsed = (
                     type: 'add',
                     source: '仲間と一緒に！'
                 }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             });
         }
     } else {
@@ -770,7 +770,7 @@ const onEpGained = (
 // --- キャラクター定義 ---
 export const trailblazerRemembrance: Character = {
     id: CHARACTER_ID,
-    name: '開拓者・記憶',
+    name: '開拓者-記憶',
     path: 'Remembrance',
     element: 'Ice',
     rarity: 5,

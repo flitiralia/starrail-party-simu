@@ -303,8 +303,8 @@ function setTalentHealStacks(state: GameState, unitId: string, stacks: number): 
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: clampedStacks,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     let newState = removeEffect(state, unitId, EFFECT_IDS.TALENT_HEAL_STACKS(unitId));
@@ -343,8 +343,8 @@ function setE6DamageCounter(state: GameState, unitId: string, damage: number, ma
         durationType: 'PERMANENT',
         duration: -1,
         damageCounter: clampedDamage,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     let newState = removeEffect(state, unitId, EFFECT_IDS.E6_DAMAGE_COUNTER(unitId));
@@ -395,8 +395,8 @@ function applyDivination(
         linkedEffectId: EFFECT_IDS.MATRIX_OF_PRESCIENCE(sourceId),
         modifiers,
         tags: ['DIVINATION'],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     newState = addEffect(newState, targetId, divinationEffect);
@@ -425,8 +425,8 @@ function applyWarding(state: GameState, sourceId: string, dmgReduction: number):
                 { target: 'dmg_taken' as StatKey, value: -dmgReduction, type: 'add' as const, source: '避邪' },
             ],
             tags: ['WARDING'],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
 
         newState = addEffect(newState, ally.id, wardingEffect);
@@ -553,8 +553,8 @@ const onSkillUsed = (
         duration: SKILL_DURATION,
         skipFirstTurnDecrement: true,
         tags: ['MATRIX_OF_PRESCIENCE'],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, matrixEffect);
 
@@ -787,8 +787,8 @@ const onBeforeDeath = (
         sourceUnitId: sourceUnitId,
         durationType: 'PERMANENT',
         duration: -1,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     return addEffect(state, sourceUnitId, e2UsedEffect);
 };
@@ -832,8 +832,8 @@ const onDebuffApplied = (
         durationType: 'LINKED',  // 窮観の陣と連動
         duration: -1,
         linkedEffectId: EFFECT_IDS.MATRIX_OF_PRESCIENCE(sourceUnitId),
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, a6UsedEffect);
 

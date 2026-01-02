@@ -288,8 +288,8 @@ function addCharge(state: GameState, unitId: string, amount: number): GameState 
         duration: 0,
         onApply: (t, s) => s, // Visual only, logic handled in Talent
         onRemove: (t, s) => s,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     (chargeBuff as any).stackCount = newStacks;
 
@@ -325,8 +325,8 @@ function applyCircuitConnection(state: GameState, unitId: string, eidolonLevel: 
             // Remove Skill Damage Stacks when Circuit ends
             return removeEffect(s, t.id, `archar-circuit-stacks-${t.id}`);
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     // Initialize custom data for skill count
     (circuitBuff as any).customData = { skillCount: 0 };
@@ -380,8 +380,8 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         }],
                         onApply: (t, s) => s,
                         onRemove: (t, s) => s,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, e4Buff);
                     console.log('[Archer] E4 triggered: ult_dmg_boost +150%');
@@ -471,16 +471,19 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         sourceUnitId: sourceUnitId,
                         durationType: 'PERMANENT',
                         duration: 0,
+                        stackCount: stacks,
+                        maxStacks: maxStacks,
+                        stackStrategy: 'replace',  // 明示的にスタック数を指定
                         modifiers: [{
                             target: 'skill_dmg_boost',
                             source: 'Circuit Connection',
-                            value: 1.0 * stacks, // 20% per stack
+                            value: 1.0, // スタックあたり100%（stackCountによる自動乗算）
                             type: 'add'
                         }],
                         onApply: (t, s) => s,
                         onRemove: (t, s) => s,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     (stackBuff as any).stackCount = stacks;
                     newState = removeEffect(newState, sourceUnitId, stackBuffId);
@@ -506,6 +509,9 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     if (targetUnit && targetUnit.isEnemy) {
                         const e2DebuffId = `archar-e2-debuff-${targetUnit.id}`;
 
+                        // クロージャで「このエフェクトが弱点を追加したか」を追跡
+                        let addedByE2 = false;
+
                         const e2Debuff: IEffect = {
                             id: e2DebuffId,
                             name: '叶えられなかった幸福',
@@ -524,7 +530,12 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             onApply: (t, s) => {
                                 // 量子弱点を付与
                                 const newWeaknesses = new Set(t.weaknesses);
-                                newWeaknesses.add('Quantum' as Element);
+                                if (!newWeaknesses.has('Quantum')) {
+                                    addedByE2 = true;
+                                    newWeaknesses.add('Quantum' as Element);
+                                } else {
+                                    addedByE2 = false;
+                                }
                                 const updatedUnit = {
                                     ...t,
                                     weaknesses: newWeaknesses
@@ -534,9 +545,21 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                                     registry: s.registry.update(t.id, u => updatedUnit)
                                 };
                             },
-                            onRemove: (t, s) => s,  // 弱点は消えない（原作仕様）
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                            onRemove: (t, s) => {
+                                // 仕様: 2ターン継続なので、弱点も解除する
+                                // 注意: 元々量子弱点を持っていた場合（addedByE2 = false）は削除しない
+                                if (addedByE2) {
+                                    const updatedWeaknesses = new Set(t.weaknesses);
+                                    updatedWeaknesses.delete('Quantum');
+                                    return {
+                                        ...s,
+                                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                                    };
+                                }
+                                return s;
+                            },
+
+                            /* remove removed */
                         };
 
                         newState = addEffect(newState, targetUnit.id, e2Debuff);
@@ -619,8 +642,8 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     duration: 1,
                     onApply: (t, s) => s,
                     onRemove: (t, s) => s,
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 };
                 (trackerBuff as any).stackCount = count;
 
@@ -672,8 +695,8 @@ export const archarHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         }],
                         onApply: (t, s) => s,
                         onRemove: (t, s) => s,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, a6Buff);
                     console.log('[Archer] A6 triggered: crit_dmg +120%');

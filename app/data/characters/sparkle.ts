@@ -85,8 +85,8 @@ function createSkillBuff(
             type: 'add',
             value: buffValue
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 }
 
@@ -115,8 +115,8 @@ function createCipherBuff(sourceId: string, eidolonLevel: number): IEffect {
         duration: duration,
         modifiers: modifiers,
         // Cipher logic for dmg boost is handled in Talent's dynamic value, or we assume Talent checks for this buff.
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 }
 
@@ -174,8 +174,8 @@ function updateTalentBuff(state: GameState, sourceId: string, eidolonLevel: numb
                 type: 'add',
                 value: totalValue
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
 
         // E2: Ignore Defense
@@ -184,7 +184,7 @@ function updateTalentBuff(state: GameState, sourceId: string, eidolonLevel: numb
                 source: '謂れなき虚構 (E2)',
                 target: 'def_ignore',
                 type: 'add',
-                value: 0.08 * newStacks // 8% per stack
+                value: 0.08 // スタックあたり8%（stackCountによる自動乗算）
             });
         }
 
@@ -471,7 +471,8 @@ export const sparkle: Character = {
 
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'earthly-escapade', // Her signature
+        lightConeId: 'earthly-escapade',
+        superimposition: 1,
         relicSetId: 'messenger_traversing_hackerspace',
         ornamentSetId: 'broken_keel',
         mainStats: {
@@ -550,8 +551,8 @@ export const sparkleHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                                 durationType: 'PERMANENT',
                                 duration: -1,
                                 modifiers: effects,
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             };
                             ns = addEffect(ns, ally.id, aura);
                         });

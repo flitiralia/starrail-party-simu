@@ -205,8 +205,8 @@ const onSkillUsed: IEventHandlerLogic = (event, state, _handlerId) => {
         duration: -1, // 永続
         durationType: 'PERMANENT',
         modifiers: comradeModifiers,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     });
 
     // E6 グローバルデバフ (敵全体の被ダメージアップ)
@@ -219,7 +219,7 @@ const onSkillUsed: IEventHandlerLogic = (event, state, _handlerId) => {
                     id: EFFECT_IDS.E6_VULN(e.id), name: 'E6 Vuln', category: 'DEBUFF', type: 'Debuff',
                     sourceUnitId: source.id, duration: 100, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
                     modifiers: [{ target: 'all_type_vuln', value: 0.20, type: 'add', source: 'E6 Vuln' }],
-                    apply: (t, s) => s, remove: (t, s) => s
+                    /* remove removed */
                 });
             }
         });
@@ -350,8 +350,8 @@ const onUltimateUsed: IEventHandlerLogic = (event, state, _handlerId) => {
             durationType: 'TURN_END_BASED',
             skipFirstTurnDecrement: true,
             modifiers: [],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+
+
         });
 
         // E2: 味方全体行動順100%短縮 (即時行動)
@@ -390,7 +390,7 @@ const onUltimateUsed: IEventHandlerLogic = (event, state, _handlerId) => {
                 id: EFFECT_IDS.E1_RES_PEN(comradeUnit.id), name: 'E1 Res Pen', category: 'BUFF', type: 'Buff',
                 sourceUnitId: source.id, duration: 3, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
                 modifiers: [{ target: 'all_type_res_pen', value: 0.18, type: 'add', source: 'E1' }],
-                apply: (t, s) => s, remove: (t, s) => s
+                /* remove removed */
             });
         }
     }
@@ -694,8 +694,13 @@ export const DanHengToukou: Character = {
         technique: { id: 'tech', name: 'Technique', type: 'Technique', description: '戦闘開始時にスキル自動発動' }
     },
     defaultConfig: {
+        eidolonLevel: 0,
         lightConeId: 'brighter-than-the-sun',
-        rotation: ['s', 'b', 'b'], rotationMode: 'sequence', ultStrategy: 'immediate', ultCooldown: 3,
+        superimposition: 1,
+        rotation: ['s', 'b', 'b'],
+        rotationMode: 'sequence',
+        ultStrategy: 'immediate',
+        ultCooldown: 3,
         relicSetId: 'hermit_who_hid_the_light_of_the_stars',
         ornamentSetId: 'lusaka_by_the_sunken_sea',
         mainStats: {

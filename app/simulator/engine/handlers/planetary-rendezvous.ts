@@ -63,7 +63,8 @@ export const handlePlanetaryRendezvousLogic: IEventHandlerLogic = (event, state,
         duration: Infinity, // The buff is permanent
       });
 
-      newState = buffEffect.apply(unit, newState);
+      if (buffEffect.onApply) newState = buffEffect.onApply(unit, newState);
+      else if (buffEffect.apply) newState = buffEffect.apply(unit, newState);
     }
   }
 

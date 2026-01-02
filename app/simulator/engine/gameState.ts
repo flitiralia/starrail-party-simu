@@ -1,12 +1,13 @@
 import { GameState, Unit, IEventHandlerLogic, IEventHandler, ActionContext, Action, BasicAttackAction, SkillAction, UltimateAction, BattleStartAction, RegisterHandlersAction, ActionAdvanceAction, FollowUpAttackAction, IEvent } from './types';
-import { SimulationLogEntry, IAbility, Character, Enemy, CharacterConfig, EnemyConfig, PartyConfig, Element, ELEMENTS, StatKey, FinalStats, SimulationConfig, AbilityModifier } from '../../types/index';
+import { SimulationLogEntry, IAbility, Character, Enemy, CharacterConfig, EnemyConfig, PartyConfig, Element, ELEMENTS, StatKey, FinalStats, SimulationConfig, AbilityModifier, EnemyData } from '../../types/index';
+import { calculateEnemyStats, calculateEnemyDef } from '../../data/enemies/levelStats';
 import { calculateFinalStats, createEmptyStatRecord } from '../statBuilder';
 import { initializeEnergy } from './energy';
 import { registry } from '../registry/index';
 import { IEffect } from '../effect/types';
 import { addEffect } from './effectManager';
 import { registerLightConeEventHandlers } from './lightConeHandlers';
-import { UnitId, createUnitId } from './unitId';
+import { UnitId, createUnitId, UnitIdGenerator } from './unitId';
 import { UnitRegistry } from './unitRegistry';
 
 
@@ -173,45 +174,55 @@ export function createInitialGameState(
     return applyCharacterMechanics(unitWithEnergy);
   });
 
-  const enemyUnits: Unit[] = enemies.map(enemy => {
-    // Enemy stats are a mix of base data and user config
-    const stats = {
+  const enemyUnits: Unit[] = enemies.map((enemy, index) => {
+    // Enemy stats logic using new EnemyData structure and level table
+    const targetLevel = enemyConfig.level; // User defined level
+
+    // Calculate stats based on EnemyData and Level
+    const calculatedStats = calculateEnemyStats(enemy as any as EnemyData, targetLevel); // Cast for compatibility with existing Enemy type
+    const def = calculateEnemyDef(targetLevel);
+
+    const stats: FinalStats = {
       ...createEmptyStatRecord(),
-      hp: enemyConfig.maxHp, // Override with user config
-      atk: enemyConfig.atk ?? enemy.baseStats.atk, // Use config or base
-      def: enemyConfig.def ?? enemy.baseStats.def, // Use config or base
-      spd: enemyConfig.spd, // Override with user config
+      hp: calculatedStats.hp,
+      atk: calculatedStats.atk,
+      def: def,
+      spd: calculatedStats.spd,
+      effect_hit_rate: calculatedStats.effectHitRate,
+      effect_res: calculatedStats.effectRes,
     };
 
-    // Apply resistances based on weakness selection
+    // Apply resistances
     ELEMENTS.forEach(element => {
       const resKey = `${element.toLowerCase()}_res` as StatKey;
       const isWeak = weaknesses.has(element);
-      // If weak, RES is 0. Otherwise, use base RES (defaulting to 20%).
-      stats[resKey] = isWeak ? 0 : (enemy.baseRes[element] ?? 0.2);
+      // Weakness = 0% RES, Element Res = Enemy Data (default 20%)
+      const baseRes = (enemy as any as EnemyData).elementalRes?.[element] ?? 0.2;
+      stats[resKey] = isWeak ? 0 : baseRes;
     });
 
     const unit: Unit = {
-      id: createUnitId(enemy.id),
+      id: UnitIdGenerator.generateEnemyId(enemy.id, index),
       name: enemy.name,
       isEnemy: true,
-      rank: enemy.rank, // Copy rank from enemy data
+      rank: enemy.rank,
       element: enemy.element,
-      level: enemyConfig.level, // Override with user config
-      abilities: enemy.abilities, // IUnitDataを継承したため、abilitiesはここに存在
+      level: targetLevel,
+      abilities: enemy.abilities,
       stats: stats,
-      baseStats: { ...stats }, // Enemies usually have fixed stats, so base = initial
+      baseStats: { ...stats }, // Base stats for enemies are typically their initial stats
       hp: stats.hp,
       ep: 0,
       shield: 0,
-      toughness: enemyConfig.toughness, // Override with user config
-      maxToughness: enemyConfig.toughness, // Override with user config
-      weaknesses: weaknesses, // Apply weaknesses from UI
+      toughness: (enemy as any as EnemyData).toughness || enemyConfig.toughness, // Prefer EnemyData toughness
+      maxToughness: (enemy as any as EnemyData).toughness || enemyConfig.toughness,
+      weaknesses: weaknesses,
       modifiers: [],
       effects: [],
       actionValue: Math.floor(10000 / stats.spd),
       rotationIndex: 0,
       ultCooldown: 0,
+      actionPattern: (enemy as any as EnemyData).actionPattern, // Copy action pattern
     };
     return unit;
   });

@@ -12,7 +12,7 @@ import { calculateDamageWithCritInfo } from '../../simulator/damage';
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
 
 // --- Constants ---
-const CHARACTER_ID = 'silver_wolf';
+const CHARACTER_ID = 'silver-wolf';
 
 const EFFECT_IDS = {
     WEAKNESS_IMPLANT: (targetId: string, element: string) => `sw-weakness-${targetId}-${element}`,
@@ -111,7 +111,7 @@ function createWeaknessImplantEffect(sourceId: string, targetId: string, element
         durationType: 'TURN_END_BASED',
         duration: SKILL_IMPLANT_DURATION,
         skipFirstTurnDecrement: true,
-        apply: (t, s) => {
+        onApply: (t, s) => {
             // Check if weakness exists
             if (!t.weaknesses.has(element)) {
                 added = true;
@@ -130,7 +130,7 @@ function createWeaknessImplantEffect(sourceId: string, targetId: string, element
             added = false;
             return s;
         },
-        remove: (t, s) => {
+        onRemove: (t, s) => {
             if (added) {
                 const newWeaknesses = new Set(t.weaknesses);
                 newWeaknesses.delete(element);
@@ -249,10 +249,10 @@ export const silverWolf: Character = {
 
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'incessant_rain',
+        lightConeId: 'before-the-tutorial-mission-starts',
         superimposition: 1,
-        relicSetId: 'genius_of_brilliant_stars',
-        ornamentSetId: 'pan-cosmic_commercial_enterprise',
+        relicSetId: 'messenger-traversing-hackerspace',
+        ornamentSetId: 'lushaka-the-sunken-seas',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',
@@ -260,10 +260,10 @@ export const silverWolf: Character = {
             rope: 'energy_regen_rate'
         },
         subStats: [
-            { stat: 'effect_hit_rate', value: 1.0 },
+            { stat: 'effect_hit_rate', value: 0.50 },
             { stat: 'spd', value: 10 },
-            { stat: 'crit_rate', value: 0.2 },
-            { stat: 'crit_dmg', value: 0.4 }
+            { stat: 'crit_rate', value: 0.15 },
+            { stat: 'crit_dmg', value: 0.30 }
         ],
         rotationMode: 'sequence',
         rotation: ['skill', 'basic', 'basic'],
@@ -306,8 +306,8 @@ const onBattleStart: IEventHandlerFactory = (sourceUnitId, level, param) => {
                             type: 'add',
                             value: 0.20
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, event.targetId, vulnEffect);
                 }
@@ -382,8 +382,8 @@ function applyRandomBug(state: GameState, sourceId: string, targetId: string, le
         duration: duration,
         skipFirstTurnDecrement: true,
         modifiers: modifiers,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, targetId, bugEffect);
@@ -432,8 +432,8 @@ const onAction: IEventHandlerFactory = (sourceUnitId, level, param) => {
                                 type: 'add',
                                 value: -0.20
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, event.targetId, resEffect);
                     }
@@ -457,8 +457,8 @@ const onAction: IEventHandlerFactory = (sourceUnitId, level, param) => {
                         duration: SKILL_ALL_RES_DURATION,
                         skipFirstTurnDecrement: true,
                         modifiers: allResModifiers,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, event.targetId, allResEffect);
                 }
@@ -484,8 +484,8 @@ const onAction: IEventHandlerFactory = (sourceUnitId, level, param) => {
                                 type: 'add',
                                 value: -defVal
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, u.id, defEffect);
                     }
@@ -603,7 +603,15 @@ const e4e6Handler: IEventHandlerFactory = (sourceUnitId, level, param) => {
                                 damageType: 'ADDITIONAL_DAMAGE',
                                 details: 'E4 Bonus Damage',
                                 isCrit: dmgResult.isCrit,
-                                breakdownMultipliers: dmgResult.breakdownMultipliers
+                                breakdownMultipliers: dmgResult.breakdownMultipliers,
+                                skipLog: true,
+                                additionalDamageEntry: {
+                                    source: '銀狼',
+                                    name: 'E4: 縛りの結び目',
+                                    damageType: 'additional',
+                                    isCrit: dmgResult.isCrit,
+                                    breakdownMultipliers: dmgResult.breakdownMultipliers
+                                }
                             });
                             newState = applyResult.state;
                         }

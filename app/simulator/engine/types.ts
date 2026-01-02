@@ -102,6 +102,9 @@ export interface Unit {
     linkedUnitId?: UnitId;
     untargetable?: boolean;
     debuffImmune?: boolean;
+
+    // Enemy behavior
+    actionPattern?: string[];
 }
 
 // ターン終了スキップの終了条件タイプ

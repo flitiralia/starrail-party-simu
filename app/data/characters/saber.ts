@@ -181,9 +181,10 @@ function GetMaxEnergyWithOverflow(unit: Unit): number {
 // 炉心共鳴獲得処理を一元化（累積バフの処理のため）
 function addReactorCoreWrapper(state: GameState, unit: Unit, amount: number): GameState {
     let newState = state;
+
     if (amount <= 0) return newState;
 
-    // スタック追加
+    // 1. 炉心共鳴スタックを追加（stackStrategy: 'add' を使用）
     newState = addEffect(newState, unit.id, {
         id: EFFECT_IDS.REACTOR_CORE(unit.id),
         name: '炉心共鳴',
@@ -191,59 +192,73 @@ function addReactorCoreWrapper(state: GameState, unit: Unit, amount: number): Ga
         category: 'BUFF',
         stackCount: amount,
         maxStacks: MAX_REACTOR_CORE,
+        stackStrategy: 'add', // 追加時に現在値 + amount
         duration: -1,
-        durationType: 'TURN_START_BASED',
+        durationType: 'PERMANENT',
         sourceUnitId: unit.id,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+        // 炉心共鳴自体はステータスを持たない（スタック数管理のみ）
     });
 
-    // 累積バフ処理: 獲得した層数分だけループまたは加算
-
-    // 昇格6: 1層ごとに会心ダメ+4% (Max8層=32%)
+    // 2. A6 (昇格6: 星の冠): 炉心共鳴獲得ごとに会心ダメ+4%累積（独立永続バフ）
     if ((unit.traces || []).some(t => t.id === 'trace-a6')) {
-        const currentUnit = newState.registry.get(unit.id); // 最新のunitを再取得
-        if (currentUnit) {
-            newState = addEffect(newState, unit.id, {
-                id: EFFECT_IDS.TRACE_A6_STACK(unit.id),
-                name: '星の冠: 累積会心ダメ',
-                type: 'BUFF',
-                category: 'BUFF',
-                stackCount: amount, // 獲得数分追加
-                maxStacks: 8,
-                duration: -1, // 戦闘中永続
-                durationType: 'TURN_START_BASED',
-                // 1スタックあたり4% (0.04)
-                modifiers: [{ target: 'crit_dmg', value: 0.04, type: 'add', source: '昇格6' }],
-                sourceUnitId: unit.id,
-                apply: (t, s) => s,
-                remove: (t, s) => s
-            });
-        }
+        newState = addEffect(newState, unit.id, {
+            id: EFFECT_IDS.TRACE_A6_STACK(unit.id),
+            name: 'A6: 星の冠（累積）',
+            type: 'BUFF',
+            category: 'BUFF',
+            stackCount: amount,
+            maxStacks: MAX_REACTOR_CORE, // 炉心共鳴と同期
+            stackStrategy: 'add',
+            duration: -1,
+            durationType: 'PERMANENT',
+            sourceUnitId: unit.id,
+            modifiers: [{
+                target: 'crit_dmg',
+                value: 0.04, // スタックあたり4%（自動乗算）
+                type: 'add',
+                source: 'A6: 星の冠（累積）'
+            }],
+        });
     }
 
-    // E2: 1層ごとに防御無視1% (Max15層=15%)
+    // 3. E2: 防御無視累積（独立永続バフ、Max 15層）
     if ((unit.eidolonLevel || 0) >= 2) {
-        const currentUnit = newState.registry.get(unit.id); // 最新のunitを再取得
-        if (currentUnit) {
+        // 現在のE2スタック数を取得
+        const currentE2Stacks = getE2DefIgnoreStacks(newState, unit.id);
+        const newE2Stacks = Math.min(currentE2Stacks + amount, 15); // 15層キャップ
+        const addAmount = newE2Stacks - currentE2Stacks;
+
+        if (addAmount > 0) {
             newState = addEffect(newState, unit.id, {
                 id: EFFECT_IDS.E2_DEF_IGNORE(unit.id),
-                name: 'E2: 累積防御無視',
+                name: 'E2: 防御無視',
                 type: 'BUFF',
                 category: 'BUFF',
-                stackCount: amount,
-                maxStacks: 15,
+                stackCount: addAmount,
+                maxStacks: 15, // 15層キャップ
+                stackStrategy: 'add',
                 duration: -1,
-                durationType: 'TURN_START_BASED',
-                modifiers: [{ target: 'def_ignore', value: 0.01, type: 'add', source: 'E2' }],
+                durationType: 'PERMANENT',
                 sourceUnitId: unit.id,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+                modifiers: [{
+                    target: 'def_ignore',
+                    value: 0.01, // スタックあたり1%（自動乗算、Max15%）
+                    type: 'add',
+                    source: 'E2: 防御無視'
+                }],
             });
         }
     }
 
     return newState;
+}
+
+// E2防御無視の現在スタック数を取得するヘルパー
+function getE2DefIgnoreStacks(state: GameState, unitId: string): number {
+    const unit = state.registry.get(createUnitId(unitId));
+    if (!unit) return 0;
+    const effect = unit.effects.find(e => e.id === EFFECT_IDS.E2_DEF_IGNORE(unitId));
+    return effect?.stackCount || 0;
 }
 
 function getStacks(unit: Unit, effectId: string): number {
@@ -270,21 +285,27 @@ const onBattleStart = (event: IEvent, state: GameState, sourceId: string, eidolo
             duration: -1,
             durationType: 'TURN_START_BASED',
             sourceUnitId: unit.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         });
     }
 
     // 昇格4: EP回復
     if ((unit.traces || []).some(t => t.id === 'trace-a4')) {
         const threshold = saber.maxEnergy * 0.60;
-        if (unit.ep < threshold) {
-            unit.ep = threshold;
-        }
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(sourceId), u => {
+                if (u.ep < threshold) {
+                    return { ...u, ep: threshold };
+                }
+                return u;
+            })
+        };
     }
 
     return newState;
-};
+}
 
 const onTurnStart = (event: IEvent, state: GameState, sourceId: string): GameState => {
     return state;
@@ -328,8 +349,8 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceId: string, eid
             durationType: 'TURN_END_BASED',
             modifiers: [{ target: 'crit_dmg', value: 0.50, type: 'add', source: 'A6' }],
             sourceUnitId: source.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         });
     }
 
@@ -342,35 +363,45 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceId: string, eid
         const dmgBonusPct = stacksConsumed * (baseBonus + e2Bonus);
 
         const mainMult = getLeveledValue(ABILITY_VALUES.skillMain, skillLevel) * (1 + dmgBonusPct);
-        // Adjacent multiplier logic (unused in simple Blast impl but calculated for correctness)
-        // const adjMult = getLeveledValue(ABILITY_VALUES.skillAdj, skillLevel) * (1 + dmgBonusPct);
 
-        applyUnifiedDamage(newState, source, target, source.stats.atk * mainMult, {
+        const dmgResult = applyUnifiedDamage(newState, source, target, source.stats.atk * mainMult, {
             damageType: 'SKILL_DAMAGE',
-            details: `スキル(消費${stacksConsumed})`
+            details: `スキル(消費${stacksConsumed})`,
+            skipLog: true // 統合ログに出力されるため個別のログ行をスキップ
         });
+        newState = dmgResult.state;
 
         // 消費 & 回復
         newState = removeEffect(newState, source.id, EFFECT_IDS.REACTOR_CORE(sourceId));
         const recoverAmount = stacksConsumed * TALENT_EP_RECOVERY;
-        source.ep = Math.min(GetMaxEnergyWithOverflow(source), source.ep + recoverAmount);
+
+        // 最新のunitを取得してEP更新
+        const currentSource = newState.registry.get(source.id);
+        if (currentSource) {
+            currentSource.ep = Math.min(GetMaxEnergyWithOverflow(currentSource), currentSource.ep + recoverAmount);
+        }
 
     } else {
         // 通常 & 獲得モード
         const mainMult = getLeveledValue(ABILITY_VALUES.skillMain, skillLevel);
-        applyUnifiedDamage(newState, source, target, source.stats.atk * mainMult, {
+        const dmgResult = applyUnifiedDamage(newState, source, target, source.stats.atk * mainMult, {
             damageType: 'SKILL_DAMAGE',
-            details: 'スキル'
+            details: 'スキル',
+            skipLog: true
         });
+        newState = dmgResult.state;
 
-        newState = addReactorCoreWrapper(newState, source, 3);
-        if (eidolonLevel >= 1) {
-            newState = addReactorCoreWrapper(newState, source, 1);
+        // スタック獲得: 基本3層 + E1で+1層 = 合計4層
+        const currentSource = newState.registry.get(source.id);
+        if (currentSource) {
+            const gainAmount = eidolonLevel >= 1 ? 4 : 3;
+            newState = addReactorCoreWrapper(newState, currentSource, gainAmount);
         }
     }
 
     return newState;
-};
+}
+    ;
 
 const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, eidolonLevel: number): GameState => {
     let newState = state;
@@ -392,35 +423,38 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
             durationType: 'TURN_START_BASED',
             modifiers: [{ target: 'wind_res_pen', value: 0.04, type: 'add', source: 'E4' }],
             sourceUnitId: source.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         });
     }
 
     // 全体ダメージ
-    // IAOEAction なら targetId はないはずだが dispatcherの仕様上 targets を使うか全敵取得
-    const allEnemies = newState.registry.getAliveEnemies(); // Corrected to getAliveEnemies for combat logic
+    const allEnemies = newState.registry.getAliveEnemies();
 
     const allMult = getLeveledValue(ABILITY_VALUES.ultAll, ultLevel);
 
     allEnemies.forEach(tUnit => {
-        applyUnifiedDamage(newState, source, tUnit, source.stats.atk * allMult, {
+        const ur = applyUnifiedDamage(newState, source, tUnit, source.stats.atk * allMult, {
             damageType: 'ULTIMATE_DAMAGE',
-            details: '必殺技(全体)'
+            details: '必殺技(全体)',
+            skipLog: true
         });
+        newState = ur.state;
     });
 
     // ランダム10ヒット
     const randomMult = getLeveledValue(ABILITY_VALUES.ultRandom, ultLevel);
     if (allEnemies.length > 0) {
         for (let i = 0; i < 10; i++) {
+            const currentSource = newState.registry.get(source.id) || source;
             const randIdx = Math.floor(Math.random() * allEnemies.length);
             const tUnit = allEnemies[randIdx];
-            applyUnifiedDamage(newState, source, tUnit, source.stats.atk * randomMult, {
+            const ur = applyUnifiedDamage(newState, currentSource, tUnit, source.stats.atk * randomMult, {
                 damageType: 'ULTIMATE_DAMAGE',
                 details: '必殺技(追撃)',
                 skipLog: true
             });
+            newState = ur.state;
         }
     }
 
@@ -433,8 +467,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
         duration: -1,
         durationType: 'TURN_START_BASED',
         sourceUnitId: source.id,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     });
 
     // E6: EP回復ロジック
@@ -452,8 +486,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
                 duration: -1,
                 durationType: 'TURN_START_BASED',
                 sourceUnitId: source.id,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             });
         } else {
             // 2回目以降: 3回ごとに回復
@@ -477,8 +511,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
                     duration: -1,
                     durationType: 'TURN_START_BASED',
                     sourceUnitId: source.id,
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 });
             }
         }
@@ -502,10 +536,12 @@ const onBasicAtkUsed = (event: ActionEvent, state: GameState, sourceId: string, 
         const basicLevel = calculateAbilityLevel(eidolonLevel, 3, 'Basic');
         mult = getLeveledValue(ABILITY_VALUES.enhancedBasic, basicLevel);
 
-        applyUnifiedDamage(newState, source, target, source.stats.atk * mult, {
+        const ur = applyUnifiedDamage(newState, source, target, source.stats.atk * mult, {
             damageType: 'BASIC_DAMAGE',
-            details: '強化通常攻撃'
+            details: '強化通常攻撃',
+            skipLog: true
         });
+        newState = ur.state;
 
         // 強化解除
         newState = removeEffect(newState, source.id, EFFECT_IDS.ENHANCED_BASIC(sourceId));
@@ -520,8 +556,8 @@ const onBasicAtkUsed = (event: ActionEvent, state: GameState, sourceId: string, 
                 duration: -1,
                 durationType: 'TURN_START_BASED',
                 sourceUnitId: source.id,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             });
         }
     } else {
@@ -529,23 +565,28 @@ const onBasicAtkUsed = (event: ActionEvent, state: GameState, sourceId: string, 
         const basicLevel = calculateAbilityLevel(eidolonLevel, 3, 'Basic');
         mult = getLeveledValue(ABILITY_VALUES.basic, basicLevel);
 
-        applyUnifiedDamage(newState, source, target, source.stats.atk * mult, {
+        const ur = applyUnifiedDamage(newState, source, target, source.stats.atk * mult, {
             damageType: 'BASIC_DAMAGE',
-            details: '通常攻撃'
+            details: '通常攻撃',
+            skipLog: true
         });
+        newState = ur.state;
     }
 
     // E1: 通常後も「炉心共鳴」1層獲得
     if (eidolonLevel >= 1) {
-        newState = addReactorCoreWrapper(newState, source, 1);
+        const currentSource = newState.registry.get(source.id);
+        if (currentSource) {
+            newState = addReactorCoreWrapper(newState, currentSource, 1);
+        }
     }
 
     return newState;
 };
 
 const onAllyAbilityUsed = (event: ActionEvent, state: GameState, sourceId: string, eidolonLevel: number): GameState => {
-    // 自分以外の必殺技
-    if (event.type === 'ON_ULTIMATE_USED' && event.sourceId !== sourceId) {
+    // 自分以外の必殺技またはスキル
+    if ((event.type === 'ON_ULTIMATE_USED' || event.type === 'ON_SKILL_USED') && event.sourceId !== sourceId) {
         let newState = state;
         const source = newState.registry.get(createUnitId(sourceId));
         if (!source) return newState;
@@ -563,8 +604,8 @@ const onAllyAbilityUsed = (event: ActionEvent, state: GameState, sourceId: strin
             durationType: 'TURN_END_BASED',
             modifiers: [{ target: 'all_type_dmg_boost', value: dmgBuff, type: 'add', source: '天賦' }],
             sourceUnitId: source.id,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         });
 
         // 炉心共鳴3層獲得
@@ -593,19 +634,24 @@ export const saberHandlerFactory: IEventHandlerFactory = (
             ],
         },
         handlerLogic: (event: IEvent, state: GameState, handlerId: string): GameState => {
-            if (event.type === 'ON_BATTLE_START') return onBattleStart(event, state, sourceUnitId, eidolonLevel);
-            if (event.type === 'ON_TURN_START') return onTurnStart(event, state, sourceUnitId);
+            let newState = state;
+            if (event.type === 'ON_BATTLE_START') return onBattleStart(event, newState, sourceUnitId, eidolonLevel);
+            if (event.type === 'ON_TURN_START') return onTurnStart(event, newState, sourceUnitId);
 
             if (event.type === 'ON_SKILL_USED') {
                 const actEvent = event as ActionEvent;
-                if (actEvent.sourceId === sourceUnitId) return onSkillUsed(actEvent, state, sourceUnitId, eidolonLevel);
+                if (actEvent.sourceId === sourceUnitId) {
+                    newState = onSkillUsed(actEvent, newState, sourceUnitId, eidolonLevel);
+                } else {
+                    newState = onAllyAbilityUsed(actEvent, newState, sourceUnitId, eidolonLevel);
+                }
             }
             if (event.type === 'ON_ULTIMATE_USED') {
                 const actEvent = event as ActionEvent;
                 if (actEvent.sourceId === sourceUnitId) {
-                    return onUltimateUsed(actEvent, state, sourceUnitId, eidolonLevel);
+                    newState = onUltimateUsed(actEvent, newState, sourceUnitId, eidolonLevel);
                 } else {
-                    return onAllyAbilityUsed(actEvent, state, sourceUnitId, eidolonLevel);
+                    newState = onAllyAbilityUsed(actEvent, newState, sourceUnitId, eidolonLevel);
                 }
             }
             if (event.type === 'ON_BASIC_ATTACK') {
@@ -613,7 +659,7 @@ export const saberHandlerFactory: IEventHandlerFactory = (
                 if (actEvent.sourceId === sourceUnitId) return onBasicAtkUsed(actEvent, state, sourceUnitId, eidolonLevel);
             }
 
-            return state;
+            return newState;
         }
     };
 };

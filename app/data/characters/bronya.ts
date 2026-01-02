@@ -307,8 +307,8 @@ function createSkillDmgBoostEffect(
             type: 'add',
             value: dmgBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -338,8 +338,8 @@ function createUltimateAtkBoostEffect(
             type: 'add',
             value: atkBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -375,8 +375,8 @@ function createUltimateCritDmgBoostEffect(
             type: 'add',
             value: critDmgBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -398,8 +398,8 @@ function createTechniqueAtkBoostEffect(sourceId: string, duration: number): IEff
             type: 'add',
             value: TECHNIQUE_ATK_BOOST,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -421,8 +421,8 @@ function createA4DefBoostEffect(sourceId: string, duration: number): IEffect {
             type: 'add',
             value: A4_DEF_BOOST,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -448,8 +448,8 @@ function createE2SpdBoostEffect(
             type: 'add',
             value: E2_SPD_BOOST,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -504,8 +504,8 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
                 type: 'add',
                 value: A6_DMG_BOOST,
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         newState = addEffect(newState, sourceUnitId, auraEffect);
     }
@@ -610,8 +610,8 @@ const onSkill = (event: ActionEvent, state: GameState, sourceUnitId: string, eid
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+               
+               
             });
         }
     }
@@ -625,8 +625,8 @@ const onSkill = (event: ActionEvent, state: GameState, sourceUnitId: string, eid
             sourceUnitId: sourceUnitId,
             durationType: 'PERMANENT',
             duration: -1,
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         });
     }
 
@@ -790,8 +790,8 @@ const onBasicAttackForE4 = (event: ActionEvent, state: GameState, sourceUnitId: 
         sourceUnitId: sourceUnitId,
         durationType: 'PERMANENT',
         duration: -1,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     });
 
     return newState;

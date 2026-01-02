@@ -437,8 +437,8 @@ const addShisouDanwaStacks = (state: GameState, sourceUnitId: string, amount: nu
             duration: -1,
             stackCount: newStacks,
             maxStacks: MAX_SHISOU_DANWA_STACKS,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         return addEffect(state, sourceUnitId, shisouEffect);
     }
@@ -492,8 +492,8 @@ const addShishinakaStacks = (state: GameState, sourceUnitId: string, targetId: s
             durationType: 'PERMANENT',
             duration: -1,
             stackCount: newStacks,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         return addEffect(state, targetId, shishinakaEffect);
     }
@@ -635,8 +635,8 @@ const onBattleStart = (
                     type: 'add',
                     source: '黄泉E4'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, enemy.id, e4Debuff);
         });
@@ -677,8 +677,8 @@ const onBattleStart = (
                     type: 'add',
                     source: '奈落'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, a4Buff);
         }
@@ -854,8 +854,8 @@ const onUltimateUsed = (
         sourceUnitId: sourceUnitId,
         durationType: 'PERMANENT',
         duration: -1,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, ultInProgressFlag);
 
@@ -884,8 +884,8 @@ const onUltimateUsed = (
                 { target: 'quantum_res' as StatKey, value: -resDown, type: 'add', source: '黄泉天賦' },
                 { target: 'imaginary_res' as StatKey, value: -resDown, type: 'add', source: '黄泉天賦' },
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, enemy.id, resDownEffect);
     });
@@ -1115,8 +1115,8 @@ const onUltimateUsed = (
                             type: 'add',
                             source: '雷心'
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+                       
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, a6Buff);
                 }

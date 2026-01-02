@@ -78,8 +78,8 @@ function getSoulsteelSyncEffect(sourceId: string, eidolonLevel: number, characte
         durationType: 'TURN_END_BASED',
         duration: 1,
         modifiers: modifiers as any,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 }
 
@@ -265,8 +265,8 @@ export const yanqingHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                     sourceUnitId: sourceUnitId,
                     durationType: 'TURN_END_BASED',
                     duration: 2,
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+                   
+                    /* remove removed */
                 };
                 newState = addEffect(newState, sourceUnitId, techBuff);
             }
@@ -331,8 +331,8 @@ export const yanqingHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                             durationType: 'TURN_END_BASED',
                             duration: 2,
                             modifiers: [{ source: '軽呂', target: 'spd_pct', type: 'add', value: 0.10 }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                           
+                            /* remove removed */
                         };
                         newState = addEffect(newState, sourceUnitId, spdBuff);
                     }
@@ -481,8 +481,8 @@ export const yanqingHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                                     duration: 1,
                                     isCleansable: true,
                                     modifiers: [],
-                                    apply: (t, s) => s,
-                                    remove: (t, s) => s
+                                   
+                                    /* remove removed */
                                 };
                                 newState = addEffect(newState, target.id, freezeEffect);
                             }
@@ -529,8 +529,8 @@ export const yanqingHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                     durationType: 'TURN_END_BASED',
                     duration: 1,
                     modifiers: [{ source: '必殺技', target: 'crit_rate', type: 'add', value: 0.60 }],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+                   
+                    /* remove removed */
                 };
                 newState = addEffect(newState, sourceUnitId, crBuff);
 
@@ -544,8 +544,8 @@ export const yanqingHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                         durationType: 'TURN_END_BASED',
                         duration: 1,
                         modifiers: [{ source: '必殺技', target: 'crit_dmg', type: 'add', value: cdValue }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+                       
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, cdBuff);
                 }

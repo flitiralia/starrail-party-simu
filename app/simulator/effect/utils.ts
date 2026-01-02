@@ -1,4 +1,4 @@
-import { IEffect, DoTEffect, ShieldEffect, BreakStatusEffect, CrowdControlEffect } from './types';
+import { IEffect, DoTEffect, ShieldEffect, BreakStatusEffect, CrowdControlEffect, TauntEffect } from './types';
 
 export function isDoTEffect(effect: IEffect): effect is DoTEffect {
     return effect.type === 'DoT';
@@ -36,5 +36,12 @@ export function isCrowdControlEffect(effect: IEffect): boolean {
         return ['Freeze', 'Entanglement', 'Imprisonment'].includes(effect.statusType);
     }
     return false;
+}
+
+/**
+ * 挑発エフェクトかどうかを判定
+ */
+export function isTauntEffect(effect: IEffect): effect is TauntEffect {
+    return effect.type === 'Taunt';
 }
 

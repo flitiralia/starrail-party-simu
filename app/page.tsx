@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Character,
   FinalStats,
@@ -21,9 +21,12 @@ import {
   EnemyConfig,
   SimulationConfig, // Added
   BattleResult, // Added
+  EnemyData, // Added
+  EnemyMember, // Added
 } from '@/app/types';
 import { runSimulation } from '@/app/simulator/engine/simulation'; // Added
 import { calculateFinalStats } from '@/app/simulator/statBuilder';
+import { calculateEnemyStats, calculateEnemyDef } from '@/app/data/enemies'; // Added enemy calc import
 import CharacterStatsDisplay from '@/app/components/CharacterStatsDisplay';
 import SimulationLogTable from '@/app/components/SimulationLogTable';
 import PartySlotCard from '@/app/components/PartySlotCard';
@@ -42,7 +45,7 @@ const characterList: Character[] = ALL_CHARACTERS;
 const lightConeList: ILightConeData[] = Object.values(lightCones);
 const relicSetList: RelicSet[] = Object.values(relicSets);
 const ornamentSetList: OrnamentSet[] = Object.values(ornamentSets);
-const enemyList: Enemy[] = Object.values(enemies).filter((e: any) => e && typeof e === 'object' && 'baseStats' in e) as Enemy[];
+const enemyPresetList: EnemyData[] = enemies.ALL_ENEMIES;
 
 const MAX_PARTY_SIZE = 4;
 
@@ -131,12 +134,113 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
   }, []);
-  const [enemyLevel, setEnemyLevel] = useState(80);
+
+
+  // --- ENEMY LOGIC (Multi-Enemy Support) ---
+  const [enemyMembers, setEnemyMembers] = useState<EnemyMember[]>([]);
+  const [globalEnemyLevel, setGlobalEnemyLevel] = useState(95);
+  // Mode selection
+  const [enemyMode, setEnemyMode] = useState<'preset' | 'custom'>('preset');
+
+  // Preset Mode State
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(enemyPresetList[0]?.id || '');
+
+  // Custom Mode State
+  const [customEnemyName, setCustomEnemyName] = useState('Custom Enemy');
+  const [customEnemyHp, setCustomEnemyHp] = useState(500000);
+  const [customEnemyToughness, setCustomEnemyToughness] = useState(120);
+  const [customEnemySpd, setCustomEnemySpd] = useState(132);
+  const [customEnemyAtk, setCustomEnemyAtk] = useState<number | undefined>(undefined);
+  const [customEnemyDef, setCustomEnemyDef] = useState<number | undefined>(undefined);
+
+  // Add Enemy Handler
+  const handleAddEnemy = () => {
+    if (enemyMembers.length >= 5) {
+      alert('敵は最大5体までです。');
+      return;
+    }
+
+    let newMember: EnemyMember;
+
+    if (enemyMode === 'preset') {
+      const enemyData = enemyPresetList.find(e => e.id === selectedPresetId);
+      if (!enemyData) return;
+
+      newMember = {
+        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+        enemyId: enemyData.id,
+        level: globalEnemyLevel,
+        isCustom: false,
+      };
+    } else {
+      // Custom Mode
+      newMember = {
+        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+        enemyId: 'custom',
+        level: globalEnemyLevel,
+        isCustom: true,
+        customStats: {
+          name: customEnemyName,
+          hp: customEnemyHp,
+          toughness: customEnemyToughness,
+          spd: customEnemySpd,
+          atk: customEnemyAtk,
+          def: customEnemyDef,
+        }
+      };
+    }
+
+    setEnemyMembers([...enemyMembers, newMember]);
+  };
+
+  const handleRemoveEnemy = (index: number) => {
+    const newMembers = [...enemyMembers];
+    newMembers.splice(index, 1);
+    setEnemyMembers(newMembers);
+  };
+
+  // Initialize with one enemy if empty on mount (Optional, but good for UX)
+  useEffect(() => {
+    if (mounted && enemyMembers.length === 0 && enemyPresetList.length > 0) {
+      const defaultEnemy = enemyPresetList.find(e => e.id === 'flamespawn') || enemyPresetList[0];
+      setEnemyMembers([{
+        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+        enemyId: defaultEnemy.id,
+        level: globalEnemyLevel
+      }]);
+    }
+  }, [mounted]);
+
+  // Deprecated States (kept for type compatibility if needed, but unused mainly)
+  const [selectedEnemyId, setSelectedEnemyId] = useState<string>('');
+  const [enemyLevel, setEnemyLevel] = useState(95);
   const [enemyMaxHp, setEnemyMaxHp] = useState(1000000);
   const [enemyToughness, setEnemyToughness] = useState(180);
-  const [enemyAtk, setEnemyAtk] = useState<number | undefined>(undefined); // Optional, undefined = default
-  const [enemyDef, setEnemyDef] = useState<number | undefined>(undefined); // Optional, undefined = default
-  const [enemySpd, setEnemySpd] = useState(100); // Default Speed
+  const [enemyAtk, setEnemyAtk] = useState<number | undefined>(undefined);
+  const [enemyDef, setEnemyDef] = useState<number | undefined>(undefined);
+  const [enemySpd, setEnemySpd] = useState(100);
+
+  // --- ENEMY LOGIC ---
+  // Update stats when Level or Selected Enemy changes (in Preset Mode)
+  useEffect(() => {
+    if (enemyMode === 'preset') {
+      const selectedEnemy = enemyPresetList.find(e => e.id === selectedEnemyId);
+      if (selectedEnemy) {
+        // Calculate based on level
+        const stats = calculateEnemyStats(selectedEnemy, enemyLevel);
+        const def = calculateEnemyDef(enemyLevel);
+
+        setEnemyMaxHp(stats.hp);
+        setEnemyAtk(stats.atk);
+        setEnemyDef(def);
+        setEnemySpd(stats.spd);
+        setEnemyToughness(selectedEnemy.toughness); // Toughness is usually static or has specific scaling, existing logic uses constant or data
+
+        // Weaknesses are also updated
+        setWeaknesses(new Set(selectedEnemy.weaknesses));
+      }
+    }
+  }, [enemyMode, selectedEnemyId, enemyLevel]);
 
   // --- SIMULATION STATE ---
   const [rounds, setRounds] = useState(5);
@@ -364,29 +468,69 @@ export default function Home() {
       return;
     }
 
-    // if (!simulationWorker.current) {
-    //   alert('シミュレーションワーカーが利用できません。');
-    //   return;
-    // }
+    // Generate EnemyData list
+    const targetEnemies: EnemyData[] = [];
+
+    if (enemyMode === 'custom') {
+      const customEnemy: EnemyData = {
+        id: 'custom_enemy',
+        name: customEnemyName || 'Custom Enemy',
+        rank: 'Elite',
+        hpMultiplier: 0,
+        atkMultiplier: 0,
+        baseSpd: customEnemySpd,
+        toughness: customEnemyToughness,
+        // Default to standard resistance
+        elementalRes: {
+          Physical: 0.2, Fire: 0.2, Ice: 0.2, Lightning: 0.2, Wind: 0.2, Quantum: 0.2, Imaginary: 0.2
+        },
+        baseEffectRes: 0,
+        element: 'Physical',
+        weaknesses: Array.from(weaknesses), // Use global weaknesses
+        abilities: {
+          basic: { id: 'basic', name: 'Attack', type: 'Basic ATK', targetType: 'single_enemy', description: 'Normal Attack' },
+          skill: { id: 'skill', name: 'Skill', type: 'Skill', targetType: 'single_enemy', description: 'None' },
+          ultimate: { id: 'ult', name: 'Ultimate', type: 'Ultimate', targetType: 'single_enemy', description: 'None' },
+          talent: { id: 'talent', name: 'Talent', type: 'Talent', description: 'None' },
+          technique: { id: 'tech', name: 'Technique', type: 'Technique', description: 'None' }
+        },
+      };
+      targetEnemies.push(customEnemy);
+    } else {
+      // Preset Mode: Use enemyMembers list
+      if (enemyMembers.length === 0) {
+        alert('敵を追加してください。');
+        return;
+      }
+
+      const presetEnemies = enemyMembers.map(member => {
+        const baseData = enemyPresetList.find(e => e.id === member.enemyId);
+        if (!baseData) return null;
+        return baseData;
+      }).filter((e): e is EnemyData => e !== null);
+
+      targetEnemies.push(...presetEnemies);
+
+      if (targetEnemies.length === 0) {
+        alert('有効な敵データが見つかりません。');
+        return;
+      }
+    }
 
     const enemyConfig: EnemyConfig = {
-      level: enemyLevel,
-      maxHp: enemyMaxHp,
-      toughness: enemyToughness,
-
-      spd: enemySpd,
-      atk: enemyAtk,
-      def: enemyDef,
+      level: globalEnemyLevel,
+      maxHp: 0,
+      toughness: 0,
+      spd: 0,
     };
 
     const partyConfig: PartyConfig = {
       members: partyMembers,
     };
 
-    // Direct Execution (Bypassing Worker)
     const config: SimulationConfig = {
       characters: partyMembers.map((m) => m.character),
-      enemies: enemyList,
+      enemies: targetEnemies as any as Enemy[],
       weaknesses: weaknesses,
       enemyConfig: enemyConfig,
       partyConfig: partyConfig,
@@ -435,90 +579,159 @@ export default function Home() {
         <div style={mainLayoutStyle}>
           {/* 左サイドバー: 共通設定 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+
             <div style={sectionStyle}>
-              <h3>敵の弱点属性</h3>
-              <div style={weaknessGridStyle}>
-                {ELEMENTS.map((element) => (
-                  <label key={element} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <input
-                      type="checkbox"
-                      checked={weaknesses.has(element)}
-                      onChange={(e) => {
-                        const newWeaknesses = new Set(weaknesses);
-                        if (e.target.checked) {
-                          newWeaknesses.add(element);
-                        } else {
-                          newWeaknesses.delete(element);
-                        }
-                        setWeaknesses(newWeaknesses);
-                      }}
-                    />
-                    {element}
-                  </label>
-                ))}
+              <h3>敵の設定</h3>
+
+              {/* Mode Selection */}
+
+              {/* Global Enemy Level */}
+              <div style={{ marginBottom: '16px' }}>
+                <label>
+                  敵レベル(全体):
+                  <input
+                    type="number"
+                    value={globalEnemyLevel}
+                    onChange={(e) => setGlobalEnemyLevel(Number(e.target.value))}
+                    style={{ ...selectorStyle, marginLeft: '8px', width: '80px' }}
+                  />
+                </label>
               </div>
-            </div>
 
-            <div style={sectionStyle}>
-              <h3>敵のステータス</h3>
+              {/* Mode Selection */}
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <input
+                    type="radio"
+                    checked={enemyMode === 'preset'}
+                    onChange={() => setEnemyMode('preset')}
+                  />
+                  プリセット選択
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <input
+                    type="radio"
+                    checked={enemyMode === 'custom'}
+                    onChange={() => setEnemyMode('custom')}
+                  />
+                  カスタム入力
+                </label>
+              </div>
+
+              {/* Enemy List (Preset Mode Only) */}
+              {enemyMode === 'preset' && (
+                <div style={{ marginBottom: '16px', border: '1px solid #444', borderRadius: '4px', padding: '8px' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#ccc' }}>現在の敵リスト ({enemyMembers.length}/5)</div>
+                  {enemyMembers.length === 0 ? (
+                    <div style={{ color: '#666', fontSize: '0.9em' }}>敵がいません</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {enemyMembers.map((member, index) => {
+                        const data = enemyPresetList.find(e => e.id === member.enemyId);
+                        return (
+                          <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#333', padding: '6px', borderRadius: '4px' }}>
+                            <div>
+                              <div style={{ fontWeight: 'bold', fontSize: '0.9em' }}>{data?.name || member.enemyId}</div>
+                              <div style={{ fontSize: '0.8em', color: '#aaa' }}>{data?.rank}</div>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveEnemy(index)}
+                              style={{ backgroundColor: '#662222', border: 'none', color: '#ccc', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+
+              {/* Add Enemy Form or Custom Inputs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label>
-                  レベル:
-                  <input
-                    type="number"
-                    value={enemyLevel}
-                    onChange={(e) => setEnemyLevel(Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
-                <label>
-                  最大HP:
-                  <input
-                    type="number"
-                    value={enemyMaxHp}
-                    onChange={(e) => setEnemyMaxHp(Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
-                <label>
-                  靭性値:
-                  <input
-                    type="number"
-                    value={enemyToughness}
-                    onChange={(e) => setEnemyToughness(Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
+                {enemyMode === 'preset' ? (
+                  /* Preset Mode UI */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <select
+                      value={selectedPresetId}
+                      onChange={(e) => setSelectedPresetId(e.target.value)}
+                      style={{ ...selectorStyle, width: '100%' }}
+                    >
+                      {enemyPresetList.map(enemy => (
+                        <option key={enemy.id} value={enemy.id}>
+                          {enemy.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleAddEnemy}
+                      disabled={enemyMembers.length >= 5}
+                      style={{ ...addButtonStyle, marginTop: 0, width: '100%', padding: '8px', fontSize: '0.9em' }}
+                    >
+                      + 追加
+                    </button>
+                  </div>
+                ) : (
+                  /* Custom Mode UI */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '0.9em', color: '#ccc' }}>カスタム敵設定 (単体)</label>
+                    <input
+                      type="text"
+                      placeholder="敵の名前"
+                      value={customEnemyName}
+                      onChange={(e) => setCustomEnemyName(e.target.value)}
+                      style={selectorStyle}
+                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.8em' }}>HP</label>
+                        <input type="number" value={customEnemyHp} onChange={(e) => setCustomEnemyHp(Number(e.target.value))} style={{ ...selectorStyle, width: '100%' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.8em' }}>靭性</label>
+                        <input type="number" value={customEnemyToughness} onChange={(e) => setCustomEnemyToughness(Number(e.target.value))} style={{ ...selectorStyle, width: '100%' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.8em' }}>SPD</label>
+                        <input type="number" value={customEnemySpd} onChange={(e) => setCustomEnemySpd(Number(e.target.value))} style={{ ...selectorStyle, width: '100%' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.8em' }}>ATK</label>
+                        <input type="number" placeholder="Default" value={customEnemyAtk ?? ''} onChange={(e) => setCustomEnemyAtk(e.target.value ? Number(e.target.value) : undefined)} style={{ ...selectorStyle, width: '100%' }} />
+                      </div>
+                    </div>
 
-                <label>
-                  スピード:
-                  <input
-                    type="number"
-                    value={enemySpd}
-                    onChange={(e) => setEnemySpd(Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
-                <label>
-                  攻撃力:
-                  <input
-                    type="number"
-                    placeholder="デフォルト"
-                    value={enemyAtk ?? ''}
-                    onChange={(e) => setEnemyAtk(e.target.value === '' ? undefined : Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
-                <label>
-                  防御力:
-                  <input
-                    type="number"
-                    placeholder="デフォルト"
-                    value={enemyDef ?? ''}
-                    onChange={(e) => setEnemyDef(e.target.value === '' ? undefined : Number(e.target.value))}
-                    style={{ ...selectorStyle, marginLeft: '8px' }}
-                  />
-                </label>
+                    <div style={{ marginTop: '8px' }}>
+                      <label style={{ fontSize: '0.8em', marginBottom: '4px', display: 'block' }}>弱点属性</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                        {ELEMENTS.map((element) => (
+                          <label key={element} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.8em' }}>
+                            <input
+                              type="checkbox"
+                              checked={weaknesses.has(element)}
+                              onChange={(e) => {
+                                const newWeaknesses = new Set(weaknesses);
+                                if (e.target.checked) {
+                                  newWeaknesses.add(element);
+                                } else {
+                                  newWeaknesses.delete(element);
+                                }
+                                setWeaknesses(newWeaknesses);
+                              }}
+                            />
+                            {element}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

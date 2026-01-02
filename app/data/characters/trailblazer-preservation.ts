@@ -2,7 +2,7 @@ import { Character, StatKey, IAbility } from '../../types/index';
 import { IEventHandlerFactory, IEvent, GameState, Unit, ActionEvent, DamageDealtEvent } from '../../simulator/engine/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { IEffect } from '../../simulator/effect/types';
+import { IEffect, TauntEffect } from '../../simulator/effect/types';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { applyShield, applyHealing } from '../../simulator/engine/utils';
@@ -223,8 +223,8 @@ function setMagmaWillStacks(state: GameState, unitId: string, stacks: number): G
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: clampedStacks,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     let newState = removeEffect(state, unitId, EFFECT_IDS.MAGMA_WILL(unitId));
@@ -331,8 +331,8 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                             type: 'add',
                             value: 0.15
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, a6Effect);
                 }
@@ -482,8 +482,8 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                                     type: 'add',
                                     value: 0.10
                                 }],
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             };
                             newState = addEffect(newState, sourceUnitId, e6Effect);
                         }
@@ -514,30 +514,25 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                             type: 'add',
                             value: dmgRed
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, selfDmgRedEffect);
 
-                    // 挑発
+                    // 挑発 (基礎確率100% - 効果命中/効果抵抗の判定あり)
                     const enemies = newState.registry.getAliveEnemies();
                     for (const enemy of enemies) {
-                        const tauntEffect: IEffect = {
-                            id: `trailblazer-pres-taunt-${sourceUnitId}-${enemy.id}`,
+                        const tauntEffect: TauntEffect = {
+                            id: `taunt-${enemy.id}`,
+                            type: 'Taunt',
                             name: '挑発',
                             category: 'DEBUFF',
                             sourceUnitId: sourceUnitId,
                             durationType: 'TURN_END_BASED',
                             duration: 1,
                             isCleansable: true,
-                            modifiers: [{
-                                target: 'aggro' as StatKey,
-                                source: '不滅のアンバー',
-                                value: 1000,
-                                type: 'add'
-                            }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                            targetAllyId: sourceUnitId,  // 開拓者自身を攻撃させる
+                            // ignoreResistance: false (default) - 基礎確率100%なので効果抵抗判定あり
                         };
                         newState = addEffect(newState, enemy.id, tauntEffect);
                     }
@@ -560,8 +555,8 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                                     type: 'add',
                                     value: 0.15
                                 }],
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             };
                             newState = addEffect(newState, ally.id, a2Effect);
                         }
@@ -577,8 +572,8 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                         sourceUnitId: sourceUnitId,
                         durationType: 'PERMANENT',
                         duration: -1,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, ultBuff);
 
@@ -602,8 +597,8 @@ export const trailblazerPreservationHandlerFactory: IEventHandlerFactory = (sour
                                 type: 'add',
                                 value: e6EffectValue
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, sourceUnitId, e6Effect);
                     }

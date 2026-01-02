@@ -1,66 +1,64 @@
 import { ILightConeData } from '@/app/types';
 import { addEffect } from '@/app/simulator/engine/effectManager';
 
-export const endlessReminiscence: ILightConeData = {
+export const memorysCurtainNeverFalls: ILightConeData = {
   id: 'memorys-curtain-never-falls',
   name: '尽きぬ追憶',
-  description: '装備キャラの速度+8%。装備キャラが戦闘スキルを発動後、与ダメージが8%アップする、この効果は最大3層累積でき、続く戦闘スキル発動時に戦闘スキルによる与ダメージが8%アップする。',
-  descriptionTemplate: '装備キャラの速度+{0}%。装備キャラが戦闘スキルを発動後、与ダメージが{1}%アップする、この効果は最大3層累積でき、続く戦闘スキル発動時に戦闘スキルによる与ダメージが{2}%アップする。',
+  description: '装備キャラの速度+6.0%。装備キャラが戦闘スキルを発動した後、味方全体の与ダメージ+8%、3ターン継続。',
+  descriptionTemplate: '装備キャラの速度+{0}%。装備キャラが戦闘スキルを発動した後、味方全体の与ダメージ+{1}%、3ターン継続。',
   descriptionValues: [
-    ['6', '8', '8'],
-    ['7.5', '10', '10'],
-    ['9', '12', '12'],
-    ['10.5', '14', '14'],
-    ['12', '16', '16']
+    ['6.0', '8'],
+    ['7.5', '10'],
+    ['9.0', '12'],
+    ['10.5', '14'],
+    ['12.0', '16']
   ],
   path: 'Remembrance',
   baseStats: {
-    hp: 952,
-    atk: 476,
-    def: 330,
+    hp: 1058,
+    atk: 529,
+    def: 396,
   },
-
   passiveEffects: [
     {
-      id: 'spd-percent-boost',
+      id: 'memorys-curtain-spd',
       name: '徴収（速度）',
       category: 'BUFF',
       targetStat: 'spd_pct',
       effectValue: [0.06, 0.075, 0.09, 0.105, 0.12]
     }
   ],
-
   eventHandlers: [
     {
-      id: 'dmg-boost-on-skill',
+      id: 'memorys-curtain-buff',
       name: '徴収（与ダメバフ）',
       events: ['ON_SKILL_USED'],
       handler: (event, state, unit, superimposition) => {
         if (event.sourceId !== unit.id) return state;
 
-        const dmgBoostValue = [0.08, 0.10, 0.12, 0.14, 0.16][superimposition - 1];
+        const dmgBoost = [0.08, 0.10, 0.12, 0.14, 0.16][superimposition - 1];
+        const allies = state.registry.getAliveAllies();
 
-        return addEffect(state, unit.id, {
-          id: `endless_reminiscence_dmg_boost_${unit.id}`,
-          name: '尽きぬ追憶（与ダメバフ）',
-          category: 'BUFF',
-          sourceUnitId: unit.id,
-          durationType: 'TURN_END_BASED',
-          skipFirstTurnDecrement: true,
-          duration: 1,
-          stackCount: 1,
-          maxStacks: 3,
-          modifiers: [
-            {
+        let newState = state;
+        for (const ally of allies) {
+          newState = addEffect(newState, ally.id, {
+            id: `memorys-curtain-buff-${unit.id}`,
+            name: '徴収（与ダメージ）',
+            category: 'BUFF',
+            sourceUnitId: unit.id,
+            durationType: 'TURN_START_BASED',
+            duration: 3,
+            modifiers: [{
               target: 'all_type_dmg_boost',
-              source: '尽きぬ追憶',
+              value: dmgBoost,
               type: 'add',
-              value: dmgBoostValue
-            }
-          ],
-          apply: (u, s) => s,
-          remove: (u, s) => s
-        });
+              source: '尽きぬ追憶'
+            }],
+            apply: (u, s) => s,
+            remove: (u, s) => s
+          });
+        }
+        return newState;
       }
     }
   ]

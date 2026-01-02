@@ -421,8 +421,8 @@ const createDoTEffect = (
         damageCalculation: 'multiplier',
         multiplier: multiplier,
         isCleansable: true,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 };
 
@@ -465,8 +465,8 @@ const deployBarrier = (
         sourceUnitId: sourceUnitId,
         durationType: 'TURN_START_BASED',
         duration: BARRIER_DURATION,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, barrierEffect);
 
@@ -481,8 +481,8 @@ const deployBarrier = (
         duration: -1,
         stackCount: 0,
         maxStacks: maxTriggers,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, sourceUnitId, triggerCounter);
 
@@ -499,8 +499,8 @@ const deployBarrier = (
             duration: -1,
             linkedEffectId: EFFECT_IDS.BARRIER(sourceUnitId),
             modifiers: [{ target: 'atk_pct' as StatKey, value: -ULT_ATK_DEBUFF, type: 'add', source: '結界' }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, enemy.id, atkDebuff);
 
@@ -514,8 +514,8 @@ const deployBarrier = (
             duration: -1,
             linkedEffectId: EFFECT_IDS.BARRIER(sourceUnitId),
             modifiers: [{ target: 'def_pct' as StatKey, value: -ultValues.defDebuff, type: 'add', source: '結界' }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, enemy.id, defDebuff);
 
@@ -538,8 +538,8 @@ const deployBarrier = (
                     { target: 'quantum_res' as StatKey, value: -0.20, type: 'add', source: 'E4' },
                     { target: 'imaginary_res' as StatKey, value: -0.20, type: 'add', source: 'E4' },
                 ],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, enemy.id, resShred);
         }
@@ -677,8 +677,8 @@ const onBattleStart = (
                 durationType: 'PERMANENT',
                 duration: -1,
                 modifiers: [{ target: 'all_type_dmg_boost' as StatKey, value: dmgBoost, type: 'add', source: 'A6' }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, a6Effect);
         }
@@ -742,8 +742,8 @@ const onSkillUsed = (
             duration: 3,
             modifiers: [{ target: 'dmg_taken' as StatKey, value: skillValues.vuln, type: 'add', source: 'スキル' }],
             isCleansable: true,
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, enemy.id, vulnDebuff);
     });

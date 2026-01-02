@@ -151,8 +151,8 @@ const applyDecipher = (state: GameState, targetId: string, stacks: number, sourc
         stackCount: newStacks,
         maxStacks: DECIPHER_MAX_STACKS,
         modifiers: [], // 効果自体はダメージ計算時に参照される
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     let newState = addEffect(state, targetId, effect);
@@ -188,8 +188,8 @@ const addAnswerStack = (state: GameState, sourceId: string, amount: number): Gam
         stackCount: newStacks,
         maxStacks: ANSWER_MAX_STACKS,
         modifiers: [], // 必殺技時に参照
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, sourceId, effect);
@@ -217,8 +217,8 @@ const addSixthSense = (state: GameState, sourceId: string, amount: number): Game
         stackCount: newStacks,
         maxStacks: 4,
         modifiers: [], // スキル変化の判定に使用
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, sourceId, effect);
@@ -352,8 +352,25 @@ export const theHerta: Character = {
         e6: { level: 6, name: '答えは誘惑のように甘い', description: '耐性貫通+20%。必殺技倍率アップ。' }
     },
     defaultConfig: {
+        eidolonLevel: 0,
+        lightConeId: 'into-the-unreachable-veil',
+        superimposition: 1,
+        relicSetId: 'scholar-lost-in-erudition',
+        ornamentSetId: 'izumo-gensei-and-takama-divine-realm',
+        mainStats: {
+            body: 'crit_rate',
+            feet: 'atk_pct',
+            sphere: 'ice_dmg_boost',
+            rope: 'energy_regen_rate'
+        },
+        subStats: [
+            { stat: 'crit_rate', value: 0.15 },
+            { stat: 'crit_dmg', value: 0.30 },
+            { stat: 'atk_pct', value: 0.15 },
+            { stat: 'spd', value: 6 }
+        ],
         rotationMode: 'spam_skill',
-        ultStrategy: 'immediate'
+        ultStrategy: 'immediate',
     }
 };
 
@@ -397,8 +414,8 @@ const onStart = (state: GameState, sourceId: string, eidolonLevel: number, isWav
                 durationType: 'PERMANENT',
                 duration: -1,
                 modifiers: [{ target: 'crit_dmg', value: A4_CRIT_DMG_BUFF, type: 'add', source: 'マダム・ヘルタ A4' }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, ally.id, buff);
         });
@@ -415,8 +432,8 @@ const onStart = (state: GameState, sourceId: string, eidolonLevel: number, isWav
                 durationType: 'PERMANENT',
                 duration: -1,
                 modifiers: [{ target: 'spd', value: E4_SPD_BUFF, type: 'pct', source: 'マダム・ヘルタ E4' }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, ally.id, buff);
         });
@@ -438,8 +455,8 @@ const onStart = (state: GameState, sourceId: string, eidolonLevel: number, isWav
             duration: TECHNIQUE_DURATION,
             skipFirstTurnDecrement: true,
             modifiers: [{ target: 'atk_pct', value: TECHNIQUE_ATK_BUFF_VAL, type: 'add', source: 'マダム・ヘルタ 秘技' }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, sourceId, buff);
     }
@@ -741,8 +758,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, hertaId: string): 
         duration: 3,
         skipFirstTurnDecrement: true,
         modifiers: [{ target: 'atk_pct', value: atkBuffVal, type: 'add', source: 'マダム・ヘルタ 必殺技' }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, hertaId, atkBuff);
 
@@ -822,8 +839,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, hertaId: string): 
                     stackCount: newStackCount,
                     maxStacks: DECIPHER_MAX_STACKS,
                     modifiers: [],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 };
                 newState = addEffect(newState, enemy.id, effect);
             }

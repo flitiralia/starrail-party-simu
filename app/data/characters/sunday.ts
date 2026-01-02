@@ -255,8 +255,8 @@ export const sunday: Character = {
     defaultConfig: {
         lightConeId: 'a-grounded-ascent',
         superimposition: 1,
-        relicSetId: 'priest_who_walks_the_path_of_suffering',
-        ornamentSetId: 'lusaka_by_the_sunken_sea',
+        relicSetId: 'sacerdos-relived-ordeal',
+        ornamentSetId: 'lushaka-the-sunken-seas',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',
@@ -264,8 +264,8 @@ export const sunday: Character = {
             rope: 'energy_regen_rate',
         },
         subStats: [
-            { stat: 'crit_dmg', value: 0.80 },
             { stat: 'spd', value: 20 },
+            { stat: 'crit_dmg', value: 0.80 },
             { stat: 'effect_res', value: 0.20 },
             { stat: 'def_pct', value: 0.20 },
         ],
@@ -300,7 +300,7 @@ function createBlessedOneEffect(
     // E2: 「祝福されし者」の与ダメージ+30%
     const e2DmgBoost = eidolonLevel >= 2 ? E2_BLESSED_DMG_BOOST : 0;
 
-    return {
+    const effect: IEffect = {
         id: `${EFFECT_IDS.BLESSED}-${sourceId}-${targetId}`,
         name: '祝福されし者',
         category: 'BUFF',
@@ -308,42 +308,29 @@ function createBlessedOneEffect(
         durationType: 'PERMANENT', // 手動で減少させるためPERMANENT
         duration: duration,
         tags: [TAGS.BLESSED], // サンデーのターン開始時に減少させるためのタグ
-        onApply: (target, state) => {
-            const modifiers = [
-                {
-                    source: '祝福されし者',
-                    target: 'crit_dmg' as StatKey,
-                    type: 'add' as const,
-                    value: critDmgBoost,
-                }
-            ];
-            // E2: 与ダメージ+30%
-            if (e2DmgBoost > 0) {
-                modifiers.push({
-                    source: '祝福されし者 (E2)',
-                    target: 'all_type_dmg_boost' as StatKey,
-                    type: 'add' as const,
-                    value: e2DmgBoost,
-                });
+        modifiers: [
+            {
+                source: '祝福されし者',
+                target: 'crit_dmg' as StatKey,
+                type: 'add' as const,
+                value: critDmgBoost,
             }
-            const newModifiers = [...target.modifiers, ...modifiers];
-            return {
-                ...state,
-                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        onRemove: (target, state) => {
-            const newModifiers = target.modifiers.filter(m =>
-                m.source !== '祝福されし者' && m.source !== '祝福されし者 (E2)'
-            );
-            return {
-                ...state,
-                registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+        ]
     };
+
+    // E2: 与ダメージ+30%
+    if (e2DmgBoost > 0) {
+        if (!effect.modifiers) effect.modifiers = [];
+        effect.modifiers.push({
+            source: '祝福されし者 (E2)',
+            target: 'all_type_dmg_boost' as StatKey,
+            type: 'add' as const,
+            value: e2DmgBoost,
+        });
+    }
+
+
+    return effect;
 }
 
 /**
@@ -376,8 +363,8 @@ function createSkillDmgBoostEffect(
             type: 'add',
             value: totalDmgBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -418,8 +405,8 @@ function createTalentCritRateEffect(
             type: 'add',
             value: critRateBoost, // stackCountにより自動的に乗算される
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -461,8 +448,8 @@ function createE1DefIgnoreEffect(
                 registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
             };
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -488,8 +475,8 @@ function createTechniqueDmgBoostEffect(
             type: 'add',
             value: TECHNIQUE_DMG_BOOST,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -515,8 +502,8 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
             sourceUnitId: sourceUnitId,
             durationType: 'PERMANENT',
             duration: -1,
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+
+
         });
     }
 
@@ -781,8 +768,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+
+
             });
         }
     }

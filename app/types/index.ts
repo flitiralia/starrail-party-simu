@@ -214,6 +214,7 @@ export interface IUnitData {
   // シミュレーション中に付与される動的な効果
   effects?: IEffect[];
   iconPath?: string; // StarRailStaticAPI 用のアイコンパス
+  actionPattern?: string[]; // 敵の行動パターン
 }
 
 // --- 星魂(Eidolon) ---
@@ -637,4 +638,23 @@ export interface SimulationLogEntry {
 
   // アクションキュー情報（デバッグ用）
   actionQueue?: Array<{ unitName: string; actionValue: number }>;
+}
+
+// 敵メンバー管理用
+export interface EnemyMember {
+  id: string; // unique instance id
+  enemyId: string; // data id (e.g. 'flamespawn' or 'custom')
+  level: number;
+  isCustom?: boolean; // カスタム敵かどうか
+  customStats?: {
+    name?: string;
+    hp: number;
+    toughness: number;
+    spd: number;
+    atk?: number;
+    def?: number;
+    weaknesses?: string[]; // Element[] is better but string[] for simplicity in JSON/storage context if needed, but here Element[] is fine. Let's use Element[] casting or maintain strict typing.
+    // Using `any` for element types to avoid import circular dependency if strictly defined, but `Element` is globally available typically.
+    // Let's stick to simple numbers for now.
+  };
 }

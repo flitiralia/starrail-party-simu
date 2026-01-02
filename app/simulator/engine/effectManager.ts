@@ -27,21 +27,49 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
         // Update existing effect
         const currentStack = duplicateEffect.stackCount || 1;
         const maxStack = effect.maxStacks || duplicateEffect.maxStacks || 1;
+        const incomingStack = effect.stackCount !== undefined ? effect.stackCount : 1;
+        const strategy = effect.stackStrategy || 'auto';
 
-        // If the incoming effect specifies a stack count (e.g. calculated total), use it if it's valid.
-        // Otherwise, default to incrementing by 1.
-        let candidateStack = currentStack + 1;
-        if (effect.stackCount !== undefined && effect.stackCount > currentStack) {
-            candidateStack = effect.stackCount;
+        let candidateStack = currentStack;
+
+        switch (strategy) {
+            case 'add':
+                // 加算: 現在値 + 指定値 (デフォルト1)
+                candidateStack = currentStack + incomingStack;
+                break;
+            case 'replace':
+                // 上書き: 指定値
+                candidateStack = incomingStack;
+                break;
+            case 'max':
+                // 最大値維持: 現在値と指定値の大きい方
+                candidateStack = Math.max(currentStack, incomingStack);
+                break;
+            case 'auto':
+            default:
+                // 既存挙動:
+                // incomingStack > currentStack ならその値を採用 (セットアップ時など)
+                // そうでなければ +1 (スタック蓄積)
+                // ※ この挙動は曖昧だが、後方互換性のため維持
+                if (incomingStack > currentStack) {
+                    candidateStack = incomingStack;
+                } else {
+                    candidateStack = currentStack + 1;
+                }
+                break;
         }
 
         const newStack = Math.min(candidateStack, maxStack);
 
-        duplicateEffect.stackCount = newStack;
-        duplicateEffect.duration = effect.duration;
+        const mergedEffect: IEffect = {
+            ...duplicateEffect,
+            ...effect, // Apply new definition (modifiers, name, etc.)
+            stackCount: newStack, // Use calculated stack
+            duration: effect.duration // Use new duration
+        };
 
         const updatedEffects = existingUnit.effects.map(e =>
-            (e.id === effect.id && e.sourceUnitId === effect.sourceUnitId) ? duplicateEffect : e
+            (e.id === effect.id && e.sourceUnitId === effect.sourceUnitId) ? mergedEffect : e
         );
 
         let updatedTarget = {
@@ -102,8 +130,6 @@ export function addEffect(state: GameState, targetId: string, effect: IEffect): 
     const currentTarget = newState.registry.get(createUnitId(targetId))!;
     if (effect.onApply) {
         newState = effect.onApply(currentTarget, newState);
-    } else if (effect.apply) {
-        newState = effect.apply(currentTarget, newState);
     }
 
     // ★ skipFirstTurnDecrementがtrueの場合、appliedDuringTurnOfを設定
@@ -195,8 +221,6 @@ export function removeEffect(state: GameState, targetId: string, effectId: strin
     // 2. Remove effect logic
     if (effect.onRemove) {
         newState = effect.onRemove(target, newState);
-    } else if (effect.remove) {
-        newState = effect.remove(target, newState);
     }
 
     // 3. Remove from unit's list AND Recalculate Stats

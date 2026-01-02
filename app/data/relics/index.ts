@@ -15,7 +15,6 @@ export * from './warrior-goddess-of-sun-and-thunder';
 export * from './watchmaker-master-of-dream-machinations';
 export * from './passerby-of-wandering-cloud';
 export * from './musketeer-of-wild-wheat';
-export * from './ninja-record-sound-hunt';
 // 新規追加遺物
 export * from './knight-of-purity-palace';
 export * from './hunter-of-glacial-forest';

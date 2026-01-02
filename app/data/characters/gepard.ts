@@ -310,8 +310,8 @@ function setTalentUsed(state: GameState, unitId: string): GameState {
         sourceUnitId: unitId,
         durationType: 'PERMANENT',
         duration: -1,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     return addEffect(state, unitId, talentUsedEffect);
 }
@@ -358,8 +358,8 @@ function createFreezeEffect(
             gepardE2Active: eidolonLevel >= 2
         },
 
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 }
 
@@ -408,8 +408,8 @@ const onBattleStart = (
                     { target: 'effect_res' as StatKey, value: E4_EFFECT_RES, type: 'add' as const, source: 'E4: 確固たる意志' }
                 ],
                 tags: ['E4_EFFECT_RES'],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, ally.id, e4Effect);
         }
@@ -456,8 +456,8 @@ const onTurnStart = (
                     { target: 'atk' as StatKey, value: atkBoost, type: 'add' as const, source: 'A6: 戦意' }
                 ],
                 tags: ['A6_ATK_BOOST'],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, a6Effect);
         }
@@ -644,8 +644,8 @@ const onEffectRemoved = (
                     { target: 'spd' as StatKey, value: -E2_SLOW_AMOUNT, type: 'pct' as const, source: 'E2: 余寒' }
                 ],
                 tags: ['SLOW', 'E2_SLOW'],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
 
             return addEffect(state, targetId, e2SlowEffect);

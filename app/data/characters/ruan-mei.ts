@@ -340,9 +340,7 @@ function createStringOutsideSoundAura(sourceId: string, duration: number, eidolo
                             ...state,
                             registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
                         };
-                    },
-                    apply: (target, state) => state,
-                    remove: (target, state) => state,
+                    }
                 };
                 newState = addEffect(newState, u.id, buff);
             });
@@ -356,8 +354,8 @@ function createStringOutsideSoundAura(sourceId: string, duration: number, eidolo
             });
             return newState;
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -422,9 +420,7 @@ function createFieldEffect(sourceId: string, duration: number, eidolonLevel: num
                             ...state,
                             registry: state.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
                         };
-                    },
-                    apply: (target, state) => state,
-                    remove: (target, state) => state,
+                    }
                 };
                 newState = addEffect(newState, u.id, buff);
             });
@@ -437,8 +433,8 @@ function createFieldEffect(sourceId: string, duration: number, eidolonLevel: num
             });
             return newState;
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -513,8 +509,8 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
                     registry: s.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
                 };
             },
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+
+
         };
         newState = addEffect(newState, ally.id, spdBuff);
     });
@@ -549,8 +545,8 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
                         registry: s.registry.update(createUnitId(target.id), u => ({ ...u, modifiers: newModifiers }))
                     };
                 },
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+
+
             };
             newState = addEffect(newState, u.id, breakBuff);
         });
@@ -627,8 +623,8 @@ const onAttack = (event: ActionEvent, state: GameState, sourceUnitId: string): G
                     ignoreResistance: true, // 確定付与
                     onApply: (t, s) => s,
                     onRemove: (t, s) => s,
-                    apply: (t, s) => s,
-                    remove: (t, s) => s,
+
+
                 };
                 return addEffect(state, targetEnemy.id, zanBaiEffect);
             }
@@ -714,8 +710,8 @@ const onWeaknessBreak = (event: ActionEvent, state: GameState, sourceUnitId: str
                     registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
                 };
             },
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+
+
         };
         newState = addEffect(newState, sourceUnitId, e4Buff);
     }
@@ -786,8 +782,8 @@ const onWeaknessBreakRecoveryAttempt = (event: ActionEvent, state: GameState, so
         sourceUnitId: sourceUnitId,
         durationType: 'PERMANENT',
         duration: -1,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, enemy.id, noReapplyEffect);
 

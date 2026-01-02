@@ -137,7 +137,10 @@ export const Huohuo: Character = {
             { stat: 'hp_pct', value: 0.20 },
             { stat: 'effect_res', value: 0.10 },
             { stat: 'spd', value: 5 },
-        ]
+        ],
+        rotationMode: 'sequence',
+        rotation: ['s', 'b'],
+        ultStrategy: 'immediate',
     }
 };
 
@@ -284,15 +287,15 @@ function grantDivineProvision(state: GameState, sourceId: string, overrideDurati
                         duration: 0,
                         linkedEffectId: EFFECT_IDS.DIVINE_PROVISION(sourceId),
                         modifiers: [{ source: 'フォフォE1', target: 'spd_pct', type: 'add', value: 0.12 }],
-                        apply: (nt, ns) => ns, remove: (nt, ns) => ns
+                        onApply: (nt, ns) => ns, onRemove: (nt, ns) => ns
                     };
                     s = addEffect(s, ally.id, speedBuff);
                 });
             }
             return s;
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, sourceId, effect);
@@ -427,7 +430,7 @@ function applyE6Buff(state: GameState, source: Unit, target: Unit): GameState {
         duration: 2,
         skipFirstTurnDecrement: true, // Standard for "lasts 2 turns" applied on turn
         modifiers: [{ source: 'フォフォE6', target: 'all_type_dmg_boost', type: 'add', value: 0.50 }],
-        apply: (t, s) => s, remove: (t, s) => s
+        /* remove removed */
     };
 
     return addEffect(state, target.id, buff);
@@ -466,7 +469,7 @@ export const huohuoHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, 
                             duration: 2,
                             skipFirstTurnDecrement: true,
                             modifiers: [{ source: 'フォフォ秘技', target: 'atk_pct', type: 'add', value: -0.25 }],
-                            apply: (t, s) => s, remove: (t, s) => s
+                            /* remove removed */
                         };
                         newState = addEffect(newState, enemy.id, debuff);
                     });
@@ -511,7 +514,7 @@ export const huohuoHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, 
                         duration: 2,
                         skipFirstTurnDecrement: true,
                         modifiers: [{ source: 'フォフォ必殺技', target: 'atk_pct', type: 'add', value: atkPct }],
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     };
                     newState = addEffect(newState, ally.id, buff);
                 });
@@ -598,7 +601,7 @@ export const huohuoHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, 
                                         durationType: "PERMANENT",
                                         duration: -1,
                                         stackCount: 1,
-                                        apply: (t, s) => s, remove: (t, s) => s
+                                        /* remove removed */
                                     };
                                     newState = addEffect(newState, sourceUnitId, newCounter);
                                 }

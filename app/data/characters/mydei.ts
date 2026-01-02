@@ -2,7 +2,7 @@ import { Character, StatKey, IAbility } from '../../types/index';
 import { IEventHandlerFactory, IEvent, GameState, Unit, ActionAdvanceAction, IEventHandlerLogic } from '../../simulator/engine/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { IEffect } from '../../simulator/effect/types';
+import { IEffect, TauntEffect } from '../../simulator/effect/types';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { consumeHp } from '../../simulator/engine/utils';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
@@ -124,8 +124,8 @@ function updateCharge(state: GameState, unitId: string, delta: number): GameStat
             duration: -1,
             stackCount: nextStack,
             maxStacks: CHARGE_MAX,
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+
+
         };
         newState = addEffect(newState, unitId, effect);
     }
@@ -200,8 +200,8 @@ function updateCharge(state: GameState, unitId: string, delta: number): GameStat
             sourceUnitId: unitId,
             durationType: 'TURN_START_BASED', // Consumed on turn start
             duration: 1,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, unitId, godKillerMarker);
 
@@ -245,8 +245,8 @@ function enterBloodRetribution(state: GameState, unitId: string): GameState {
             { target: 'def_pct', value: -1.0, type: 'add', source: 'Blood Retribution (Zero)' } // -100% DEF
         ],
         tags: ['BLOOD_RETRIBUTION'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     // E4: Crit DMG +30%
@@ -349,11 +349,34 @@ export const mydeiHandlerFactory: IEventHandlerFactory = (sourceUnitId, eidolonL
                             durationType: 'PERMANENT',
                             duration: -1,
                             modifiers: [{ target: 'crit_rate', value: critRate, type: 'add', source: 'A6' }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, unitId, a6Buff);
                     }
+                }
+
+                // 秘技: 戦闘開始時に敵全体を挑発状態にする (1ターン, 固定確率100%)
+                // useTechniqueがtrueの場合のみ発動
+                if (unit.config?.useTechnique !== false) {
+                    const aliveEnemies = newState.registry.getAliveEnemies();
+                    for (const enemy of aliveEnemies) {
+                        const tauntEffect: TauntEffect = {
+                            id: `taunt-${enemy.id}`,
+                            type: 'Taunt',
+                            name: '挑発',
+                            category: 'DEBUFF',
+                            sourceUnitId: unitId,
+                            durationType: 'TURN_END_BASED',
+                            duration: 1,  // 1ターン継続
+                            isCleansable: true,
+                            targetAllyId: unitId,  // モーディス自身を攻撃させる
+                            ignoreResistance: true,  // 固定確率100%
+                        };
+                        newState = addEffect(newState, enemy.id, tauntEffect);
+                    }
+                    // チャージを50獲得
+                    newState = updateCharge(newState, unitId, 50);
                 }
             }
 
@@ -495,8 +518,8 @@ export const mydeiHandlerFactory: IEventHandlerFactory = (sourceUnitId, eidolonL
                                 durationType: 'PERMANENT', // Manual reset
                                 duration: -1,
                                 stackCount: actualGain,
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
+
+                                /* remove removed */
                             });
                         }
                     }
@@ -611,6 +634,47 @@ export const mydeiHandlerFactory: IEventHandlerFactory = (sourceUnitId, eidolonL
                 // We'll do it manually here or in `apply`.
             }
 
+            // 必殺技完了時: 挑発付与 (ターゲット+隣接敵, 2ターン, 固定確率100%)
+            if (event.type === 'ON_ACTION_COMPLETE' && event.sourceId === unitId) {
+                const actionLog = state.currentActionLog;
+                if (actionLog?.primaryActionType === 'ULTIMATE') {
+                    // ターゲットおよび隣接敵に挑発を付与
+                    const targetId = actionLog.primaryTargetId;
+                    if (targetId) {
+                        const aliveEnemies = newState.registry.getAliveEnemies();
+
+                        // メインターゲットと隣接敵を特定
+                        const targetIndex = aliveEnemies.findIndex(e => e.id === targetId);
+                        const affectedEnemies: typeof aliveEnemies = [];
+
+                        if (targetIndex >= 0) {
+                            // メインターゲット
+                            affectedEnemies.push(aliveEnemies[targetIndex]);
+                            // 左隣接
+                            if (targetIndex > 0) affectedEnemies.push(aliveEnemies[targetIndex - 1]);
+                            // 右隣接
+                            if (targetIndex < aliveEnemies.length - 1) affectedEnemies.push(aliveEnemies[targetIndex + 1]);
+                        }
+
+                        for (const enemy of affectedEnemies) {
+                            const tauntEffect: TauntEffect = {
+                                id: `taunt-${enemy.id}`,
+                                type: 'Taunt',
+                                name: '挑発',
+                                category: 'DEBUFF',
+                                sourceUnitId: unitId,
+                                durationType: 'TURN_END_BASED',
+                                duration: 2,  // 2ターン継続
+                                isCleansable: true,
+                                targetAllyId: unitId,  // モーディス自身を攻撃させる
+                                ignoreResistance: true,  // 固定確率100%
+                            };
+                            newState = addEffect(newState, enemy.id, tauntEffect);
+                        }
+                    }
+                }
+            }
+
             return newState;
         }
     };
@@ -709,7 +773,7 @@ export const mydei: Character = {
     },
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'the-unreachable-side', // Placeholder
+        lightConeId: 'the-unreachable-side',
         superimposition: 1,
         relicSetId: 'longevous_disciple',
         ornamentSetId: 'rutilant_arena',
@@ -719,6 +783,14 @@ export const mydei: Character = {
             sphere: 'imaginary_dmg_boost',
             rope: 'hp_pct'
         },
-        subStats: []
+        subStats: [
+            { stat: 'crit_rate', value: 0.10 },
+            { stat: 'crit_dmg', value: 0.50 },
+            { stat: 'hp_pct', value: 0.20 },
+            { stat: 'spd', value: 10 },
+        ],
+        rotationMode: 'sequence',
+        rotation: ['s', 'b'],
+        ultStrategy: 'immediate',
     }
 };

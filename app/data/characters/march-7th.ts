@@ -255,6 +255,8 @@ export const march7th: Character = {
       { stat: 'effect_hit_rate', value: 0.15 },
       { stat: 'effect_res', value: 0.15 },
     ],
+    rotationMode: 'spam_skill',
+    ultStrategy: 'immediate',
   },
 };
 
@@ -274,9 +276,7 @@ const createCounterChargesEffect = (sourceUnitId: string, eidolonLevel: number):
     duration: 1,
     stackCount: maxCharges,
     onApply: (t: any, s: any) => s,
-    onRemove: (t: any, s: any) => s,
-    apply: (t: any, s: any) => s,
-    remove: (t: any, s: any) => s
+    onRemove: (t: any, s: any) => s
   };
 };
 
@@ -320,8 +320,8 @@ const onBattleStart = (event: IEvent, state: GameState, sourceUnitId: string, ei
           durationType: 'TURN_END_BASED',
           skipFirstTurnDecrement: true,
           duration: 1,
-          apply: (t: any, s: any) => s,
-          remove: (t: any, s: any) => s
+          onApply: (t: any, s: any) => s,
+          onRemove: (t: any, s: any) => s
         };
         newState = addEffect(newState, randomEnemy.id, techFreezeEffect);
         newState = {

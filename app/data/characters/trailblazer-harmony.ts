@@ -83,7 +83,7 @@ const E4_BREAK_EFF_RATIO = 0.15; // 開拓者の撃破特効15%分
 
 export const trailblazerHarmony: Character = {
     id: 'trailblazer-harmony',
-    name: '調和開拓者',
+    name: '開拓者-調和',
     path: 'Harmony',
     element: 'Imaginary',
     rarity: 5,
@@ -282,8 +282,8 @@ function createBackDanceEffect(sourceId: string, targetId: string, duration: num
         tags: ['BACKDANCE_SUPER_BREAK'], // 超撃破変換用タグ
         onApply: (t, s) => s,
         onRemove: (t, s) => s,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -306,8 +306,8 @@ function createTechniqueBreakEffBuff(sourceId: string, targetId: string, duratio
         }],
         onApply: (t, s) => s,
         onRemove: (t, s) => s,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -330,8 +330,8 @@ function createE2ErrBuff(sourceId: string, duration: number): IEffect {
         }],
         onApply: (t, s) => s,
         onRemove: (t, s) => s,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 

@@ -74,9 +74,8 @@ describe('Saber Character Default Config Implementation', () => {
         const stacks = unit?.effects.find(e => e.id.includes('saber-reactor-core'))?.stackCount;
 
         // 戦闘開始時に1層、スキル（EP満タンにならない場合）で3層獲得。
-        // ※重複IDのエフェクトはaddEffect内で上書き/加算される。
-        // 現状、戦闘開始時の1層がスキルの獲得3層で上書きされている（実装上スタック加算ではなくセットになっている可能性がある）ため、実数値3を確認。
-        expect(stacks).toBe(3);
+        // addEffect内で加算ロジックが正常に働けば合計4層になる。
+        expect(stacks).toBe(4);
     });
 
     test('Ultimate triggers Enhanced Basic flag', () => {
@@ -87,8 +86,26 @@ describe('Saber Character Default Config Implementation', () => {
         state = factory.handlerLogic({ type: 'ON_ULTIMATE_USED', sourceId } as ActionEvent, state, handlerId);
 
         const unit = state.registry.get(createUnitId(sourceId));
-        const enhancedFlag = unit?.effects.find(e => e.id.includes('saber-enhanced-basic'));
+        const hasEnhancedField = unit?.effects.some(e => e.id.includes('saber-enhanced-basic'));
+        expect(hasEnhancedField).toBe(true);
+    });
 
-        expect(enhancedFlag).toBeDefined();
+    test('Ally skill triggers Reactor Core stacks', () => {
+        const factory = saberHandlerFactory(sourceId, 80, 0);
+        const handlerId = factory.handlerMetadata.id;
+        const allyId = 'ally-test-id';
+
+        // 初期状態で1層（onBattleStart呼出し済みと仮定）
+        const unitBefore = state.registry.get(createUnitId(sourceId));
+        const initialStacks = unitBefore?.effects.find(e => e.id.includes('saber-reactor-core'))?.stackCount || 0;
+
+        // 味方がスキルを使用
+        state = factory.handlerLogic({ type: 'ON_SKILL_USED', sourceId: allyId, targetId: enemyId } as ActionEvent, state, handlerId);
+
+        const unitAfter = state.registry.get(createUnitId(sourceId));
+        const finalStacks = unitAfter?.effects.find(e => e.id.includes('saber-reactor-core'))?.stackCount;
+
+        // 初期1層 + 味方スキル3層 = 4層になるはず
+        expect(finalStacks).toBe(4);
     });
 });

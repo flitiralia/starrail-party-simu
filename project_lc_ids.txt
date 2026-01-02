@@ -1,0 +1,603 @@
+                                    id: `aura-love-blank-${u.id}`,
+                                    id: `aura-love-verse-${u.id}`,
+                                id: `aura-love-blank-${u.id}`,
+                                id: `aura-love-verse-${u.id}`,
+                                id: `carve_moon_buff_${ally.id}`,
+                                id: `flowing_nightglow_aura_${ally.id}`,
+                                id: `river_flows_buff_${u.id}`,
+                            id: `cosmos_fell_cd_${unit.id}`,
+                            id: `farewell-nether-flower`,
+                            id: `in_the_name_of_the_world_skill_buff_${unit.id}`,
+                            id: `poised_to_bloom_cd_${ally.id}`,
+                            id: buffId,
+                            id: trackerId,
+                        id: `chasing_wind_break_${ally.id}`,
+                        id: `chorus_atk_${ally.id}`,
+                        id: `closed-eyes-buff-${unit.id}-${ally.id}`,
+                        id: `day-one-res-${unit.id}-${ally.id}`,
+                        id: `deceit_stolen_${targetId}`,
+                        id: `dreamville_childishness_${ally.id}`,
+                        id: `echoes-spd-${unit.id}-${ally.id}`,
+                        id: `endless-remembrance-buff-${unit.id}`, // Same ID for all allies from this source? Or unique per ally?
+                        id: `farewell-hp-record-${source.id}`,
+                        id: `fleeting-dmg-buff-${ally.id}`, // Single ID per target implies non-stacking from same source
+                        id: `guardian-buff-${unit.id}-${ally.id}`,
+                        id: `incessant_rain_aether_code_${targetId}`,
+                        id: `love-blank-${source.id}`,
+                        id: `love-verse-${source.id}`,
+                        id: `past_self_dmg_${ally.id}`, // 味方ごとに固有？ それともスタックしない共有ID？
+                        id: `patience_erode_${targetId}`,
+                        id: `rainbow-vuln-${source.id}`,
+                        id: `resolution_ensnared_${targetId}_by_${unit.id}`, // 技術的にはソース固有だが、論理チェックでグローバルな「陥落」を処理する
+                        id: `river_flows_cooldown_${unit.id}`,
+                        id: `sea_sings_spd_${allyIdStr}`,
+                        id: `springs_cornered_${targetId}`,
+                        id: `springs_unarmed_${targetId}`,
+                        id: `swordplay_buff_${unit.id}_target_${targetId}`,
+                        id: `trend-burn-${unit.id}-${attacker.id}-${Date.now()}`,
+                        id: `tuning_spd_${ally.id}`,
+                        id: `unjust-destiny-cd-buff-${unit.id}`,
+                        id: `unjust-destiny-vuln-${unit.id}-${targetUnit.id}`,
+                        id: `unto-dmg-${unit.id}-${ally.id}`,
+                        id: `weaving-stack-${target.id}`,
+                        id: buffId,
+                        id: prophetId,
+                        id: recorderId,
+                        id: trackerId,
+                    id: `adversarial_buff_${unit.id}`,
+                    id: `amber-def-buff-${unit.id}`,
+                    id: `arrows_buff_${unit.id}`,
+                    id: `baptism_disputation_${unit.id}`,
+                    id: `before_dawn_passive_${unit.id}`,
+                    id: `before_dawn_somnus_${unit.id}`,
+                    id: `besotted-${unit.id}-${targetId}`,
+                    id: `breakfast_atk_stack_${unit.id}`,
+                    id: `brighter_than_the_sun_buff_${unit.id}`,
+                    id: `but_battle_dmg_buff_${targetAllyId}`,
+                    id: `but_battle_watcher_${unit.id}`,
+                    id: `carve_moon_status_${unit.id}_${pick}`,
+                    id: `charmony_fall_spd_${unit.id}`,
+                    id: `concert-dmg-buff-${unit.id}`,
+                    id: `dance_at_sunset_buff_${unit.id}`,
+                    id: `darting_arrow_buff_${unit.id}`,
+                    id: `deceit_dazed_${targetId}`,
+                    id: `dream_scented_barley_buff_${unit.id}`,
+                    id: `earthly_escapade_mask_buff_${ally.id}`,
+                    id: `eclipse_buff_${unit.id}`,
+                    id: `epoch_gold_skill_dmg_${targetId}`,
+                    id: `eternal_maze_stack_${unit.id}`,
+                    id: `final_victor_good_fortune_${unit.id}`,
+                    id: `fire_ally_buff`,
+                    id: `fire_wearer_buff`,
+                    id: `flame_blood_buff_${unit.id}`,
+                    id: `flames_afar_buff_${unit.id}`,
+                    id: `flowers-buff-${unit.id}`,
+                    id: `flowing_nightglow_cadenza_${unit.id}`,
+                    id: `flowing_nightglow_stack_${unit.id}`,
+                    id: `for_tomorrows_journey_buff_${unit.id}`,
+                    id: `geniuses_repose_cd_${unit.id}`,
+                    id: `greetings-buff-${unit.id}`,
+                    id: `hey-over-here-buff-${unit.id}`,
+                    id: `hidden_shadow_buff_${unit.id}`,
+                    id: `ideals_burn_sp_buff_${unit.id}`,
+                    id: `ideals_burn_stack_${unit.id}`,
+                    id: `if_time_flower_aura_${ally.id}`,
+                    id: `indelible_promise_buff_${unit.id}`,
+                    id: `journey-forever-peaceful-dmg-buff-${unit.id}`,
+                    id: `life_should_be_burned_debuff_${event.targetId}`,
+                    id: `long_road_ignition_${targetId}_${unit.id}`,
+                    id: `moment-of-victory-hit-def-${unit.id}`,
+                    id: `night-color-${unit.id}`,
+                    id: `night_milky_way_atk_${unit.id}`,
+                    id: `night_milky_way_break_dmg_${unit.id}`,
+                    id: `passkey_cd_${unit.id}`,
+                    id: `past_future_buff_${targetId}`,
+                    id: `past_future_watcher_${unit.id}`,
+                    id: `peaceful_day_dmg_${unit.id}`,
+                    id: `river_flows_buff_${unit.id}`,
+                    id: `routed_debuff_${targetId}`,
+                    id: `sagacity_atk_${unit.id}`,
+                    id: `shadowed_by_night_spd_buff_${unit.id}`,
+                    id: `shore_mirage_${targetId}`,
+                    id: `sleep_buff_${unit.id}`,
+                    id: `sleep_cooldown_${unit.id}`,
+                    id: `sweat-buff-${unit.id}`,
+                    id: `thankless_coronation_buff_${unit.id}`,
+                    id: `the_unreachable_side_buff_${unit.id}`,
+                    id: `threads-dmg-buff-${unit.id}`,
+                    id: `thus_burns_the_dawn_buff_${unit.id}`,
+                    id: `turning-healing-buff-${unit.id}`,
+                    id: `under_the_blue_sky_buff_${unit.id}`,
+                    id: `venture_hunt_luminous_${unit.id}`,
+                    id: `void_ehr_${unit.id}`,
+                    id: `worrisome_tame_${unit.id}`,
+                    id: `yet_hope_priceless_def_ignore_${unit.id}`,
+                    id: buffId,
+                    id: confId,
+                    id: effectId,
+                    id: lockId,
+                    id: storageId,
+                    id: trackerId,
+              id: `eternal_calculus_atk_stack_${unit.id}`,
+              id: `eternal_calculus_spd_${unit.id}`,
+              id: `internal_tracker_eternal_calculus_${unit.id}`,
+            id: `ninja_record_raiton_${unit.id}`,
+            id: `post-op-buff-${unit.id}`,
+            id: `wildfire-dmg-reduction-${unit.id}-${ally.id}`,
+          id: `cruising_atk_boost_${unit.id}`,
+          id: `endless_reminiscence_dmg_boost_${unit.id}`,
+          id: `lc_aeon_atk_${unit.id}`,
+          id: `lc_aeon_dmg_${unit.id}`,
+          id: `perfect-timing-buff-${unit.id}`,
+          id: `solitude_and_healing_dot_${unit.id}`,
+        id: `earthly_escapade_mask_${unitId}`,
+        id: `if_time_flower_revelation_${unitId}`,
+a-dream-scented-in-wheat
+a-grounded-ascent
+a-secret-vow
+a-secret-vow-conditional
+a-secret-vow-dmg
+a-thankless-coronation
+a-trail-of-bygone-blood
+action-forward-on-ultimate
+adversarial
+adversarial-spd-buff
+after-the-charmony-fall
+along-the-passing-shore
+amber
+amber-conditional-def
+amber-def
+an-instant-before-a-gaze
+arrows
+arrows-crit-buff
+atk-boost-on-kill
+atk-percent-on-attack-stacking
+baptism-crit-dmg
+baptism-debuff-scaling
+baptism-disputation-trigger
+baptism-of-pure-thought
+before-dawn
+before-dawn-crit
+before-dawn-passive-stats
+before-dawn-skill-ult-dmg
+before-dawn-somnus-consume
+before-dawn-somnus-gain
+before-the-tutorial-mission-starts
+best-business-atk
+best-business-dynamic-dmg
+birth-of-self-base-fua
+birth-of-self-conditional-fua
+boundless-choreo
+boundless-choreo-cd-cond
+boundless-choreo-cr
+break-effect-boost
+brighter-than-the-sun
+brighter-than-the-sun-crit
+brighter-than-the-sun-proc
+but-battle-err
+but-battle-next-ally-dmg
+but-battle-sp-restore
+but-battle-watcher-logic
+but-the-battle-isnt-over
+bygone-blood-crit
+bygone-blood-skill-dmg
+bygone-blood-ult-dmg
+carve-moon-trigger
+carve-the-moon-weave-the-clouds
+charmony-fall-be
+charmony-fall-spd-buff
+chasing-wind-buff
+chorus
+chorus-aura
+closed-eyes-err
+closed-eyes-hp
+closed-eyes-on-dmg
+closed-eyes-wave-heal
+collapsing-sky
+collapsing-sky-basic-skill
+collapsing-sky-skill
+concert-def
+concert-dynamic-dmg
+concert-for-two
+cornucopia
+cornucopia-buff
+crit-rate-boost
+crit-rate-low-hp-enemy
+cruising-in-the-stellar-sea
+dance-at-sunset
+dance-at-sunset-aggro
+dance-at-sunset-proc
+dance-at-sunset-stats
+dance-dance-dance
+darting-arrow
+darting-arrow-atk-buff
+data-bank
+data-bank-ult-dmg
+day-cosmos-fell-atk
+day-cosmos-fell-cond-buff
+day-cosmos-fell-tracker
+day-one-aura
+day-one-def
+day-one-of-my-new-life
+deceit-debuff-apply
+deceit-spd
+defense
+defense-heal
+destinys-threads-forewoven
+dmg-boost-on-skill
+dmg-boost-same-element
+dmg-percent-on-weakness-break
+dmg-reduction-on-start
+dot-dmg-boost
+dot-dmg-on-ultimate
+dream-scented-barley-buffs
+dream-scented-barley-crit
+dream-scented-barley-dmg
+dreams-montage
+dreamville-adventure
+dreamville-trigger
+earthly-escapade
+earthly-escapade-cd
+earthly-escapade-mask-init
+earthly-escapade-sp-listener
+echoes-atk
+echoes-ep-regen
+echoes-of-the-coffin
+echoes-spd-buff
+eclipse-bonus-and-reset
+eclipse-stack-gain
+effect-hit-rate-boost
+endless-remembrance
+endless-remembrance-buff
+endless-remembrance-spd
+energy-regen-rate-boost
+ep-regen-on-attack
+ep-regen-on-attack-or-hit
+ep-regen-on-dot-kill
+epoch-etched-in-golden-blood
+epoch-gold-atk
+epoch-gold-cleanup
+epoch-gold-skill-buff
+epoch-gold-sp-logic
+epoch-gold-ult-sp
+eternal-calculus
+eternal-calculus-base-atk
+eternal-calculus-tracker
+eternal-maze-base-atk
+eternal-maze-stack
+eyes-of-the-prey
+farewell-hp
+farewell-hp-monitor
+farewell-spirit-monitor
+fermata
+fermata-be
+fermata-dmg-cond
+final-victor
+final-victor-atk
+final-victor-crit-stack
+fine-fruit
+fine-fruit-start
+fire-be
+fire-sp-proc
+fire-start-buff
+flame-blood-activity
+flame-blood-cleanup
+flame-blood-hp
+flame-blood-inc-healing
+flame-of-blood-blaze-my-path
+flames-afar
+flames-afar-proc
+fleeting-dmg-buff
+fleeting-spd
+flowers-cd
+flowers-cd-buff
+flowing-nightglow
+flowing-nightglow-gain-stack
+flowing-nightglow-ult-trigger
+fly-into-a-pink-tomorrow
+fly-into-a-pink-tomorrow-conditional
+fly-into-a-pink-tomorrow-crit-dmg
+for-tomorrows-journey
+for-tomorrows-journey-atk
+for-tomorrows-journey-ult-dmg
+function createUnitId(id: string): import('../../simulator/engine/unitId').UnitId {
+geniuses-greetings
+geniuses-repose
+geniuses-repose-atk
+geniuses-repose-kill-buff
+gnsw-dmg-calc
+good-night-and-sleep-well
+greetings-atk
+greetings-basic-buff
+grounded-ascent-hymn
+grounded-ascent-trigger
+heal-on-start-lost-hp
+hey-heal-buff
+hey-hp
+hey-over-here
+hidden-shadow
+hidden-shadow-proc
+hidden-shadow-skill
+i-shall-be-my-own-sword
+i-shall-be-my-own-sword-crit-dmg
+i-venture-forth-to-hunt
+ideals-burn-crit
+ideals-burn-skill-stack
+ideals-burn-sp-check
+if-time-flower-base-cd
+if-time-flower-fua
+if-time-flower-start
+if-time-were-a-flower
+in-pursuit-of-the-wind
+in-the-name-of-the-world
+in-the-night
+in-the-night-crit
+in-the-night-spd-scaling
+incessant-rain
+incessant-rain-aether-code
+incessant-rain-crit
+incessant-rain-ehr
+indelible-promise
+indelible-promise-be
+indelible-promise-crit
+inherently-unjust-destiny
+instant-before-gaze-crit
+instant-before-gaze-ult-dmg
+its-showtime
+journey-forever-peaceful
+journey-forever-peaceful-dmg
+journey-forever-peaceful-shield
+landau-aggro
+landau-dmg-reduction
+landaus-choice
+lies-dance-on-the-breeze
+life-burned-bonus-weakness
+life-burned-def-shred
+life-burned-start-turn-ep
+life-should-be-cast-to-flames
+long-may-rainbows-adorn-the-sky
+long-night-grant-color
+long-night-hp
+long-night-spirit-retire
+long-road-be
+long-road-ignition
+long-road-leads-home
+loop
+loop-dmg-cond
+love-grant-states
+love-spd
+make-farewells-more-beautiful
+make-the-world-clamor
+make-world-clamor-ep
+make-world-clamor-ult-dmg
+mediation
+meet-again-damage
+memories-of-the-past
+memorys-curtain-never-falls
+meshing-cogs
+moles-stack-gain
+moment-of-victory
+moment-of-victory-aggro
+moment-of-victory-ehr
+moment-of-victory-on-hit
+moment-of-victory-passive
+montage-ep
+montage-spd
+multiplication
+multiplication-advance
+mutual-demise
+mutual-demise-check
+mutual-demise-crit
+never-forget-her-flame
+nice-catch
+nice-catch-ep
+night-atk-buff
+night-err
+night-heal-on-ult
+night-of-fright
+night-on-milky-way-break-dmg
+night-on-milky-way-dynamic-atk
+night-on-the-milky-way
+ninja-record-battle-start-ep
+ninja-record-be
+ninja-record-raiton-listener
+ninja-record-sound-hunt
+nowhere-to-run
+nowhere-to-run-atk
+nowhere-to-run-heal
+on-the-fall-of-an-aeon
+only-silence-remains
+only-silence-remains-atk
+only-silence-remains-conditional
+passkey
+passkey-ep
+passkey-tracker
+past-and-future
+past-future-trigger
+past-future-watcher
+past-self-be
+past-self-in-mirror
+past-self-ult-effect
+past-self-wave-start
+patience-dmg
+patience-erode
+patience-is-all-you-need
+patience-speed-stack
+peaceful-day-buff
+perfect-dynamic-heal
+perfect-res
+perfect-timing
+pioneering
+pioneering-heal
+planetary-rendezvous
+poised-to-bloom
+poised-to-bloom-atk
+poised-to-bloom-path-check
+post-op-conversation
+post-op-err
+post-op-heal-boost
+quid-pro-quo
+quid-pro-quo-trigger
+rainbow-additional-dmg
+rainbow-hp-consume
+rainbow-spd
+rainbow-spirit-skill
+reforged-ehr
+reforged-prophet-stack
+reforged-remembrance
+reminiscence
+resolution-ensnared-apply
+resolution-shines-as-pearls-of-sweat
+return-to-darkness
+return-to-darkness-crit
+return-to-darkness-dispel
+river-flows-hit-check
+river-flows-in-spring
+river-flows-init
+routed-damage-boost
+routed-debuff-application
+sagacity
+sagacity-atk-buff
+sailing-be
+sailing-def-ignore
+sailing-spd-check
+sailing-towards-a-second-life
+scent-alone-stays-true
+scent-be
+scent-besotted
+sea-sings-ally-spd
+sea-sings-apply
+sea-sings-ehr
+see-you-at-the-end
+see-you-crit-dmg
+see-you-fua-dmg
+see-you-skill-dmg
+seriousness-breakfast-dmg
+seriousness-breakfast-stack
+shadowburn
+shadowed-by-night
+shadowed-by-night-be
+shadowed-by-night-spd-proc
+shared-ep
+shared-feeling
+shared-healing
+shattered-home
+shattered-home-dmg
+she-already-shut-her-eyes
+shore-apply-mirage
+shore-cd
+shore-dmg-boost
+showtime-atk-check
+showtime-atk-logic
+showtime-trick-stack
+sleep-crit-dmg
+sleep-crit-proc
+sleep-like-the-dead
+solitary-healing
+something-irreplaceable
+something-irreplaceable-atk
+something-irreplaceable-proc
+spd-percent-boost
+springs-debuff-application
+springs-ehr
+subscribe-for-more
+subscribe-for-more-dmg
+sweat-apply-buff
+sweat-hp
+sweat-now-cry-less
+swordplay
+swordplay-stack
+texture-of-memories
+texture-of-memories-dmg-reduce-check
+texture-of-memories-res
+texture-of-memories-shield-proc
+thankless-coronation-cd
+thankless-coronation-proc
+the-birth-of-the-self
+the-day-the-cosmos-fell
+the-flower-remembers
+the-forever-victual
+the-great-cosmic-enterprise
+the-hell-where-ideals-burn
+the-moles-welcome-you
+the-seriousness-of-breakfast
+the-storys-next-page
+the-unreachable-side
+the-unreachable-side-crit-hp
+the-unreachable-side-dmg-remove
+the-unreachable-side-dmg-trigger
+the-unreachable-side-hp
+this-is-me
+this-is-me-def
+this-is-me-ult-dmg
+this-love-forever
+those-many-springs
+though-worlds-apart
+though-worlds-apart-atk
+though-worlds-apart-ult
+threads-dynamic-dmg
+threads-res
+thus-burns-the-dawn
+thus-burns-the-dawn-def-ignore
+thus-burns-the-dawn-proc
+thus-burns-the-dawn-remove
+thus-burns-the-dawn-spd
+time-waits-for-no-one
+time-waits-heal
+time-waits-hp
+time-waits-recorder
+time-waits-reset
+time-woven-into-gold
+to-evernights-stars
+today-is-another-peaceful-day
+trend-burn
+trend-def
+trend-of-the-universal-market
+tuning-spd
+turning-healing-buff
+turning-hp
+under-the-blue-sky
+under-the-blue-sky-atk
+under-the-blue-sky-proc
+unjust-destiny-def
+unjust-destiny-fua-debuff
+unjust-destiny-shield-buff
+unto-dmg-buff
+unto-heal
+unto-tomorrows-morrow
+venture-hunt-crit
+venture-hunt-def-ignore
+venture-hunt-stack-decay
+venture-hunt-stack-gain
+victory-in-a-blink
+void
+void-start-buff
+warmth-heal
+warmth-hp
+warmth-shortens-cold-nights
+we-are-wildfire
+we-will-meet-again
+weaving-base-spd
+weaving-stack
+what-is-real
+what-is-real-be
+what-is-real-heal
+whereabouts-break-effect
+whereabouts-should-dreams-rest
+why-does-the-ocean-sing
+woof-walk-time
+woof-walk-time-atk
+woof-walk-time-dmg
+world-dmg-vs-debuff
+world-skill-buff
+worrisome-apply-tame
+worrisome-apply-tame-on-hit
+worrisome-blissful
+worrisome-fua-dmg
+worrisome-stats
+worrisome-tame-effect
+yet-hope-is-priceless
+yet-hope-priceless-crit
+yet-hope-priceless-def-ignore-applier
+yet-hope-priceless-def-ignore-logic
+yet-hope-priceless-dynamic-fua

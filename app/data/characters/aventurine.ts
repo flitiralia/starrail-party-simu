@@ -334,8 +334,8 @@ function setBlindBetStacks(state: GameState, unitId: string, stacks: number): Ga
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: clampedStacks,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     let newState = removeEffect(state, unitId, EFFECT_IDS.BLIND_BET(unitId));
@@ -428,8 +428,8 @@ function applyFortifiedWager(
                 type: 'add' as const,
                 source: '堅固なチップ'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, targetId, effectResEffect);
     }
@@ -471,8 +471,8 @@ function setA6Counter(state: GameState, unitId: string, count: number): GameStat
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: count,
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     let newState = removeEffect(state, unitId, EFFECT_IDS.A6_COUNTER(unitId));
@@ -563,8 +563,8 @@ const onTurnStart = (
                     type: 'add' as const,
                     source: 'レバレッジ'
                 }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, a2Effect);
         }
@@ -643,8 +643,8 @@ const onBasicAttackUsed = (
                 { target: 'quantum_res' as StatKey, value: -E2_RES_SHRED, type: 'add' as const, source: 'E2' },
                 { target: 'imaginary_res' as StatKey, value: -E2_RES_SHRED, type: 'add' as const, source: 'E2' },
             ],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, event.targetId, resShredEffect);
     }
@@ -683,8 +683,8 @@ const onUltimateUsed = (
         duration: ULT_UPSET_DURATION,
         tags: ['UPSET'],
         // 動揺の会心ダメージブーストはON_BEFORE_DAMAGE_CALCULATIONで処理
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
     newState = addEffect(newState, event.targetId, upsetEffect);
 
@@ -822,8 +822,8 @@ const onFollowUpAttack = (
                 type: 'add' as const,
                 source: 'E4'
             }],
-            apply: (t: Unit, s: GameState) => s,
-            remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
         };
         newState = addEffect(newState, sourceUnitId, e4Effect);
 

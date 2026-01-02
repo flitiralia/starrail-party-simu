@@ -148,8 +148,11 @@ function addTalentStack(state: GameState, ikarunId: string, sourceId: string): G
             durationType: 'TURN_END_BASED',
             skipFirstTurnDecrement: true,
             value: stacks,
-            modifiers: [{ target: 'all_dmg_boost', value: TALENT_DMG_BUFF * stacks, type: 'add', source: 'Talent' }],
-            apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+            stackCount: stacks,
+            maxStacks: 3,
+            stackStrategy: 'replace',  // 明示的にスタック数を指定
+            modifiers: [{ target: 'all_dmg_boost', value: TALENT_DMG_BUFF, type: 'add', source: 'Talent' }],
+            onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
         } as any);
     }
     return state;
@@ -214,8 +217,8 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string)
                 durationType: 'PERMANENT',
                 id: `first - ${source.id} `,
                 sourceUnitId: source.id,
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s,
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s,
                 modifiers: []
             });
         }
@@ -237,8 +240,8 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string)
                     duration: -1,
                     durationType: 'PERMANENT',
                     modifiers: [{ target: 'all_type_res_pen', value: 0.20, type: 'add', source: 'E6' }],
-                    apply: (t: Unit, s: GameState) => s,
-                    remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s,
+                    onRemove: (t: Unit, s: GameState) => s
                 });
             });
         }
@@ -254,8 +257,8 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string)
                 duration: -1,
                 durationType: 'PERMANENT',
                 modifiers: [{ target: 'crit_rate', value: 1.0, type: 'add', source: 'Trace' }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             });
         }
     }
@@ -415,7 +418,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         duration: 3,
         durationType: 'TURN_START_BASED',
         modifiers: [],
-        apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
     });
 
     const e1 = (source.eidolonLevel || 0) >= 1;
@@ -436,7 +439,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
                 { target: 'hp_pct', value: hpBuffPct, type: 'add', source: 'Ult HP Buff' },
                 { target: 'hp', value: hpBuffFlat, type: 'add', source: 'Ult HP Buff' }
             ],
-            apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
         });
     });
 
@@ -585,7 +588,7 @@ const onDamageDealt = (event: DamageDealtEvent, state: GameState, sourceUnitId: 
                         const tId = event.targetId!;
                         newState = addEffect(newState, tId, {
                             id: `e2 - spd - ${tId} -${Date.now()} `, name: 'E2 速度アップ', category: 'BUFF', type: 'Buff', sourceUnitId: source.id, duration: 2, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
-                            modifiers: [{ target: 'spd_pct', value: 0.30, type: 'add', source: 'E2' }], apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                            modifiers: [{ target: 'spd_pct', value: 0.30, type: 'add', source: 'E2' }], onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
                         });
                     }
 
@@ -678,7 +681,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
             duration: -1,
             durationType: 'PERMANENT',
             modifiers: [{ target: 'crit_rate', value: 1.0, type: 'add', source: 'Trace' }],
-            apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
         });
     }
 
@@ -693,7 +696,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
             duration: -1,
             durationType: 'PERMANENT',
             modifiers: [{ target: 'effect_res', value: 0.5, type: 'add', source: 'Trace' }],
-            apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
         });
     }
 
@@ -712,7 +715,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
                 duration: -1,
                 durationType: 'PERMANENT',
                 modifiers: [{ target: 'hp_pct', value: 0.2, type: 'add', source: 'Trace' }],
-                apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
             });
 
             // E4: 超過速度ごとに会心ダメージ+2%
@@ -727,7 +730,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
                     duration: -1,
                     durationType: 'PERMANENT',
                     modifiers: [{ target: 'crit_dmg', value: critDmgBonus, type: 'add', source: 'E4' }],
-                    apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
                 });
             }
         }
@@ -769,7 +772,7 @@ const onBattleStart: IEventHandlerLogic = (event, state, handlerId) => {
                 modifiers: [
                     { target: 'hp_pct', value: hpBuffPct, type: 'add', source: 'Sunny Everyone' },
                 ],
-                apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
             });
         });
 
@@ -835,7 +838,7 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
             duration: -1,
             durationType: 'PERMANENT',
             modifiers: [{ target: 'hp_pct', value: 0.2, type: 'add', source: 'Trace' }],
-            apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+            onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
         });
     } else if (!conditionMet && hianshiBuff) {
         newState = removeEffect(newState, source.id, hianshiBuff.id);
@@ -857,7 +860,7 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
                 duration: -1,
                 durationType: 'PERMANENT',
                 modifiers: [{ target: 'crit_dmg', value: critDmgBonus, type: 'add', source: 'E4' }],
-                apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
             });
         } else if (!conditionMet && hianshiE4Buff) {
             newState = removeEffect(newState, source.id, hianshiE4Buff.id);
@@ -878,7 +881,7 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
                 duration: -1,
                 durationType: 'PERMANENT',
                 modifiers: [{ target: 'hp_pct', value: 0.2, type: 'add', source: 'Trace' }],
-                apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
             });
         } else if (!conditionMet && ikarunBuff) {
             newState = removeEffect(newState, ikarun.id, ikarunBuff.id);
@@ -899,7 +902,7 @@ const onTurnStart: IEventHandlerLogic = (event, state, handlerId) => {
                     duration: -1,
                     durationType: 'PERMANENT',
                     modifiers: [{ target: 'crit_dmg', value: critDmgBonus, type: 'add', source: 'E4' }],
-                    apply: (t: Unit, s: GameState) => s, remove: (t: Unit, s: GameState) => s
+                    onApply: (t: Unit, s: GameState) => s, onRemove: (t: Unit, s: GameState) => s
                 });
             } else if (!conditionMet && ikarunE4Buff) {
                 newState = removeEffect(newState, ikarun.id, ikarunE4Buff.id);

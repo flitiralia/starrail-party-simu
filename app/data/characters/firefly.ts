@@ -507,8 +507,8 @@ const applyFireWeakness = (
         duration: FIRE_WEAKNESS_DURATION,
         ignoreResistance: true,
         miscData: { element: 'Fire' as Element },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(newState, targetId, weaknessEffect);
@@ -606,8 +606,8 @@ const onBattleStart = (
                     type: 'add',
                     source: 'γモジュール'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, a6Effect);
         }
@@ -721,8 +721,8 @@ const onUltimateUsed = (
             }
         ],
         tags: ['COMPLETE_COMBUSTION', 'ENHANCED_BASIC', 'ENHANCED_SKILL', 'ULT_SILENCE'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, combustionEffect);
 
@@ -743,8 +743,8 @@ const onUltimateUsed = (
             type: 'add',
             source: '源火中枢'
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, effectResEffect);
 
@@ -764,8 +764,8 @@ const onUltimateUsed = (
                 type: 'add',
                 source: 'E4'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e4Effect);
     }
@@ -786,8 +786,8 @@ const onUltimateUsed = (
                 type: 'add',
                 source: 'E6'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e6Effect);
     }
@@ -1048,8 +1048,8 @@ const checkE2ExtraTurn = (
         sourceUnitId: sourceUnitId,
         durationType: 'TURN_START_BASED',
         duration: 1,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, cooldownEffect);
 

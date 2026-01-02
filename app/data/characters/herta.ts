@@ -311,7 +311,14 @@ const executeTalentAttack = (
                 {
                     damageType: '天賦',
                     details: `やっぱり私がやる (Hit ${hit + 1}/${hitCount})`,
-                    isKillRecoverEp: true
+                    isKillRecoverEp: true,
+                    skipLog: true, // 統合ログに出力するため、個別のログ出力は抑制
+                    additionalDamageEntry: {
+                        source: 'ヘルタ',
+                        name: '追加攻撃: やっぱり私がやる',
+                        damageType: 'additional',
+                        isCrit: false, // applyUnifiedDamage 内で計算されるが、ここでは基本情報を渡す
+                    }
                 }
             );
             newState = result.state;
@@ -361,8 +368,8 @@ const addE2Stack = (state: GameState, sourceUnitId: string): GameState => {
             type: 'add',
             source: 'ヘルタE2'
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(newState, sourceUnitId, e2Effect);
@@ -401,8 +408,8 @@ const onBattleStart = (
                 type: 'add',
                 source: 'ヘルタ秘技'
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, techBuff);
 
@@ -492,18 +499,8 @@ const onFollowUpAttack = (
 
     const hitCount = Math.max(1, lowHpEnemyCount);
 
-    // 天賦ログ
-    newState = {
-        ...newState,
-        log: [...newState.log, {
-            characterName: source.name,
-            actionTime: newState.time,
-            actionType: '天賦',
-            skillPointsAfterAction: newState.skillPoints,
-            currentEp: source.ep,
-            details: `やっぱり私がやる (${hitCount}ヒット)`
-        } as any]
-    };
+    // 天賦ログ (統合ログシステムがハンドルするため、ここでは手動ログを抑制または情報を渡す形式にする)
+    // 既存の手動ログは削除し、統合ログシステムに任せる
 
     // 天賦攻撃実行
     newState = executeTalentAttack(newState, sourceUnitId, hitCount, eidolonLevel);
@@ -547,7 +544,13 @@ const onBasicAttack = (
         {
             damageType: '付加ダメージ',
             details: '弱みは付け込み (E1)',
-            isKillRecoverEp: true
+            isKillRecoverEp: true,
+            skipLog: true,
+            additionalDamageEntry: {
+                source: 'ヘルタ',
+                name: '付加ダメージ: 弱みは付け込み (E1)',
+                damageType: 'additional',
+            }
         }
     );
 
@@ -581,8 +584,8 @@ const onUltimateUsed = (
             type: 'add',
             source: 'ヘルタE6'
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, sourceUnitId, e6Buff);

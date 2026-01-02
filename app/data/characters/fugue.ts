@@ -364,8 +364,8 @@ const applyCloudflame = (
             currentValue: cloudflameMax,
             maxValue: cloudflameMax
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(state, targetId, cloudflameEffect);
@@ -431,8 +431,8 @@ const applyFoxPrayer = (
             ignoreWeaknessRatio: FOX_PRAYER_IGNORE_WEAKNESS_RATIO,
             defDown: skillValues.defDown
         },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(newState, targetId, foxPrayerEffect);
@@ -472,8 +472,8 @@ const applyScorching = (
         duration: SKILL_DURATION,
         modifiers,
         tags: ['SCORCHING', 'ENHANCED_BASIC'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(newState, sourceId, scorchingEffect);
@@ -511,8 +511,8 @@ const applyDefDown = (
         modifiers: [
             { target: 'def' as StatKey, value: -skillValues.defDown, type: 'pct', source: '狐の祈り' }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     return addEffect(newState, targetId, defDownEffect);
@@ -555,8 +555,8 @@ const onBattleStart = (
             modifiers: [
                 { target: 'break_effect' as StatKey, value: A4_BREAK_EFFECT_BONUS, type: 'add', source: '塗山の玄設' }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4Effect);
 
@@ -568,8 +568,8 @@ const onBattleStart = (
             sourceUnitId: sourceUnitId,
             durationType: 'PERMANENT',
             duration: -1,
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4FlagEffect);
     }
@@ -701,8 +701,8 @@ const onWeaknessBreak = (
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, cooldownEffect);
         }
@@ -742,8 +742,8 @@ const onWeaknessBreak = (
                     modifiers: [
                         { target: 'break_effect' as StatKey, value: bonusValue * (currentStacks + 1), type: 'add', source: '璣星の太素' }
                     ],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+                   
+                    /* remove removed */
                 };
                 newState = addEffect(newState, allyId, a6Effect);
             }

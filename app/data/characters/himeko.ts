@@ -77,8 +77,8 @@ function addChargeStack(state: GameState, unitId: string, amount: number): GameS
         isDispellable: false,
         isCleansable: false,
         modifiers: [],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     });
 }
 
@@ -307,8 +307,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                 type: 'add',
                                 source: 'Technique'
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                           
+                            /* remove removed */
                         });
                     }
                 }
@@ -330,8 +330,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                 type: 'add',
                                 source: 'Benchmark'
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                           
+                            /* remove removed */
                         };
                         newState = addEffect(newState, sourceId, buff);
                     }
@@ -360,8 +360,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                 type: 'add',
                                 source: 'Benchmark'
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+                           
+                            /* remove removed */
                         };
                         return addEffect(state, sourceId, buff);
                     } else if (hpRatio < 0.8 && hasBuff) {
@@ -443,8 +443,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                     durationType: 'TURN_START_BASED',
                                     duration: 2,
                                     modifiers: [],
-                                    apply: (t, s) => s,
-                                    remove: (t, s) => s,
+                                   
+                                   
                                     dotType: 'Burn',
                                     damageCalculation: 'multiplier',
                                     multiplier: 0.30
@@ -517,8 +517,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                     durationType: 'TURN_START_BASED',
                                     duration: 2,
                                     modifiers: [{ target: 'spd_pct' as StatKey, value: 0.20, type: 'add', source: 'E1' }],
-                                    apply: (t, s) => s,
-                                    remove: (t, s) => s
+                                   
+                                    /* remove removed */
                                 });
                             }
 

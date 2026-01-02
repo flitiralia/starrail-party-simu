@@ -214,8 +214,8 @@ function updateTalentStacks(state: GameState, sourceId: string, stacks: number, 
             type: 'add',
             value: atkBoost
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+       
+        /* remove removed */
     };
 
     let newState = addEffect(state, sourceId, atkEffect);
@@ -236,8 +236,8 @@ function updateTalentStacks(state: GameState, sourceId: string, stacks: number, 
                 type: 'add',
                 value: 0.10
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+           
+            /* remove removed */
         };
         newState = addEffect(newState, sourceId, defEffect);
     }

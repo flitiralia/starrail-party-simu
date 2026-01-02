@@ -336,8 +336,8 @@ function addGloryStacks(state: GameState, unitId: string, amount: number, eidolo
                 source: '栄達 (E1)'
             }] : [])
         ],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     // 既存エフェクトを削除して新しいスタックで追加
@@ -515,8 +515,8 @@ const onUltimateUsed = (
                     type: 'add' as const,
                     source: '審美の恩寵 (E2)'
                 }],
-                apply: (t: Unit, s: GameState) => s,
-                remove: (t: Unit, s: GameState) => s
+                onApply: (t: Unit, s: GameState) => s,
+                onRemove: (t: Unit, s: GameState) => s
             };
             newState = addEffect(newState, sourceUnitId, e2Effect);
         }

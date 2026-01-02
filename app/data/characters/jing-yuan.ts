@@ -115,8 +115,8 @@ function updateLightningLordStacks(state: GameState, ownerId: string, amount: nu
         modifiers: [
             { source: 'Lightning-Lord Stacks', target: 'spd', type: 'add', value: speedBonus, scalingStrategy: 'fixed' }
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     newState = addEffect(newState, llUnit.id, finalStackEffect);
@@ -141,8 +141,8 @@ function updateLightningLordStacks(state: GameState, ownerId: string, amount: nu
             modifiers: [
                 { source: 'A2', target: 'crit_dmg', type: 'add', value: 0.25 }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, llUnit.id, a2Buff);
     }
@@ -260,8 +260,8 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
                     duration: 1,
                     stackCount: newE6Stacks,
                     modifiers: [{ source: 'E6 Vulnerability', target: 'all_type_vuln' as StatKey, type: 'add', value: 0.12 * newE6Stacks }],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 };
                 newState = addEffect(newState, target.id, vulnEffect);
             }
@@ -344,8 +344,8 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
                 { source: 'E2', target: 'skill_dmg_boost', type: 'add', value: 0.20 },
                 { source: 'E2', target: 'ult_dmg_boost', type: 'add', value: 0.20 }
             ],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, ownerId, e2Buff);
     }
@@ -396,7 +396,14 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
     targets.forEach(t => {
         const res = applyUnifiedDamage(newState, source, t, source.stats.atk * multiplier, {
             damageType: 'Skill',
-            details: '紫霄の雷鳴'
+            details: '紫霄の雷鳴',
+            skipLog: true,
+            skipStats: true,
+            additionalDamageEntry: {
+                source: source.name,
+                name: '紫霄の雷鳴',
+                damageType: 'additional'
+            }
         });
         newState = res.state;
     });
@@ -414,8 +421,8 @@ const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string,
             durationType: 'TURN_START_BASED',
             duration: 2,
             modifiers: [{ source: 'A6', target: 'crit_rate', type: 'add', value: 0.10 }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a6Buff);
     }
@@ -435,7 +442,14 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
     targets.forEach(t => {
         const res = applyUnifiedDamage(newState, source, t, source.stats.atk * multiplier, {
             damageType: 'Ultimate',
-            details: '我が身の輝き'
+            details: '我が身の輝き',
+            skipLog: true,
+            skipStats: true,
+            additionalDamageEntry: {
+                source: source.name,
+                name: '我が身の輝き',
+                damageType: 'additional'
+            }
         });
         newState = res.state;
     });
@@ -576,18 +590,25 @@ export const jingYuan: Character = {
         e6: { level: 6, name: '威光纏う神霊 敵屠る', description: '神君攻撃毎に敵へ被ダメデバフ' },
     },
     defaultConfig: {
-        lightConeId: 'before-dawn', // Night Before (夜明け前)
-        relicSetIds: ['the_ashblazing_grand_duke', 'prisoner_in_deep_confinement'], // Grand Duke (大公)
+        eidolonLevel: 0,
+        lightConeId: 'before-dawn',
+        superimposition: 1,
+        relicSetIds: ['the_ashblazing_grand_duke', 'prisoner_in_deep_confinement'],
         ornamentSetId: 'inert_salsotto',
         mainStats: {
             body: 'crit_rate',
-            feet: 'atk_pct',
+            feet: 'atk_pct', // 神君のSPDを景元が上げる必要がある場合もあるが、一般的には攻撃靴か速度靴。ここでは一旦攻撃靴。
             sphere: 'lightning_dmg_boost',
             rope: 'atk_pct'
         },
         subStats: [
-            { stat: 'crit_rate', value: 0.5 },
-            { stat: 'crit_dmg', value: 1.0 }
-        ]
+            { stat: 'crit_rate', value: 0.10 },
+            { stat: 'crit_dmg', value: 0.50 },
+            { stat: 'atk_pct', value: 0.15 },
+            { stat: 'spd', value: 10 },
+        ],
+        rotationMode: 'sequence',
+        rotation: ['s'],
+        ultStrategy: 'immediate',
     }
 };

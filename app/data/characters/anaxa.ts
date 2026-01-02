@@ -324,6 +324,9 @@ function addWeaknessToEnemy(
     // 既に同じ弱点が付与されている場合は期間をリセット
     let newState = removeEffect(state, targetId, effectId);
 
+    // クロージャで「このエフェクトが弱点を追加したか」を追跡
+    let addedByThisEffect = false;
+
     const weaknessEffect: IEffect = {
         id: effectId,
         name: `弱点付与: ${element}`,
@@ -333,8 +336,34 @@ function addWeaknessToEnemy(
         duration: WEAKNESS_DURATION,
         ignoreResistance: true,
         miscData: { element },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+        onApply: (t, s) => {
+            // Unit.weaknesses を直接更新（ダメージエンジンとの互換性確保）
+            if (!t.weaknesses.has(element)) {
+                addedByThisEffect = true;
+                const updatedWeaknesses = new Set(t.weaknesses);
+                updatedWeaknesses.add(element);
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                };
+            }
+            addedByThisEffect = false;
+            return s;
+        },
+        onRemove: (t, s) => {
+            // 自分が追加した場合のみ削除
+            if (addedByThisEffect) {
+                const updatedWeaknesses = new Set(t.weaknesses);
+                updatedWeaknesses.delete(element);
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                };
+            }
+            return s;
+        },
+
+        /* remove removed */
     };
 
     return addEffect(newState, targetId, weaknessEffect);
@@ -356,6 +385,9 @@ function addSublimationToEnemy(
     // 既存の昇華状態を削除
     let newState = removeEffect(state, targetId, effectId);
 
+    // クロージャで追加した弱点を追跡
+    const addedElements = new Set<Element>();
+
     const sublimationEffect: IEffect = {
         id: effectId,
         name: '昇華',
@@ -365,8 +397,39 @@ function addSublimationToEnemy(
         duration: 1, // 敵のターンが来るまで（敵ターン開始時に削除）
         ignoreResistance: true,
         tags: ['SUBLIMATION'],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+        onApply: (t, s) => {
+            // Unit.weaknesses に全属性を追加（ダメージエンジンとの互換性確保）
+            const updatedWeaknesses = new Set(t.weaknesses);
+            ELEMENTS.forEach(element => {
+                if (!t.weaknesses.has(element)) {
+                    addedElements.add(element);
+                    updatedWeaknesses.add(element);
+                }
+            });
+            if (addedElements.size > 0) {
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                };
+            }
+            return s;
+        },
+        onRemove: (t, s) => {
+            // 自分が追加した弱点のみ削除
+            if (addedElements.size > 0) {
+                const updatedWeaknesses = new Set(t.weaknesses);
+                addedElements.forEach(element => {
+                    updatedWeaknesses.delete(element);
+                });
+                return {
+                    ...s,
+                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                };
+            }
+            return s;
+        },
+
+        /* remove removed */
     };
 
     return addEffect(newState, targetId, sublimationEffect);
@@ -447,27 +510,8 @@ function onBattleStart(
                     type: 'add' as const,
                     value: A4_SOLO_CRIT_DMG
                 }],
-                onApply: (t, s) => {
-                    const newModifiers = [...t.modifiers, {
-                        source: '必要な空白',
-                        target: 'crit_dmg' as StatKey,
-                        type: 'add' as const,
-                        value: A4_SOLO_CRIT_DMG
-                    }];
-                    return {
-                        ...s,
-                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                    };
-                },
-                onRemove: (t, s) => {
-                    const newModifiers = t.modifiers.filter(m => m.source !== '必要な空白' || m.target !== 'crit_dmg');
-                    return {
-                        ...s,
-                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                    };
-                },
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, soloBuff);
         }
@@ -488,27 +532,8 @@ function onBattleStart(
                         type: 'add' as const,
                         value: A4_PARTY_DMG_BOOST
                     }],
-                    onApply: (t, s) => {
-                        const newModifiers = [...t.modifiers, {
-                            source: '必要な空白 (パーティ)',
-                            target: 'all_type_dmg_boost' as StatKey,
-                            type: 'add' as const,
-                            value: A4_PARTY_DMG_BOOST
-                        }];
-                        return {
-                            ...s,
-                            registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                        };
-                    },
-                    onRemove: (t, s) => {
-                        const newModifiers = t.modifiers.filter(m => m.source !== '必要な空白 (パーティ)');
-                        return {
-                            ...s,
-                            registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                        };
-                    },
-                    apply: (t, s) => s,
-                    remove: (t, s) => s
+
+                    /* remove removed */
                 };
                 newState = addEffect(newState, ally.id, partyBuff);
             });
@@ -540,27 +565,8 @@ function onBattleStart(
                     type: 'add' as const,
                     value: -E2_ALL_RES_DOWN
                 }],
-                onApply: (t, s) => {
-                    const newModifiers = [...t.modifiers, {
-                        source: 'E2: 全属性耐性ダウン',
-                        target: 'all_type_res' as StatKey,
-                        type: 'add' as const,
-                        value: -E2_ALL_RES_DOWN
-                    }];
-                    return {
-                        ...s,
-                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                    };
-                },
-                onRemove: (t, s) => {
-                    const newModifiers = t.modifiers.filter(m => m.source !== 'E2: 全属性耐性ダウン');
-                    return {
-                        ...s,
-                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                    };
-                },
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, enemy.id, resDownEffect);
         });
@@ -764,8 +770,8 @@ function onSkillUsed(
                 sourceUnitId: sourceUnitId,
                 durationType: 'TURN_END_BASED',
                 duration: 1,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+
+                /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, blockEffect);
 
@@ -818,27 +824,8 @@ function applyE1DefDown(state: GameState, sourceUnitId: string, targetId: string
             type: 'add' as const,
             value: -E1_DEF_DOWN
         }],
-        onApply: (t, s) => {
-            const newModifiers = [...t.modifiers, {
-                source: 'E1: 防御力ダウン',
-                target: 'def_pct' as StatKey,
-                type: 'add' as const,
-                value: -E1_DEF_DOWN
-            }];
-            return {
-                ...s,
-                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        onRemove: (t, s) => {
-            const newModifiers = t.modifiers.filter(m => m.source !== 'E1: 防御力ダウン');
-            return {
-                ...s,
-                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     return addEffect(state, targetId, defDownEffect);
@@ -869,34 +856,16 @@ function applyE4AtkBuff(state: GameState, sourceUnitId: string): GameState {
         duration: E4_ATK_BUFF_DURATION,
         stackCount: stackCount,
         maxStacks: E4_MAX_STACKS,
+        stackStrategy: 'replace',  // 明示的にスタック数を指定
         modifiers: [{
             source: 'E4: 攻撃力アップ',
             target: 'atk_pct' as StatKey,
             type: 'add' as const,
-            value: E4_ATK_BUFF * stackCount
+            value: E4_ATK_BUFF  // スタックあたりの値（stackCountによる自動乗算）
         }],
-        onApply: (t, s) => {
-            const cleanModifiers = t.modifiers.filter(m => m.source !== 'E4: 攻撃力アップ');
-            const newModifiers = [...cleanModifiers, {
-                source: 'E4: 攻撃力アップ',
-                target: 'atk_pct' as StatKey,
-                type: 'add' as const,
-                value: E4_ATK_BUFF * stackCount
-            }];
-            return {
-                ...s,
-                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        onRemove: (t, s) => {
-            const newModifiers = t.modifiers.filter(m => m.source !== 'E4: 攻撃力アップ');
-            return {
-                ...s,
-                registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-            };
-        },
-        apply: (t, s) => s,
-        remove: (t, s) => s
+        // onApply/onRemove は不要（modifiersによる自動適用を使用）
+
+        /* remove removed */
     };
 
     return addEffect(newState, sourceUnitId, atkBuff);
@@ -1002,27 +971,6 @@ export const anaxaHandlerFactory: IEventHandlerFactory = (
                                     type: 'add' as const,
                                     value: -E2_ALL_RES_DOWN
                                 }],
-                                onApply: (t, s) => {
-                                    const newModifiers = [...t.modifiers, {
-                                        source: 'E2: 全属性耐性ダウン',
-                                        target: 'all_type_res' as StatKey,
-                                        type: 'add' as const,
-                                        value: -E2_ALL_RES_DOWN
-                                    }];
-                                    return {
-                                        ...s,
-                                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                                    };
-                                },
-                                onRemove: (t, s) => {
-                                    const newModifiers = t.modifiers.filter(m => m.source !== 'E2: 全属性耐性ダウン');
-                                    return {
-                                        ...s,
-                                        registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: newModifiers }))
-                                    };
-                                },
-                                apply: (t, s) => s,
-                                remove: (t, s) => s
                             };
                             newState = addEffect(newState, event.targetId, resDownEffect);
                         }

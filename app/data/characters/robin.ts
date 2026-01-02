@@ -419,8 +419,8 @@ function createSkillDmgBoostEffect(
             type: 'add',
             value: dmgBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -445,8 +445,8 @@ function createTalentCritDmgAura(sourceId: string, eidolonLevel: number): IEffec
             type: 'add',
             value: critDmg,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -477,8 +477,8 @@ function createConcertoAtkBoostEffect(
             type: 'add',
             value: atkBoost,
         }],
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
 }
 
@@ -527,8 +527,8 @@ const incrementE6Counter = (state: GameState, sourceUnitId: string): GameState =
             durationType: 'PERMANENT',
             duration: -1,
             stackCount: newCount,
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         return addEffect(state, sourceUnitId, counterEffect);
     }
@@ -658,8 +658,8 @@ const onUltimateUsed = (
         durationType: 'PERMANENT',
         duration: -1,
         tags: ['SKIP_ACTION', 'CC_IMMUNE'],  // ターンスキップ、行動制限抵抗
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+       
+       
     };
     newState = addEffect(newState, sourceUnitId, concertoEffect);
 
@@ -688,8 +688,8 @@ const onUltimateUsed = (
                 type: 'add',
                 value: E1_RES_PEN,
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         for (const ally of allies) {
             newState = addEffect(newState, ally.id, e1Effect);
@@ -712,8 +712,8 @@ const onUltimateUsed = (
                 type: 'add',
                 value: E2_SPD_BOOST,
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         for (const ally of allies) {
             newState = addEffect(newState, ally.id, e2Effect);
@@ -736,8 +736,8 @@ const onUltimateUsed = (
                 type: 'add',
                 value: E4_EFFECT_RES,
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         for (const ally of allies) {
             newState = addEffect(newState, ally.id, e4Effect);
@@ -761,8 +761,8 @@ const onUltimateUsed = (
                 type: 'add',
                 value: A4_FUA_CRIT_DMG,
             }],
-            apply: (t, s) => s,
-            remove: (t, s) => s,
+           
+           
         };
         for (const ally of allies) {
             newState = addEffect(newState, ally.id, a4Effect);

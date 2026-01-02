@@ -148,8 +148,8 @@ const addCharge = (state: GameState, sourceId: string, amount: number, eidolonLe
             durationType: 'PERMANENT',
             duration: -1,
             miscData: { stack: newStack },
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         return addEffect(state, sourceId, newEffect);
     }
@@ -263,7 +263,27 @@ export const rappa: Character = {
         e4: { level: 4, name: 'E4', description: 'SpdBuff' },
         e5: { level: 5, name: 'E5', description: 'Ult/Basic' },
         e6: { level: 6, name: 'E6', description: 'ChargeBuff' }
-    }
+    },
+    defaultConfig: {
+        eidolonLevel: 0,
+        lightConeId: 'ninjutsu-inscription-dazzling-evilbreaker',
+        superimposition: 1,
+        relicSetId: 'iron-cavalry-against-scourge',
+        ornamentSetId: 'talia-kingdom-of-banditry',
+        mainStats: {
+            body: 'atk_pct',
+            feet: 'spd',
+            sphere: 'atk_pct',
+            rope: 'break_effect',
+        },
+        subStats: [
+            { stat: 'break_effect', value: 0.60 },
+            { stat: 'spd', value: 10 },
+            { stat: 'atk_pct', value: 0.15 },
+        ],
+        rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
+    },
 };
 
 // =============================================================================
@@ -361,7 +381,7 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceId: string, 
     let newState = state;
     // 初期チャージ
     const chargeEffect: IEffect = {
-        id: EFFECT_IDS.CHARGE(sourceId), name: 'チャージ', category: 'BUFF', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1, miscData: { stack: 0 }, apply: (t, s) => s, remove: (t, s) => s
+        id: EFFECT_IDS.CHARGE(sourceId), name: 'チャージ', category: 'BUFF', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1, miscData: { stack: 0 }, /* remove removed */
     };
     newState = addEffect(newState, sourceId, chargeEffect);
     if (eidolonLevel >= 6) newState = addCharge(newState, sourceId, E6_START_CHARGE, eidolonLevel);
@@ -392,7 +412,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
     if (existingChroma) newState = removeEffect(newState, sourceId, existingChroma.id);
 
     const chromaEffect: IEffect = {
-        id: EFFECT_IDS.CHROMA(sourceId), name: '彩墨', category: 'BUFF', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1, miscData: { stack: 3 }, apply: (t, s) => s, remove: (t, s) => s
+        id: EFFECT_IDS.CHROMA(sourceId), name: '彩墨', category: 'BUFF', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1, miscData: { stack: 3 }, /* remove removed */
     };
     newState = addEffect(newState, sourceId, chromaEffect);
 
@@ -411,8 +431,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceId: string, 
         id: EFFECT_IDS.SEAL(sourceId), name: '結印', category: 'BUFF', sourceUnitId: sourceId, durationType: 'PERMANENT', duration: -1,
         modifiers: modifiers,
         tags: ['RAPPA_SEAL'],
-        apply: (t, s) => s,
-        remove: (t, s) => eidolonLevel >= 1 ? addEnergyToUnit(s, sourceId, 20, 0, false, { sourceId, publishEventFn: publishEvent }) : s
+
+        onRemove: (t, s) => eidolonLevel >= 1 ? addEnergyToUnit(s, sourceId, 20, 0, false, { sourceId, publishEventFn: publishEvent }) : s
     };
     newState = addEffect(newState, sourceId, sealEffect);
 
@@ -447,7 +467,7 @@ const onWeaknessBreak = (event: ActionEvent, state: GameState, sourceId: string,
         const a6Effect: IEffect = {
             id: EFFECT_IDS.A6_BUFF(event.targetId || ''), name: 'A6', category: 'DEBUFF', sourceUnitId: sourceId, durationType: 'TURN_START_BASED', duration: 2,
             modifiers: [{ target: 'break_dmg_taken', value: 0.02 + bonus, type: 'add', source: 'A6' }],
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         };
         newState = addEffect(newState, event.targetId || '', a6Effect);
     }

@@ -46,6 +46,9 @@ export const UnitIdGenerator = {
      * @param spawnIndex - 生成順（省略可）
      */
     generateEnemyId(enemyDataId: string, spawnIndex?: number): UnitId {
+        if (spawnIndex !== undefined) {
+            return createUnitId(`${enemyDataId}_${spawnIndex}`);
+        }
         return createUnitId(enemyDataId);
     },
 

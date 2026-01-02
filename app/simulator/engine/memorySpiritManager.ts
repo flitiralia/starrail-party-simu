@@ -39,6 +39,8 @@ export interface IMemorySpiritDefinition {
     untargetable?: boolean;
     /** 精霊の初期持続時間（ターン数） */
     initialDuration?: number;
+    /** 精霊の基礎ヘイト値（未指定の場合はオーナーの値を継承またはデフォルト） */
+    baseAggro?: number;
 }
 
 /**
@@ -106,7 +108,8 @@ export function summonOrRefreshSpirit(
         baseStats: {
             ...owner.stats,
             hp: owner.stats.hp * definition.hpMultiplier,
-            spd: definition.baseSpd
+            spd: definition.baseSpd,
+            aggro: definition.baseAggro ?? owner.stats.aggro ?? 100
         },
         baseSpd: definition.baseSpd,
         element: definition.element,

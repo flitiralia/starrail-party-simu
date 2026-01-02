@@ -194,7 +194,7 @@ export const welt: Character = {
     },
 
     defaultConfig: {
-        eidolonLevel: 6,
+        eidolonLevel: 0,
         lightConeId: 'in-the-name-of-the-world',
         superimposition: 1,
         relicSetId: 'wastelander-of-banditry-desert',
@@ -296,8 +296,8 @@ function createWeltImprisonmentEffect(sourceId: string, targetId: string, delayP
             value: -0.10
         }],
         isCleansable: true,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 }
 
@@ -397,8 +397,8 @@ export const weltHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, pa
                                 value: -0.10
                             }],
                             isCleansable: true,
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, targetId, spdDownEffect);
                     }
@@ -573,8 +573,8 @@ export const weltHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, pa
                                 type: 'add',
                                 value: 0.12
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s
+
+                            /* remove removed */
                         };
                         newState = addEffect(newState, enemy.id, vulnEffect);
                     }
@@ -597,8 +597,8 @@ export const weltHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, pa
                         duration: -1,
                         stackCount: 2,
                         maxStacks: 2,
-                        apply: (t, s) => s,
-                        remove: (t, s) => s
+
+                        /* remove removed */
                     };
                     newState = addEffect(newState, sourceUnitId, e1Buff);
                 }

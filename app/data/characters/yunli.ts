@@ -2,7 +2,7 @@ import { Character, StatKey, IAbility } from '../../types/index';
 import { IEventHandlerFactory, IEvent, GameState, Unit, DamageDealtEvent, ActionEvent, FollowUpAttackAction } from '../../simulator/engine/types';
 import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { IEffect } from '../../simulator/effect/types';
+import { IEffect, TauntEffect } from '../../simulator/effect/types';
 import { applyHealing } from '../../simulator/engine/utils';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
@@ -13,7 +13,7 @@ const CHARACTER_ID = 'yunli';
 
 const EFFECT_IDS = {
     PARRY_STANCE: (sourceId: string) => `yunli-parry-${sourceId}`,
-    TAUNT: (sourceId: string, targetId: string) => `yunli-taunt-${sourceId}-${targetId}`,
+    TAUNT: (enemyId: string) => `taunt-${enemyId}`,  // 上書き可能なID（全キャラ共通）
     NEXT_COUNTER_CULL: (sourceId: string) => `yunli-next-cull-${sourceId}`, // A2 state
     A6_BUFF: (sourceId: string) => `yunli-a6-buff-${sourceId}`,
     TECHNIQUE_STANCE: (sourceId: string) => `yunli-tech-stance-${sourceId}`,
@@ -226,7 +226,7 @@ function triggerCounter(
             durationType: 'TURN_END_BASED',
             duration: 1,
             modifiers: [{ target: 'atk_pct', value: 0.30, type: 'add', source: '真鋼' }],
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         });
     }
 
@@ -250,7 +250,7 @@ function triggerCounter(
             sourceUnitId: sourceId,
             durationType: 'PERMANENT',
             duration: -1,
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         });
     }
 
@@ -292,7 +292,7 @@ function triggerCounter(
             name: 'Executing Cull',
             category: 'BUFF', duration: -1, durationType: 'PERMANENT', // Clears after action manually
             sourceUnitId: sourceId,
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         });
     } else {
         // Intuit: Slash (看破・斬)
@@ -310,7 +310,7 @@ function triggerCounter(
             name: 'Executing Slash',
             category: 'BUFF', duration: -1, durationType: 'PERMANENT',
             sourceUnitId: sourceId,
-            apply: (t, s) => s, remove: (t, s) => s
+            /* remove removed */
         });
     }
 
@@ -349,7 +349,7 @@ export const yunliHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, p
                         // "Instant" implies right at start.
                         category: 'BUFF', duration: 1, durationType: 'TURN_END_BASED', // Dummy
                         sourceUnitId: sourceUnitId,
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     });
 
                     // Trigger Counter Cull immediately
@@ -500,7 +500,7 @@ export const yunliHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, p
                         name: '構え',
                         category: 'BUFF', duration: 1, durationType: 'TURN_END_BASED',
                         sourceUnitId: sourceUnitId,
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     });
 
                     const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
@@ -516,19 +516,24 @@ export const yunliHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, p
                         // So it should be consumed.
                         sourceUnitId: sourceUnitId,
                         modifiers: [{ target: 'crit_dmg', value: critDmgBoost, type: 'add', source: '必殺技' }],
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     });
 
-                    // Taunt Enemies
+                    // Taunt Enemies (固定確率100%)
                     state.registry.getAliveEnemies().forEach(e => {
-                        newState = addEffect(newState, e.id, {
-                            id: EFFECT_IDS.TAUNT(sourceUnitId, e.id),
+                        const tauntEffect: TauntEffect = {
+                            id: EFFECT_IDS.TAUNT(e.id),
+                            type: 'Taunt',
                             name: '挑発',
-                            category: 'DEBUFF', duration: 1, durationType: 'TURN_END_BASED',
+                            category: 'DEBUFF',
+                            duration: 1,
+                            durationType: 'TURN_END_BASED',
                             sourceUnitId: sourceUnitId,
-                            modifiers: [{ target: 'aggro', value: 1000, type: 'add', source: '挑発' }],
-                            apply: (t, s) => s, remove: (t, s) => s
-                        });
+                            targetAllyId: sourceUnitId,  // 雲離自身を攻撃させる
+                            isCleansable: true,
+                            ignoreResistance: true,  // 固定確率100%（効果命中/効果抵抗を無視）
+                        };
+                        newState = addEffect(newState, e.id, tauntEffect);
                     });
                 }
 
@@ -545,7 +550,7 @@ export const yunliHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, p
                             category: 'BUFF', duration: 1, durationType: 'TURN_END_BASED',
                             sourceUnitId: sourceUnitId,
                             modifiers: [{ target: 'effect_res', value: 0.50, type: 'add', source: 'E4' }],
-                            apply: (t, s) => s, remove: (t, s) => s
+                            /* remove removed */
                         });
                     }
 

@@ -291,8 +291,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     sourceUnitId: sourceUnitId,
                     durationType: 'PERMANENT',
                     duration: -1,
-                    apply: (t, s) => s,
-                    remove: (t, s) => s,
+                   
+                   
                 };
                 newState = addEffect(newState, bestPartner.id, partnerEffect);
             }
@@ -307,8 +307,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+               
+               
             };
             newState = addEffect(newState, sourceUnitId, selfPartner);
         }
@@ -341,8 +341,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     type: 'add',
                     source: '追加能力: 葬礼またひとつ'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+               
+               
             };
             newState = addEffect(newState, ally.id, effect);
         }
@@ -373,11 +373,11 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 durationType: 'TURN_START_BASED',
                 duration: duration,
                 miscData: { element },
-                apply: (t, s) => {
+                onApply: (t, s) => {
                     t.weaknesses.add(element);
                     return s;
                 },
-                remove: (t, s) => {
+                onRemove: (t, s) => {
                     t.weaknesses.delete(element);
                     return s;
                 },
@@ -401,8 +401,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     type: 'pct',
                     source: '追加能力: A6'
                 }],
-                apply: (t, s) => s,
-                remove: (t, s) => s,
+               
+               
             };
             newState = addEffect(newState, sourceUnitId, spdBuff);
         }
@@ -497,8 +497,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '戦闘スキル: 結界'
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s,
+                       
+                       
                     };
                     newState = addEffect(newState, sourceUnitId, barrier);
                 }
@@ -529,8 +529,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         type: 'add',
                         source: '戦闘スキル: 結界'
                     }],
-                    apply: (t, s) => s,
-                    remove: (t, s) => s,
+                   
+                   
                 };
                 let newState = addEffect(state, sourceUnitId, barrier);
 
@@ -551,8 +551,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '戦闘スキル: 凋落'
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s,
+                       
+                       
                     };
                     newState = addEffect(newState, enemy.id, decadence);
                 }
@@ -578,8 +578,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '必殺技: 凋落'
                         }],
-                        apply: (t, s) => s,
-                        remove: (t, s) => s,
+                       
+                       
                     };
                     newState = addEffect(newState, enemy.id, decadence);
                     newState = applyWeaknessFromPartners(newState, enemy.id, sourceUnitId, ULT_DURATION);
@@ -623,8 +623,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                                 type: 'pct',
                                 source: '追加能力: A6'
                             }],
-                            apply: (t, s) => s,
-                            remove: (t, s) => s,
+                           
+                           
                         };
                         newState = addEffect(newState, sourceUnitId, spdBuff);
 

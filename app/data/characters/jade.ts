@@ -197,6 +197,7 @@ export const jade: Character = {
             { stat: 'crit_dmg', value: 1.0 },
         ],
         rotationMode: 'spam_skill',
+        ultStrategy: 'immediate',
     }
 };
 
@@ -244,8 +245,8 @@ function createDebtCollectorBuff(sourceId: string, targetId: string, eidolonLeve
         duration: 0,
         linkedEffectId: `${EFFECT_IDS.DEBT_COLLECTOR_TRACKER}-${sourceId}`,
         modifiers: modifiers,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -258,8 +259,8 @@ function createDebtCollectorTracker(sourceId: string): IEffect {
         sourceUnitId: sourceId,
         durationType: 'TURN_START_BASED',
         duration: SKILL_DURATION,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
 }
 
@@ -297,8 +298,8 @@ function addPawnedAsset(state: GameState, unitId: string, amount: number, talent
             { source: '質草', target: 'atk_pct' as StatKey, type: 'add', value: atkPct },
             ...(critRate > 0 ? [{ source: '質草', target: 'crit_rate' as StatKey, type: 'add' as const, value: critRate }] : [])
         ],
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
 
     newState = addEffect(newState, unitId, newEffect);
@@ -329,8 +330,8 @@ function addCharge(state: GameState, unitId: string, amount: number, eidolonLeve
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: currentCharge,
-        apply: (t, s) => s,
-        remove: (t, s) => s
+
+        /* remove removed */
     };
     newState = addEffect(newState, unitId, newChargeEffect);
 
@@ -448,8 +449,8 @@ const onBattleStart = (event: GeneralEvent, state: GameState, sourceUnitId: stri
             durationType: 'PERMANENT',
             duration: -1,
             modifiers: [{ target: 'quantum_res_pen' as StatKey, value: 0.20, type: 'add' as const, source: 'E6' }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, resPenEffect);
 
@@ -641,8 +642,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
             durationType: 'TURN_START_BASED',
             duration: E4_DURATION,
             modifiers: [{ source: 'E4防御無視', target: 'def_ignore' as StatKey, type: 'add' as const, value: E4_DEF_IGNORE_VAL }],
-            apply: (t, s) => s,
-            remove: (t, s) => s
+
+            /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e4Buff);
     }
@@ -663,8 +664,8 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         durationType: 'PERMANENT',
         duration: -1,
         stackCount: ULT_ENHANCE_STACKS,
-        apply: (t, s) => s,
-        remove: (t, s) => s,
+
+
     };
     newState = addEffect(newState, sourceUnitId, enhanceBuff);
 

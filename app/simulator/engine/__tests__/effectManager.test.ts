@@ -137,7 +137,7 @@ describe('Effect Manager', () => {
         });
 
         describe('stacking behavior', () => {
-            it('should increase stack count on duplicate effect from same source', () => {
+            it('should default to legacy "auto" behavior (increment by 1 if not specified)', () => {
                 const existingEffect = createMockEffect({
                     id: 'stackable',
                     sourceUnitId: 'source-1',
@@ -154,13 +154,92 @@ describe('Effect Manager', () => {
                 });
 
                 const result = addEffect(state, 'target', newEffect);
-
                 const updatedUnit = result.registry.get(createUnitId('target'));
-                expect(updatedUnit?.effects.length).toBe(1);
                 expect(updatedUnit?.effects[0].stackCount).toBe(2);
             });
 
-            it('should not exceed max stacks', () => {
+            it('should use "add" strategy correctly', () => {
+                const existingEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 2,
+                    maxStacks: 10
+                });
+                const unit = createMockUnit('target', { effects: [existingEffect] });
+                const state = createMockState([unit]);
+
+                const newEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 3,
+                    stackStrategy: 'add',
+                    maxStacks: 10
+                });
+
+                const result = addEffect(state, 'target', newEffect);
+                const updatedUnit = result.registry.get(createUnitId('target'));
+                expect(updatedUnit?.effects[0].stackCount).toBe(5); // 2 + 3
+            });
+
+            it('should use "replace" strategy correctly', () => {
+                const existingEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 5,
+                    maxStacks: 10
+                });
+                const unit = createMockUnit('target', { effects: [existingEffect] });
+                const state = createMockState([unit]);
+
+                const newEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 1,
+                    stackStrategy: 'replace',
+                    maxStacks: 10
+                });
+
+                const result = addEffect(state, 'target', newEffect);
+                const updatedUnit = result.registry.get(createUnitId('target'));
+                expect(updatedUnit?.effects[0].stackCount).toBe(1); // Replaced with 1
+            });
+
+            it('should use "max" strategy correctly', () => {
+                const existingEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 3,
+                    maxStacks: 10
+                });
+                const unit = createMockUnit('target', { effects: [existingEffect] });
+                const state = createMockState([unit]);
+
+                // Case 1: New is lower (should ignore)
+                const lowerEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 2,
+                    stackStrategy: 'max',
+                    maxStacks: 10
+                });
+                let result = addEffect(state, 'target', lowerEffect);
+                let updatedUnit = result.registry.get(createUnitId('target'));
+                expect(updatedUnit?.effects[0].stackCount).toBe(3);
+
+                // Case 2: New is higher (should update)
+                const higherEffect = createMockEffect({
+                    id: 'stackable',
+                    sourceUnitId: 'source-1',
+                    stackCount: 5,
+                    stackStrategy: 'max',
+                    maxStacks: 10
+                });
+                result = addEffect(state, 'target', higherEffect);
+                updatedUnit = result.registry.get(createUnitId('target'));
+                expect(updatedUnit?.effects[0].stackCount).toBe(5);
+            });
+
+            it('should not exceed max stacks with any strategy', () => {
                 const existingEffect = createMockEffect({
                     id: 'stackable',
                     sourceUnitId: 'source-1',
@@ -173,6 +252,8 @@ describe('Effect Manager', () => {
                 const newEffect = createMockEffect({
                     id: 'stackable',
                     sourceUnitId: 'source-1',
+                    stackCount: 10,
+                    stackStrategy: 'add', // 3 + 10 = 13 -> clamped to 3
                     maxStacks: 3
                 });
 

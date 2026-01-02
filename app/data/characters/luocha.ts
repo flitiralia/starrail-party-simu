@@ -254,8 +254,8 @@ function addAbyssFlowerStack(state: GameState, sourceId: string): GameState {
                 durationType: 'PERMANENT',
                 duration: -1,
                 stackCount: currentStacks,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             state = addEffect(state, sourceId, newStackEffect);
         }
@@ -292,7 +292,7 @@ function deployField(state: GameState, sourceId: string): GameState {
                                 registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E1') }))
                             };
                         },
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     };
                     newState = addEffect(newState, u.id, e1Buff);
                 });
@@ -317,14 +317,14 @@ function deployField(state: GameState, sourceId: string): GameState {
                                 registry: s.registry.update(createUnitId(t.id), u => ({ ...u, modifiers: unit.modifiers.filter(m => m.source !== '羅刹 E4') }))
                             };
                         },
-                        apply: (t, s) => s, remove: (t, s) => s
+                        /* remove removed */
                     };
                     newState = addEffect(newState, u.id, e4Debuff);
                 });
             }
             return newState;
         },
-        apply: (t, s) => s, remove: (t, s) => s,
+       
     };
     return addEffect(state, sourceId, fieldEffect);
 }
@@ -348,8 +348,8 @@ function onAutoSkillCheck(event: GeneralEvent, state: GameState, sourceUnitId: s
                 durationType: 'TURN_END_BASED',
                 skipFirstTurnDecrement: true,
                 duration: 2,
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             state = addEffect(state, sourceUnitId, cooldownEffect);
             state = { ...state, log: [...state.log, { actionType: 'オートスキル', sourceId: sourceUnitId, targetId: lowHpAlly.id, details: '羅刹オートスキル発動' }] };
@@ -414,8 +414,8 @@ function onUltimateUsed(event: ActionEvent, state: GameState, sourceUnitId: stri
                 ignoreResistance: true,
                 isCleansable: true,
                 modifiers: resElements.map(key => ({ target: key, type: 'add' as const, value: -E6_RES_DOWN, source: '羅刹 E6' })),
-                apply: (t, s) => s,
-                remove: (t, s) => s
+               
+                /* remove removed */
             };
             state = addEffect(state, enemy.id, resDownEffect);
         });

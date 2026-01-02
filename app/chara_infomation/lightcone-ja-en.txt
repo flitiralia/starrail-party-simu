@@ -136,7 +136,7 @@ Cornucopia	物穣
 Dream's Montage	夢のモンタージュ
 Echoes of the Coffin	棺のこだま
 Fine Fruit	嘉果
-Hey, Over Here	「よぉ、ここにいるぜ」
+Hey, Over Here 	「よぉ、ここにいるぜ」
 Multiplication	蕃殖
 Night of Fright	驚魂の夜
 Perfect Timing	今が丁度
@@ -148,3 +148,20 @@ Time Waits for No One	時節は居らず
 Unto Tomorrow's Morrow	明日の明日まで
 Warmth Shortens Cold Nights	暖かい夜は長くない
 What Is Real?	何が真か
+
+■記憶 (Remembrance)
+英語名	日本語名
+Fly Into a Pink Tomorrow - ピンク色の明日へ
+Geniuses' Greetings - 天才たちの「挨拶」
+Long May Rainbows Adorn the Sky - 空の虹が消えぬように
+Make Farewells More Beautiful - 永訣よ美しくあれ
+Memory's Curtain Never Falls - 尽きぬ追憶
+Reminiscence - 辿る記憶
+Shadowburn - 燃ゆる影
+Sweat Now, Cry Less - 流すなら涙より汗
+The Flower Remembers - 花は忘れない
+The Story's Next Page - 物語をめくって
+This Love, Forever - 愛はいま永遠に
+Time Woven Into Gold - 光陰を織り黄金と成す
+To Evernight's Stars - 長き夜に輝く星へ
+Victory In a Blink - 瞬刻の勝機
