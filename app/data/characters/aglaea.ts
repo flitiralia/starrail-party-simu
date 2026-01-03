@@ -1521,6 +1521,23 @@ const onAttack = (
     return newState;
 };
 
+/**
+ * ラフトラのスキル使用時（アグライアのEP回復）
+ */
+const onRaftraSkillUsed = (
+    event: ActionEvent,
+    state: GameState,
+    sourceUnitId: string
+): GameState => {
+    // スキル使用者がアグライア自身の召喚物であることを確認
+    const unit = state.registry.get(createUnitId(event.sourceId));
+    if (unit && unit.isSummon && unit.ownerId === sourceUnitId) {
+        // ラフトラのスキル使用時にアグライアのEPを10回復
+        return addEnergyToUnit(state, sourceUnitId, 10);
+    }
+    return state;
+};
+
 // =============================================================================
 // ハンドラーファクトリ
 // =============================================================================
@@ -1558,8 +1575,10 @@ export const aglaeaHandlerFactory: IEventHandlerFactory = (
                 if (actionEvent.sourceId === sourceUnitId) {
                     return onSkillUsed(actionEvent, state, sourceUnitId, eidolonLevel);
                 }
+                // ラフトラのスキル（EP回復）
+                let newState = onRaftraSkillUsed(actionEvent, state, sourceUnitId);
                 // 他のスキル（E2解除）
-                return onOtherSkillUsed(actionEvent, state, sourceUnitId, eidolonLevel);
+                return onOtherSkillUsed(actionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             if (event.type === 'ON_ULTIMATE_USED') {

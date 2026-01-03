@@ -147,6 +147,29 @@ describe('Aglaea Scenario Test', () => {
                 expect(healedRaftra?.hp).toBeGreaterThan(damagedRaftra!.hp);
             }
         });
+
+        it('should recover Aglaea EP when Raftra uses skill', () => {
+            let state = initialState;
+
+            // Summon Raftra
+            state = { ...state, currentTurnOwnerId: createUnitId(AGLAEA_ID) };
+            state = dispatch(state, { type: 'SKILL', sourceId: AGLAEA_ID, targetId: AGLAEA_ID });
+
+            const aglaeaBefore = getAglaea(state);
+            const initialEp = aglaeaBefore?.ep || 0;
+
+            const raftra = getRaftra(state);
+            expect(raftra).toBeDefined();
+
+            if (raftra) {
+                // Simulate Raftra skill use
+                state = dispatch(state, { type: 'SKILL', sourceId: raftra.id as string, targetId: ENEMY_ID });
+
+                const aglaeaAfter = getAglaea(state);
+                // Raftra skill should recover 10 EP for Aglaea
+                expect(aglaeaAfter?.ep).toBe(initialEp + 10);
+            }
+        });
     });
 
     describe('Threading Peril', () => {
