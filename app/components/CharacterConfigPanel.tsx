@@ -282,6 +282,8 @@ export default function CharacterConfigPanel({
                     relicSetList={relicSetList}
                     ornamentSetList={ornamentSetList}
                     onUpdate={handleRelicUpdate}
+                    relicMode={config.relicMode || '4pc'}
+                    onRelicModeChange={(mode) => onConfigUpdate({ ...config, relicMode: mode })}
                 />
             </div>
         </div >

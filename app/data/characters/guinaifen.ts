@@ -328,7 +328,7 @@ function applyFirekiss(
             name: `火喰い (${newStacks}層)`,
             duration: FIREKISS_DURATION,  // リセット
             modifiers: [{
-                target: 'dmg_taken' as StatKey,
+                target: 'all_dmg_taken_boost' as StatKey,
                 value: vulnValue * newStacks,
                 type: 'add',
                 source: '火喰い'
@@ -356,7 +356,7 @@ function applyFirekiss(
             stackCount: 1,
             maxStacks: maxStacks,
             modifiers: [{
-                target: 'dmg_taken' as StatKey,
+                target: 'all_dmg_taken_boost' as StatKey,
                 value: vulnValue,
                 type: 'add',
                 source: '火喰い'
@@ -598,11 +598,9 @@ const onDotDamage = (
     eidolonLevel: number
 ): GameState => {
     // 燃焼ダメージのみ対象
-    if (event.dotType !== 'Burn') return state;
+    if (event.dotType !== 'Burn' && !event.effectId?.toLowerCase().includes('burn')) return state;
 
-    // 桂乃芬がソースの燃焼のみ
-    if (event.sourceId !== sourceUnitId) return state;
-
+    // ソースチェックを緩和: 桂乃芬がフィールドにいれば、どの燃焼ダメージ（起爆含む）でも火喰いを付与
     const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 

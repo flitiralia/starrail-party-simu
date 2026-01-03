@@ -77,7 +77,7 @@ function addChargeStack(state: GameState, unitId: string, amount: number): GameS
         isDispellable: false,
         isCleansable: false,
         modifiers: [],
-       
+
         /* remove removed */
     });
 }
@@ -299,15 +299,12 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                             durationType: 'TURN_START_BASED',
                             duration: 2,
                             modifiers: [{
-                                target: 'dmg_taken' as StatKey, // Assuming generic dmg taken mod or elemental
-                                // Element specific dmg taken usually needs checks.
-                                // Framework might support subType?
-                                // For now using dmg_taken, simulating +10% Fire DMG taken by roughly DmgTaken +10%
+                                target: 'all_dmg_taken_boost' as StatKey,
                                 value: 0.10,
                                 type: 'add',
                                 source: 'Technique'
                             }],
-                           
+
                             /* remove removed */
                         });
                     }
@@ -330,7 +327,7 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                 type: 'add',
                                 source: 'Benchmark'
                             }],
-                           
+
                             /* remove removed */
                         };
                         newState = addEffect(newState, sourceId, buff);
@@ -360,7 +357,7 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                 type: 'add',
                                 source: 'Benchmark'
                             }],
-                           
+
                             /* remove removed */
                         };
                         return addEffect(state, sourceId, buff);
@@ -443,8 +440,8 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                     durationType: 'TURN_START_BASED',
                                     duration: 2,
                                     modifiers: [],
-                                   
-                                   
+
+
                                     dotType: 'Burn',
                                     damageCalculation: 'multiplier',
                                     multiplier: 0.30
@@ -517,7 +514,7 @@ export const himekoHandlerFactory: IEventHandlerFactory = (sourceId, level, eido
                                     durationType: 'TURN_START_BASED',
                                     duration: 2,
                                     modifiers: [{ target: 'spd_pct' as StatKey, value: 0.20, type: 'add', source: 'E1' }],
-                                   
+
                                     /* remove removed */
                                 });
                             }

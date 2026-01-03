@@ -158,6 +158,12 @@ export default function Home() {
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
   const [activeCharacterIndex, setActiveCharacterIndex] = useState<number | null>(null);
 
+  // --- IMPORT MODAL STATE ---
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'party' | 'character'>('party');
+  const [importTargetIndex, setImportTargetIndex] = useState<number | null>(null);
+  const [importValue, setImportValue] = useState('');
+
   // --- ENEMY STATE ---
   const [weaknesses, setWeaknesses] = useState(new Set<Element>());
 
@@ -405,7 +411,12 @@ export default function Home() {
   };
 
   const handleImportParty = () => {
-    const input = prompt('エクスポートされたJSONを貼り付けてください');
+    setImportMode('party');
+    setImportValue('');
+    setIsImportModalOpen(true);
+  };
+
+  const executeImportParty = (input: string) => {
     if (!input) return;
 
     try {
@@ -465,6 +476,7 @@ export default function Home() {
       setActiveCharacterIndex(null);
       setBattleResult(null);
       setSimulationLog([]);
+      setIsImportModalOpen(false);
       alert('パーティ情報をインポートしました。');
     } catch (e: any) {
       console.error(e);
@@ -510,7 +522,13 @@ export default function Home() {
   };
 
   const handleImportCharacter = (index: number) => {
-    const input = prompt('キャラクター情報を貼り付けてください (単体JSON)');
+    setImportMode('character');
+    setImportTargetIndex(index);
+    setImportValue('');
+    setIsImportModalOpen(true);
+  };
+
+  const executeImportCharacter = (index: number, input: string) => {
     if (!input) return;
 
     try {
@@ -568,6 +586,7 @@ export default function Home() {
       setPartyMembers(newMembers);
       setBattleResult(null);
       setSimulationLog([]);
+      setIsImportModalOpen(false);
       alert(`${charBase.name}の情報をインポートしました。`);
     } catch (e: any) {
       console.error(e);
@@ -1205,6 +1224,71 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* インポートモーダル */}
+      {isImportModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            ...sectionStyle,
+            width: '600px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+          }}>
+            <h2 style={{ margin: 0 }}>
+              {importMode === 'party' ? 'パーティ情報のインポート' : 'キャラクター情報のインポート'}
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.9em', color: '#aaa' }}>
+              エクスポートされたJSON文字列を以下に貼り付けてください。
+            </p>
+            <textarea
+              value={importValue}
+              onChange={(e) => setImportValue(e.target.value)}
+              placeholder="JSONをここに入力..."
+              style={{
+                ...selectorStyle,
+                height: '300px',
+                fontFamily: 'monospace',
+                fontSize: '0.85em',
+                resize: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                style={{ ...buttonStyle, backgroundColor: '#444', borderColor: '#555' }}
+                onClick={() => setIsImportModalOpen(false)}
+              >
+                キャンセル
+              </button>
+              <button
+                style={buttonStyle}
+                onClick={() => {
+                  if (importMode === 'party') {
+                    executeImportParty(importValue);
+                  } else if (importMode === 'character' && importTargetIndex !== null) {
+                    executeImportCharacter(importTargetIndex, importValue);
+                  }
+                }}
+              >
+                インポートを実行
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main >
   );
 }

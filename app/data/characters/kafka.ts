@@ -321,97 +321,97 @@ function detonateDoTs(
     const sourceUnit = state.registry.get(createUnitId(sourceId));
     if (!sourceUnit) return { state, totalDamage: 0 };
 
+    let newState = state;
     let totalDamage = 0;
     let dotCount = 0;
 
     // 全てのDoTエフェクトを検索してダメージを合計
-    target.effects.forEach(effect => {
+    for (const effect of target.effects) {
         // DoT系のエフェクトタイプをチェック
         const dotEffect = effect as DoTEffect;
-        const type = dotEffect.type || dotEffect.dotType; // Fallback for legacy
+        const type = (dotEffect as any).type || (dotEffect as any).dotType; // Fallback for legacy
 
-        if (type === 'DoT' || type === 'Shock' || type === 'Bleed' || type === 'Burn' || type === 'Wind Shear') {
-
+        if (type === 'DoT' || type === 'Shock' || type === 'Bleed' || type === 'Burn' || type === 'WindShear' || type === 'Wind Shear') {
             dotCount++;
-            // console.log(`[detonateDoTs] Processing DoT #${dotCount}: ${effect.name}, ID: ${effect.id}`); // Removed verbose log
 
             // DoTの基礎ダメージを取得
             let baseDamage = 0;
+            const actualDotType = (dotEffect as any).dotType || type;
+
             if (type === 'DoT') {
-                // 新システム: 計算タイプに応じて処理
                 if (dotEffect.damageCalculation === 'multiplier') {
-                    // キャラクターDoT: 倍率 × 現在のATK
-                    const multiplier = dotEffect.multiplier || 0;
-                    baseDamage = sourceUnit.stats.atk * multiplier;
+                    baseDamage = sourceUnit.stats.atk * (dotEffect.multiplier || 0);
                 } else {
-                    // 弱点撃破DoT: 固定ダメージ
                     baseDamage = dotEffect.baseDamage || 0;
                 }
             } else {
-                // 旧システム（互換性）: baseDamageを直接使用
                 baseDamage = dotEffect.baseDamage || 0;
             }
 
-            // ★calculateNormalDoTDamageWithBreakdownを使用
             const dotResult = calculateNormalDoTDamageWithBreakdown(sourceUnit, target, baseDamage);
-            const dotDamage = dotResult.damage;
-
-            // 起爆倍率を適用
-            const detonateDamage = dotDamage * detonateMultiplier;
+            const detonateDamage = dotResult.damage * detonateMultiplier;
             totalDamage += detonateDamage;
 
-            // ★ ターン数は減少させない
+            // ★ ON_DOT_DAMAGE イベントを発行（これによって桂乃芬の火喰いなどがトリガーされる）
+            const dotEvent: any = {
+                type: 'ON_DOT_DAMAGE',
+                sourceId: sourceId,
+                targetId: targetId,
+                dotType: actualDotType === 'DoT' ? 'Shock' : actualDotType as any,
+                damage: detonateDamage,
+                effectId: dotEffect.id,
+                isDetonation: true
+            };
+            // dotTypeの判定を補正
+            if (dotEffect.name?.includes('燃焼') || actualDotType === 'Burn') dotEvent.dotType = 'Burn';
+            if (dotEffect.name?.includes('感電') || actualDotType === 'Shock') dotEvent.dotType = 'Shock';
+            if (dotEffect.name?.includes('裂創') || actualDotType === 'Bleed') dotEvent.dotType = 'Bleed';
+            if (dotEffect.name?.includes('風化') || actualDotType === 'WindShear' || actualDotType === 'Wind Shear') dotEvent.dotType = 'WindShear';
+
+            newState = publishEvent(newState, dotEvent);
         }
-    });
+    }
 
     console.log(`[detonateDoTs] Total DoT count: ${dotCount}, totalDamage: ${totalDamage.toFixed(2)}`);
 
-    // ★applyUnifiedDamageを使用してダメージを適用
     if (totalDamage > 0) {
-        // breakdownを後で使用するために、DoT起爆全体のbreakdownを計算
-        const overallBreakdown = calculateNormalDoTDamageWithBreakdown(
-            sourceUnit,
-            state.registry.get(createUnitId(targetId))!,
-            totalDamage / (1 + (sourceUnit.stats.lightning_dmg_boost || 0) + (sourceUnit.stats.all_type_dmg_boost || 0) + (sourceUnit.stats.dot_dmg_boost || 0))
-        );
-
         const result = applyUnifiedDamage(
-            state,
+            newState,
             sourceUnit,
-            state.registry.get(createUnitId(targetId))!,
+            newState.registry.get(createUnitId(targetId))!,
             totalDamage,
             {
                 damageType: 'DoT起爆',
                 details: `DoT起爆 (${(detonateMultiplier * 100).toFixed(0)}%)`,
-                skipLog: true,   // ★独立ログを出さない
-                skipStats: false // 統計は更新
+                skipLog: true,
+                skipStats: false
             }
         );
+        newState = result.state;
 
-        // ★ additionalDamageとしてログに追加（breakdownMultipliers付き）
-        let newState = result.state;
+        // ログ出力
         newState = appendAdditionalDamage(newState, {
             source: sourceUnit.name,
             name: `DoT起爆 (${(detonateMultiplier * 100).toFixed(0)}%)`,
             damage: totalDamage,
-            target: state.registry.get(createUnitId(targetId))!.name,
+            target: newState.registry.get(createUnitId(targetId))!.name,
             damageType: 'dot',
             isCrit: false,
             breakdownMultipliers: {
-                baseDmg: totalDamage / (overallBreakdown.breakdownMultipliers?.dmgBoostMult || 1) / (overallBreakdown.breakdownMultipliers?.defMult || 1) / (overallBreakdown.breakdownMultipliers?.resMult || 1) / (overallBreakdown.breakdownMultipliers?.vulnMult || 1) / (overallBreakdown.breakdownMultipliers?.brokenMult || 1),
+                baseDmg: totalDamage,
                 critMult: 1.0,
-                dmgBoostMult: overallBreakdown.breakdownMultipliers?.dmgBoostMult || 1,
-                defMult: overallBreakdown.breakdownMultipliers?.defMult || 1,
-                resMult: overallBreakdown.breakdownMultipliers?.resMult || 1,
-                vulnMult: overallBreakdown.breakdownMultipliers?.vulnMult || 1,
-                brokenMult: overallBreakdown.breakdownMultipliers?.brokenMult || 1
+                dmgBoostMult: 1,
+                defMult: 1,
+                resMult: 1,
+                vulnMult: 1,
+                brokenMult: 1
             }
         });
 
         return { state: newState, totalDamage };
     }
 
-    return { state, totalDamage: 0 };
+    return { state: newState, totalDamage: 0 };
 }
 
 // --- 分離されたハンドラー関数 ---

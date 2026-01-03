@@ -338,6 +338,11 @@ export interface IAction {
 }
 
 /**
+ * 遺物構成モード
+ */
+export type RelicMode = '4pc' | '2+2';
+
+/**
  * 個別キャラクターのローテーション設定
  */
 export interface CharacterRotationConfig {
@@ -350,6 +355,7 @@ export interface CharacterRotationConfig {
   ultEpOption?: 'argenti_90' | 'argenti_180'; // 可変EPコストキャラ用
   useTechnique?: boolean; // 秘技を使用するか (デフォルト: true)
   customConfig?: Record<string, any>; // キャラクター固有の設定
+  relicMode?: RelicMode; // 遺物構成モード ('4pc' | '2+2')
 }
 
 /**

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { IRelicData, IOrnamentData, StatKey, STAT_KEYS, RelicSet, OrnamentSet } from '@/app/types';
+import React from 'react';
+import { IRelicData, IOrnamentData, StatKey, STAT_KEYS, RelicSet, OrnamentSet, RelicMode } from '@/app/types';
 import { getAssetUrl, getRelicSetIconPath } from '@/app/utils/assetUtils';
 import { IconPicker, IconPickerItem } from './IconPicker';
 
@@ -36,29 +36,19 @@ const RELIC_SLOTS = [
     { id: 'rope', name: 'Link Rope', options: ['hp_pct', 'atk_pct', 'def_pct', 'break_effect', 'energy_regen_rate'] },
 ];
 
-type RelicMode = '4pc' | '2+2';
-
 interface RelicEditorProps {
     relics: IRelicData[];
     ornaments: IOrnamentData[];
     relicSetList: RelicSet[];
     ornamentSetList: OrnamentSet[];
     onUpdate: (relics: IRelicData[], ornaments: IOrnamentData[]) => void;
+    /** 遺物構成モード（親から制御） */
+    relicMode: RelicMode;
+    /** 遺物構成モード変更時のコールバック */
+    onRelicModeChange: (mode: RelicMode) => void;
 }
 
-export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, relicSetList, ornamentSetList, onUpdate }) => {
-    // モード状態: 4セット or 2+2
-    const [relicMode, setRelicMode] = useState<RelicMode>(() => {
-        // 既存の遺物から初期モードを判定
-        if (relics.length >= 4) {
-            const set1 = relics[0]?.set?.id;
-            const set2 = relics[2]?.set?.id;
-            if (set1 && set2 && set1 !== set2) {
-                return '2+2';
-            }
-        }
-        return '4pc';
-    });
+export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, relicSetList, ornamentSetList, onUpdate, relicMode, onRelicModeChange }) => {
 
     // Helper to update a specific relic/ornament
     const updateItem = (type: 'relic' | 'ornament', index: number, newData: IRelicData | IOrnamentData) => {
@@ -180,7 +170,7 @@ export const RelicEditor: React.FC<RelicEditorProps> = ({ relics, ornaments, rel
 
     // モード切替時の処理
     const handleModeChange = (newMode: RelicMode) => {
-        setRelicMode(newMode);
+        onRelicModeChange(newMode);
         // モード切替時は遺物をリセットしない（既存の状態を維持）
     };
 

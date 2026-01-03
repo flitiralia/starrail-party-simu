@@ -1,40 +1,43 @@
 // StatKey: 全てのステータスキーのリテラル型ユニオン
 export const STAT_KEYS = [
-  'hp', 'atk', 'def',                           // Flat stats that also serve as base stats
-  'hp_pct', 'atk_pct', 'def_pct', 'spd_pct',      // Percentage-based stats
-  'spd', 'aggro',                                // Flat stat
-  'crit_rate', 'crit_dmg',                       // Crit-related stats
-  'effect_hit_rate', 'effect_res',               // Effect-related stats
-  'crowd_control_res',                           // Crowd Control Resistance (Debuff RES)
-  'bleed_res', 'burn_res', 'frozen_res', 'shock_res', 'wind_shear_res', 'entanglement_res', 'imprisonment_res', // Specific Status Resistances
-  'physical_res', 'fire_res', 'ice_res', 'lightning_res', 'wind_res', 'quantum_res', 'imaginary_res', // Elemental resistances
-  'physical_res_pen', 'fire_res_pen', 'ice_res_pen', 'lightning_res_pen', 'wind_res_pen', 'quantum_res_pen', 'imaginary_res_pen', 'all_type_res_pen', // RES penetration
-  'all_type_vuln', // Vulnerability (All Types)
-  'break_dmg_taken', // Break Damage Vulnerability
-  'dot_dmg_taken', // DoT Damage Vulnerability
-  'physical_vuln', 'fire_vuln', 'ice_vuln', 'lightning_vuln', 'wind_vuln', 'quantum_vuln', 'imaginary_vuln', // Element-specific vulnerabilities
-  'break_effect',                                // Break effect
-  'energy_regen_rate', 'max_ep',                 // Energy-related stats
-  'outgoing_healing_boost',                      // Healing boost (from healer)
-  'incoming_heal_boost',                         // Incoming healing boost (on target)
-  'physical_dmg_boost', 'fire_dmg_boost', 'ice_dmg_boost', 'lightning_dmg_boost', 'wind_dmg_boost', 'quantum_dmg_boost', 'imaginary_dmg_boost', // Elemental damage boosts
-  'basic_atk_dmg_boost',
-  'skill_dmg_boost',
-  'ult_dmg_boost',
-  'def_reduction', // Defense reduction (Target debuff)
-  'def_ignore', // Defense ignore (Source buff)
-  'break_efficiency_boost', // Break efficiency boost
-  'break_dmg_boost', // Break Damage Boost (Source)
-  'super_break_dmg_boost', // Super Break damage boost
-  'fua_dmg_boost', // Follow-up attack damage boost
-  'fua_crit_dmg', // Follow-up attack crit damage boost (追加攻撃会心ダメージ)
-  'fua_vuln', // Follow-up attack vulnerability (追加攻撃被ダメージアップ)
-  'dot_dmg_boost', // DoT damage boost
-  'dot_def_ignore', // DoT DEF ignore
-  'all_type_dmg_boost', // All type damage boost
-  'all_dmg_dealt_reduction', // All damage dealt reduction (Debuff applied to enemies, reduces their outgoing damage)
-  'dmg_taken_reduction', // Damage taken reduction (Buff applied to allies, reduces incoming damage)
-  'shield_strength_boost' // Shield strength boost
+  'hp', 'atk', 'def',                           // HP, 攻撃力, 防御力
+  'hp_pct', 'atk_pct', 'def_pct', 'spd_pct',      // HP%, 攻撃力%, 防御力%, 速度%
+  'spd', 'aggro',                                // 速度, ヘイト
+  'crit_rate', 'crit_dmg',                       // 会心率, 会心ダメージ
+  'effect_hit_rate', 'effect_res',               // 効果命中, 効果抵抗
+  'crowd_control_res',                           // 行動制限抵抗
+  'bleed_res', 'burn_res', 'frozen_res', 'shock_res', 'wind_shear_res', 'entanglement_res', 'imprisonment_res', // 裂創/燃焼/凍結/感電/風化/もつれ/禁錮 抵抗
+  'physical_res', 'fire_res', 'ice_res', 'lightning_res', 'wind_res', 'quantum_res', 'imaginary_res', // 属性耐性 (物理/炎/氷/雷/風/量子/虚数)
+  'physical_res_pen', 'fire_res_pen', 'ice_res_pen', 'lightning_res_pen', 'wind_res_pen', 'quantum_res_pen', 'imaginary_res_pen', 'all_type_res_pen', // 属性耐性貫通
+  'all_dmg_taken_boost', // 被ダメージ上昇 (全属性)
+  'break_dmg_taken_boost', // 撃破被ダメージ上昇
+  'dot_dmg_taken_boost', // 持続被ダメージ上昇
+  'physical_dmg_taken_boost', 'fire_dmg_taken_boost', 'ice_dmg_taken_boost', 'lightning_dmg_taken_boost', 'wind_dmg_taken_boost', 'quantum_dmg_taken_boost', 'imaginary_dmg_taken_boost', // 属性別被ダメージ上昇
+  'ult_dmg_taken_boost', // 必殺技被ダメージ上昇
+  'skill_dmg_taken_boost', // 戦闘スキル被ダメージ上昇
+  'basic_dmg_taken_boost', // 通常攻撃被ダメージ上昇
+  'break_effect',                                // 撃破特効
+  'energy_regen_rate', 'max_ep',                 // EP回復効率, 最大EP
+  'outgoing_healing_boost',                      // 治癒量バフ（発動側）
+  'incoming_heal_boost',                         // 被治癒量バフ（受ける側）
+  'physical_dmg_boost', 'fire_dmg_boost', 'ice_dmg_boost', 'lightning_dmg_boost', 'wind_dmg_boost', 'quantum_dmg_boost', 'imaginary_dmg_boost', // 属性与ダメージバフ
+  'basic_atk_dmg_boost',                         // 通常攻撃与ダメージバフ
+  'skill_dmg_boost',                             // 戦闘スキル与ダメージバフ
+  'ult_dmg_boost',                               // 必殺技与ダメージバフ
+  'def_reduction',                               // 防御力ダウン (デバフ)
+  'def_ignore',                                  // 防御力無視 (バフ)
+  'break_efficiency_boost',                      // 弱点撃破効率バフ
+  'break_dmg_boost',                             // 弱点撃破ダメージバフ
+  'super_break_dmg_boost',                       // 超撃破ダメージバフ
+  'fua_dmg_boost',                               // 追加攻撃与ダメージバフ
+  'fua_crit_dmg',                                // 追加攻撃会心ダメージ
+  'fua_dmg_taken_boost',                         // 追加攻撃被ダメージ上昇
+  'dot_dmg_boost',                               // 持続ダメージ与ダメージバフ
+  'dot_def_ignore',                              // 持続ダメージ防御力無視
+  'all_type_dmg_boost',                          // 全属性与ダメージバフ
+  'all_dmg_dealt_reduction',                     // 与ダメージダウン (敵に付与)
+  'dmg_taken_reduction',                         // 被ダメージ軽減
+  'shield_strength_boost'                        // バリア耐久値バフ
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];

@@ -659,7 +659,7 @@ const onBattleStart = (
                 value: E1_DOT_BOOST,
                 type: 'add',
                 source: 'セイレンスE1'
-            }]
+            }],
         };
         newState = addAura(newState, e1Aura);
     }
@@ -740,7 +740,7 @@ const onSkillUsed = (
             sourceUnitId: sourceUnitId,
             durationType: 'TURN_START_BASED',
             duration: 3,
-            modifiers: [{ target: 'dmg_taken' as StatKey, value: skillValues.vuln, type: 'add', source: 'スキル' }],
+            modifiers: [{ target: 'all_dmg_taken_boost' as StatKey, value: skillValues.vuln, type: 'add', source: 'スキル' }],
             isCleansable: true,
             onApply: (t: Unit, s: GameState) => s,
             onRemove: (t: Unit, s: GameState) => s

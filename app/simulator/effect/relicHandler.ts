@@ -247,11 +247,26 @@ export function registerRelicEventHandlers(state: GameState): GameState {
     state.registry.toArray().forEach(unit => {
         const relicEffects = getAllRelicEffects(unit);
 
+        // ★ DEBUG: 遺物効果のカウントをログ出力
+        console.log(`[registerRelicEventHandlers] Unit: ${unit.name}, RelicEffects count: ${relicEffects.length}`);
+        if (unit.relics) {
+            const setCounts: Record<string, number> = {};
+            unit.relics.forEach(r => {
+                if (r.set) {
+                    setCounts[r.set.id] = (setCounts[r.set.id] || 0) + 1;
+                }
+            });
+            console.log(`[registerRelicEventHandlers]   Relic sets:`, setCounts);
+        }
+
         for (const { effect, sourceRelicId } of relicEffects) {
             if (effect.type !== 'EVENT_TRIGGER') continue;
             const eventEffect = effect as EventRelicEffect;
 
             const handlerId = `${sourceRelicId}-${unit.id}-handler`;
+
+            // ★ DEBUG: 登録されるハンドラーをログ出力
+            console.log(`[registerRelicEventHandlers]   Registering handler: ${handlerId}, events: ${eventEffect.events.join(', ')}`);
 
             // Check if already registered
             if (newState.eventHandlerLogics[handlerId]) continue;

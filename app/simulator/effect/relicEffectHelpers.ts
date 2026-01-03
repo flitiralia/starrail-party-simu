@@ -28,18 +28,30 @@ export function createDefIgnoreHandler(
     condition?: DefIgnoreCondition
 ): (event: IEvent, state: GameState, sourceUnitId: string) => GameState {
     return (event: IEvent, state: GameState, sourceUnitId: string): GameState => {
+        // ★ DEBUG: ハンドラー呼び出しを確認
+        console.log(`[createDefIgnoreHandler] Called! event.sourceId=${event.sourceId}, sourceUnitId=${sourceUnitId}, targetId=${'targetId' in event ? event.targetId : 'N/A'}`);
+
         // イベント発生源が装備者でない場合は何もしない
-        if (event.sourceId !== sourceUnitId) return state;
+        if (event.sourceId !== sourceUnitId) {
+            console.log(`[createDefIgnoreHandler] Skipped: sourceId mismatch (${event.sourceId} !== ${sourceUnitId})`);
+            return state;
+        }
 
         // ターゲットIDが存在しない場合は何もしない
-        if (!('targetId' in event) || !event.targetId) return state;
+        if (!('targetId' in event) || !event.targetId) {
+            console.log(`[createDefIgnoreHandler] Skipped: no targetId`);
+            return state;
+        }
 
         // ターゲットとソースを取得
         const target = state.registry.get(createUnitId(event.targetId));
         const source = state.registry.get(createUnitId(sourceUnitId));
 
         // どちらかが存在しない場合は何もしない
-        if (!target || !source) return state;
+        if (!target || !source) {
+            console.log(`[createDefIgnoreHandler] Skipped: target or source not found`);
+            return state;
+        }
 
         // 基本の防御無視率を設定
         let totalDefIgnore = baseDefIgnore;
@@ -48,6 +60,10 @@ export function createDefIgnoreHandler(
         if (condition) {
             const bonus = condition(target, source);
             totalDefIgnore += bonus;
+
+            // ★ DEBUG: DoTカウントと防御無視率をログ出力
+            const dotCount = target.effects.filter(e => e.type === 'DoT').length;
+            console.log(`[createDefIgnoreHandler] ★ Applied! Source: ${source.name}, Target: ${target.name}, DoT count: ${dotCount}, DefIgnore from condition: ${bonus}, Total: ${totalDefIgnore}`);
         }
 
         // ステートを更新して返す
@@ -119,16 +135,9 @@ export function createDotCountCondition(
     maxStacks?: number
 ): DefIgnoreCondition {
     return (target: Unit): number => {
-        // 一般的なDoTタイプ
-        const dotTypes = ['Burn', 'Shock', 'Bleed', 'Wind Shear', 'Entanglement'];
-
-        const dotCount = target.effects.filter(e => {
-            if (e.category !== 'DEBUFF') return false;
-
-            // statusType または name でDoTを判定
-            const statusType = (e as any).statusType;
-            return dotTypes.includes(statusType) || dotTypes.some(dt => e.name.includes(dt));
-        }).length;
+        // DoTエフェクトを type === 'DoT' で判定
+        // これにより Burn, Shock, Bleed, WindShear, Arcana などすべてのDoTを正確にカウント
+        const dotCount = target.effects.filter(e => e.type === 'DoT').length;
 
         const stacks = maxStacks ? Math.min(dotCount, maxStacks) : dotCount;
         return perDotBonus * stacks;

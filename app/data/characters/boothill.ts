@@ -403,7 +403,7 @@ function startStandoff(
     // 自身に決闘状態を付与 (ENHANCED_BASICタグ)
     // E4: 九死の決闘状態の敵からの攻撃時、被ダメ-12%
     const selfModifiers: { target: StatKey; value: number; type: 'add' | 'pct'; source: string }[] = [
-        { target: 'dmg_taken' as StatKey, value: STANDOFF_SELF_DMG_TAKEN_INCREASE, type: 'add', source: '九死の決闘' }
+        { target: 'all_dmg_taken_boost' as StatKey, value: STANDOFF_SELF_DMG_TAKEN_INCREASE, type: 'add', source: '九死の決闘' }
     ];
 
     // E4: 被ダメ軽減を追加（dmg_taken_reductionは被ダメから減算される）

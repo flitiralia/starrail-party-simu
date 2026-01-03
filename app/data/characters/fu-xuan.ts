@@ -422,7 +422,7 @@ function applyWarding(state: GameState, sourceId: string, dmgReduction: number):
             durationType: 'PERMANENT',  // 符玄が戦闘可能な限り継続
             duration: -1,
             modifiers: [
-                { target: 'dmg_taken' as StatKey, value: -dmgReduction, type: 'add' as const, source: '避邪' },
+                { target: 'dmg_taken_reduction' as StatKey, value: dmgReduction, type: 'add' as const, source: '避邪' },
             ],
             tags: ['WARDING'],
             onApply: (t: Unit, s: GameState) => s,
@@ -433,6 +433,35 @@ function applyWarding(state: GameState, sourceId: string, dmgReduction: number):
     }
 
     return newState;
+}
+
+/**
+ * 敵に被ダメージアップ性能デバフ（玄止）を付与（E6効果、本来は必殺技時のみだが簡略化）
+ */
+function applyE6Vuln(state: GameState, sourceId: string, targetId: string): GameState {
+    const VULN_VALUE = 0.20; // 仮の数値（本来は仕様に基づく）
+
+    // 既存のデバフを削除
+    let newState = removeEffect(state, targetId, `${sourceId}-e6-vuln`);
+
+    const vulnEffect: IEffect = {
+        id: `${sourceId}-e6-vuln`,
+        name: '玄止',
+        category: 'DEBUFF',
+        sourceUnitId: sourceId,
+        durationType: 'PERMANENT',
+        duration: -1,
+        modifiers: [{
+            target: 'all_dmg_taken_boost' as StatKey,
+            value: VULN_VALUE,
+            type: 'add',
+            source: '玄止'
+        }],
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
+    };
+
+    return addEffect(newState, targetId, vulnEffect);
 }
 
 // --- イベントハンドラー関数 ---

@@ -31,14 +31,14 @@ const elementToResMap: Record<Element, StatKey> = {
   Imaginary: 'imaginary_res',
 };
 
-const elementToVulnMap: Record<Element, StatKey> = {
-  Physical: 'physical_vuln',
-  Fire: 'fire_vuln',
-  Ice: 'ice_vuln',
-  Lightning: 'lightning_vuln',
-  Wind: 'wind_vuln',
-  Quantum: 'quantum_vuln',
-  Imaginary: 'imaginary_vuln',
+const elementToDmgTakenBoostMap: Record<Element, StatKey> = {
+  Physical: 'physical_dmg_taken_boost',
+  Fire: 'fire_dmg_taken_boost',
+  Ice: 'ice_dmg_taken_boost',
+  Lightning: 'lightning_dmg_taken_boost',
+  Wind: 'wind_dmg_taken_boost',
+  Quantum: 'quantum_dmg_taken_boost',
+  Imaginary: 'imaginary_dmg_taken_boost',
 };
 
 function calculateBaseDmg(source: Unit, ability: IAbility, accumulatorValue?: number): number {
@@ -163,12 +163,12 @@ function calculateVulnerabilityMultiplier(
   action: Action,
   modifiers: DamageCalculationModifiers = {}
 ): number {
-  // All-type vulnerability
-  const allTypeVuln = target.stats.all_type_vuln || 0;
+  // All-type damage taken boost (vulnerability)
+  const allTypeBoost = target.stats.all_dmg_taken_boost || 0;
 
-  // Element-specific vulnerability
-  const vulnKey = elementToVulnMap[source.element];
-  const elementVuln = target.stats[vulnKey] || 0;
+  // Element-specific damage taken boost
+  const boostKey = elementToDmgTakenBoostMap[source.element];
+  const elementBoost = target.stats[boostKey] || 0;
 
   // Damage taken reduction (buff on target that reduces incoming damage)
   // 静的軽減（エフェクトのmodifiersから）+ 動的軽減（A4等）
@@ -176,19 +176,27 @@ function calculateVulnerabilityMultiplier(
   const dynamicReduction = modifiers.dmgTakenReduction || 0;
   const totalReduction = staticReduction + dynamicReduction;
 
-  // Total vulnerability (additive) - damage reduction (subtractive)
-  let totalVulnerability = allTypeVuln + elementVuln - totalReduction;
+  // Total damage taken boost (additive) - damage reduction (subtractive)
+  let totalDmgTakenModifier = allTypeBoost + elementBoost - totalReduction;
 
-  // 追加攻撃被ダメージアップ (fua_vuln)
-  if (modifiers.fuaVuln) {
-    totalVulnerability += modifiers.fuaVuln;
+  // Action-specific damage taken boost
+  if (action.type === 'ULTIMATE') {
+    totalDmgTakenModifier += (target.stats.ult_dmg_taken_boost || 0);
+  } else if (action.type === 'SKILL') {
+    totalDmgTakenModifier += (target.stats.skill_dmg_taken_boost || 0);
+  } else if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    totalDmgTakenModifier += (target.stats.basic_dmg_taken_boost || 0);
   }
-  // ターゲット自身のステータスとしての fua_vuln
+
+  // 追加攻撃被ダメージアップ
+  if (modifiers.fuaVuln) { // modifiersも本来はdmgTakenBoostに変えるべきだが互換性のため維持
+    totalDmgTakenModifier += modifiers.fuaVuln;
+  }
   if (action.type === 'FOLLOW_UP_ATTACK') {
-    totalVulnerability += (target.stats.fua_vuln || 0);
+    totalDmgTakenModifier += (target.stats.fua_dmg_taken_boost || 0);
   }
 
-  return 1 + totalVulnerability;
+  return 1 + totalDmgTakenModifier;
 }
 
 /**
