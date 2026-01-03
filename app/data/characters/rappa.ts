@@ -266,7 +266,7 @@ export const rappa: Character = {
     },
     defaultConfig: {
         eidolonLevel: 0,
-        lightConeId: 'ninjutsu-inscription-dazzling-evilbreaker',
+        lightConeId: 'ninja-record-sound-hunt',
         superimposition: 1,
         relicSetId: 'iron-cavalry-against-scourge',
         ornamentSetId: 'talia-kingdom-of-banditry',

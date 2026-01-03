@@ -221,8 +221,8 @@ export const tribbie: Character = {
     defaultConfig: {
         lightConeId: 'if-time-were-a-flower',
         superimposition: 1,
-        relicSetId: 'poet_who_sings_of_the_sorrow_of_the_fallen_kingdom',
-        ornamentSetId: 'silent_ossuary',
+        relicSetId: 'poet-of-mourning-collapse',
+        ornamentSetId: 'bone-collections-serene-demesne',
         mainStats: {
             body: 'crit_rate',
             feet: 'hp_pct',
@@ -721,7 +721,9 @@ export const tribbieHandlerFactory: IEventHandlerFactory = (sourceUnitId, level:
                         const followUpAction: any = {
                             type: 'FOLLOW_UP_ATTACK',
                             sourceId: sourceUnitId,
-                            targetId: newState.registry.getAliveEnemies()[0]?.id, // 便宜上
+                            // AoE攻撃のため、実行時に生存している敵全員が対象となる。
+                            // ここでのターゲット指定は便宜上のもの。
+                            targetId: newState.registry.getAliveEnemies()[0]?.id,
                         };
 
                         newState = {

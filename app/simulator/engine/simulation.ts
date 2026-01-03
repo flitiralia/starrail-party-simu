@@ -1,7 +1,7 @@
 import { Character, Enemy, Element, SimulationLogEntry, EnemyData } from '../../types';
 import { createInitialGameState } from './gameState';
 import { dispatch, publishEvent, applyDamage, applyUnifiedDamage, appendDamageTaken, appendAdditionalDamage, initializeCurrentActionLog, finalizeEnemyTurnLog, finalizeSpiritTurnLog } from './dispatcher';
-import { GameState, Unit, CharacterConfig, IEventHandler, IEventHandlerLogic, SimulationConfig, IEventHandlerFactory, Action, RegisterHandlersAction, EventType, IEvent, DoTDamageEvent } from './types';
+import { GameState, Unit, CharacterConfig, IEventHandler, IEventHandlerLogic, SimulationConfig, IEventHandlerFactory, Action, RegisterHandlersAction, EventType, IEvent, DoTDamageEvent, SkillAction } from './types';
 import { UnitId, createUnitId } from './unitId';
 import { initializeActionQueue, updateActionQueue, advanceTimeline, calculateActionValue, addActionValue, resetUnitActionValue, setUnitActionValue } from './actionValue';
 import { advanceAction } from './utils';
@@ -12,6 +12,7 @@ import { tribbieHandlerFactory } from '../../data/characters/tribbie';
 import { DoTEffect, BreakStatusEffect, IEffect, CrowdControlEffect, TauntEffect } from '../effect/types';
 import { isDoTEffect, isBreakStatusEffect, isCrowdControlEffect, isNewCrowdControlEffect, isTauntEffect } from '../effect/utils';
 import { calculateBreakDoTDamage, calculateNormalDoTDamage, calculateBreakAdditionalDamage, calculateNormalDoTDamageWithBreakdown, calculateBreakDoTDamageWithBreakdown } from '../damage';
+import { createEnemyEntanglementEffect } from '../effect/breakEffects';
 import { LEVEL_CONSTANT_80, FREEZE_REMOVAL_AV_ADVANCE } from './constants';
 import * as relicData from '../../data/relics';
 import * as ornamentData from '../../data/ornaments';
@@ -126,6 +127,153 @@ function selectTarget(actingEnemy: Unit, units: Unit[]): UnitId | '' {
     return units[0]?.id || '';
 }
 
+/**
+ * 味方が敵をターゲットする際のデフォルト選択
+ * 最も現在HPの高い敵を優先して狙う
+ * @param enemies 生存中の敵ユニット群
+ * @returns 最も体力の高い敵のID、敵がいない場合は空文字
+ */
+function selectEnemyTarget(enemies: Unit[]): UnitId | '' {
+    if (enemies.length === 0) return '';
+
+    // HPが最も高い敵を選択
+    const sortedByHP = [...enemies].sort((a, b) => b.hp - a.hp);
+    return sortedByHP[0].id;
+}
+
+/**
+ * 敵スキル実行後の共通処理
+ * - ロックオン設定/解除
+ * - もつれ等デバフ付与
+ * - 統合ログへの記録
+ * 
+ * @param state 現在のGameState
+ * @param enemy 実行した敵ユニット
+ * @param action 実行したアクション（abilityId から EnemySkill を特定）
+ * @returns 更新された GameState
+ */
+function handleEnemySkillPostEffects(
+    state: GameState,
+    enemy: Unit,
+    action: Action
+): GameState {
+    let newState = state;
+
+    // SKILLアクション以外は処理しない
+    if (action.type !== 'SKILL') return newState;
+
+    const skillAction = action as SkillAction;
+    const abilityId = skillAction.abilityId;
+
+    // abilityId が無い、または enemySkills が無い場合はスキップ
+    if (!abilityId || !enemy.enemySkills) return newState;
+
+    const skill = enemy.enemySkills[abilityId];
+    if (!skill) return newState;
+
+    const targetId = skillAction.targetId;
+    if (!targetId) return newState;
+
+    const targetUnit = newState.registry.get(targetId as UnitId);
+    if (!targetUnit) return newState;
+
+    // ★ロックオン処理
+    if (skill.targetType === 'lock_on') {
+        // ロックオンを設定
+        newState = {
+            ...newState,
+            registry: newState.registry.update(enemy.id as UnitId, u => ({
+                ...u,
+                lockedTargetId: targetId as UnitId
+            }))
+        };
+        // ログに記録
+        const detailMsg = `${skill.name}でロックオン: ${targetUnit.name}`;
+        if (newState.currentActionLog) {
+            const prevDetails = newState.currentActionLog.details || '';
+            newState = {
+                ...newState,
+                currentActionLog: {
+                    ...newState.currentActionLog,
+                    details: (prevDetails ? prevDetails + ' ' : '') + detailMsg
+                }
+            };
+        } else if (newState.log.length > 0) {
+            // dispatch完了後は最後のエントリに追記
+            const lastLog = { ...newState.log[newState.log.length - 1] };
+            if (lastLog.sourceId === enemy.id) {
+                lastLog.details = (lastLog.details ? lastLog.details + ' ' : '') + detailMsg;
+                // イミュータブルに更新
+                newState = {
+                    ...newState,
+                    log: [...newState.log.slice(0, -1), lastLog]
+                };
+            }
+        }
+        console.log(`[handleEnemySkillPostEffects] ${enemy.name} locked on to ${targetUnit.name}`);
+    } else {
+        // ロックオン以外のスキル使用時：ロックオンをクリア（攻撃を実行したため）
+        const currentEnemy = newState.registry.get(enemy.id as UnitId);
+        if (currentEnemy?.lockedTargetId) {
+            newState = {
+                ...newState,
+                registry: newState.registry.update(enemy.id as UnitId, u => ({
+                    ...u,
+                    lockedTargetId: undefined
+                }))
+            };
+            console.log(`[handleEnemySkillPostEffects] ${enemy.name} cleared lock-on after attacking`);
+        }
+    }
+
+    // ★もつれ付与処理
+    if (skill.debuffType === 'Entanglement' && skill.entanglementParams && !targetUnit.isEnemy) {
+        const baseChance = skill.baseChance ?? 1.0;
+        const effectRes = targetUnit.stats.effect_res ?? 0;
+        const sourceEffectHit = enemy.stats.effect_hit_rate ?? 0;
+        const successChance = baseChance * (1 + sourceEffectHit) * (1 - effectRes);
+
+        if (Math.random() < successChance) {
+            const entanglementEffect = createEnemyEntanglementEffect(
+                enemy,
+                targetUnit,
+                skill.entanglementParams.actionDelay,
+                skill.entanglementParams.delayedDmgMultiplier
+            );
+            newState = addEffect(newState, targetId, entanglementEffect);
+            console.log(`[handleEnemySkillPostEffects] Applied Entanglement to ${targetUnit.name}`);
+
+            // ログに記録
+            const detailMsg = `もつれ付与: ${targetUnit.name}`;
+            if (newState.currentActionLog) {
+                const prevDetails = newState.currentActionLog.details || '';
+                newState = {
+                    ...newState,
+                    currentActionLog: {
+                        ...newState.currentActionLog,
+                        details: (prevDetails ? prevDetails + ' ' : '') + detailMsg
+                    }
+                };
+            } else if (newState.log.length > 0) {
+                // dispatch完了後は最後のエントリに追記
+                const lastLog = { ...newState.log[newState.log.length - 1] };
+                if (lastLog.sourceId === enemy.id) {
+                    lastLog.details = (lastLog.details ? lastLog.details + ' ' : '') + detailMsg;
+                    // イミュータブルに更新
+                    newState = {
+                        ...newState,
+                        log: [...newState.log.slice(0, -1), lastLog]
+                    };
+                }
+            }
+        } else {
+            console.log(`[handleEnemySkillPostEffects] Entanglement resisted by ${targetUnit.name}`);
+        }
+    }
+
+    return newState;
+}
+
 function determineNextAction(unit: Unit, state: GameState): Action {
     const { config } = unit;
 
@@ -185,7 +333,7 @@ function determineNextAction(unit: Unit, state: GameState): Action {
             // 通常の精霊スキル（敵対象）
             const aliveEnemies = state.registry.getAliveEnemies();
             console.log(`[Simulation] ${unit.name} (Summon) using normal SKILL targeting enemy`);
-            return { type: 'SKILL', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+            return { type: 'SKILL', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
         }
 
         // 敵の行動ロジック
@@ -194,9 +342,63 @@ function determineNextAction(unit: Unit, state: GameState): Action {
         const aliveAllies = state.registry.getAliveAllies().filter(u => !u.untargetable);
         let targetId = selectTarget(unit, aliveAllies); // デフォルトターゲット
 
-        // 1. 行動パターン（actionPattern）がある場合
-        // EnemyData型にキャストしてactionPatternにアクセスする（Unit型には含まれていない可能性があるため）
-        const enemyData = unit as unknown as Partial<EnemyData>; // 簡易的なアクセス
+        // ★ロックオン中のターゲットがいれば優先
+        if (unit.lockedTargetId) {
+            const lockedTarget = state.registry.get(unit.lockedTargetId);
+            if (lockedTarget && lockedTarget.hp > 0) {
+                targetId = unit.lockedTargetId;
+                console.log(`[determineNextAction] Enemy ${unit.name} targeting locked target: ${lockedTarget.name}`);
+            }
+        }
+
+        // EnemyData型にキャストしてactionPatternにアクセスする
+        const enemyData = unit as unknown as Partial<EnemyData>;
+
+        // ★新しいturnPatternsシステム
+        if (enemyData.turnPatterns && enemyData.turnPatterns.length > 0 && enemyData.enemySkills) {
+            const patternIndex = (unit.rotationIndex || 0) % enemyData.turnPatterns.length;
+            const pattern = enemyData.turnPatterns[patternIndex];
+            const primarySkill = enemyData.enemySkills[pattern.primary];
+
+            console.log(`[determineNextAction] Enemy ${unit.name} using turnPattern[${patternIndex}]: primary=${pattern.primary}, secondary=${pattern.secondary || 'none'}`);
+
+            if (!primarySkill) {
+                console.log(`[determineNextAction] Warning: primarySkill '${pattern.primary}' not found`);
+                return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: targetId };
+            }
+
+            // ★2ndアクション（secondary）をpendingActionsに追加
+            if (pattern.secondary && enemyData.enemySkills[pattern.secondary]) {
+                const secondarySkill = enemyData.enemySkills[pattern.secondary];
+                // 2ndアクションをpendingActionsに追加（state更新は後でdispatch後に行う）
+                // ここではaction.flagsに情報を付加してdispatcher側で処理する
+                // Note: GameState更新はdetermineNextAction内では行えないため、
+                // 呼び出し元(stepSimulation)で処理する必要がある
+                console.log(`[determineNextAction] Secondary skill '${secondarySkill.name}' will be queued`);
+            }
+
+            // プライマリースキルのターゲットタイプに応じてアクションを返す
+            if (primarySkill.targetType === 'lock_on') {
+                // ロックオンスキル: ターゲットをロックし、スキルアクションとして扱う
+                console.log(`[determineNextAction] LockOn skill: ${primarySkill.name} targeting ${targetId}`);
+                return {
+                    type: 'SKILL',
+                    sourceId: unit.id,
+                    targetId: targetId,
+                    abilityId: primarySkill.id
+                };
+            } else {
+                // 通常のダメージスキル
+                return {
+                    type: 'SKILL',
+                    sourceId: unit.id,
+                    targetId: targetId,
+                    abilityId: primarySkill.id
+                };
+            }
+        }
+
+        // 1. 旧システム: 行動パターン（actionPattern）がある場合
         if (enemyData.actionPattern && enemyData.actionPattern.length > 0) {
             // 現在のターン数（またはrotationIndex）に基づいて行動を決定
             // 敵もrotationIndexを持っているのでそれを使用する
@@ -255,22 +457,42 @@ function determineNextAction(unit: Unit, state: GameState): Action {
             return {
                 type: 'SKILL',
                 sourceId: unit.id,
-                targetId: aliveEnemies[0]?.id, // Default to enemy
+                targetId: selectEnemyTarget(aliveEnemies), // 最もHPの高い敵を狙う
                 flags: preventTurnEnd ? { skipTurnEnd: true } : undefined
             };
         } else {
             // If condition not met in spam_skill mode, default to Basic Attack immediately
-            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
         }
     }
 
-    // 3. Follow rotation
+    // 3. Once Skill Mode: Skill only on first turn (rotationIndex 0) if SP available, then Basic Attack
+    if (config.rotationMode === 'once_skill') {
+        const ability = unit.abilities.skill;
+        if (unit.rotationIndex === 0 && (state.skillPoints > 0 || unit.isSummon)) {
+            let targetId = selectEnemyTarget(aliveEnemies);
+            if (ability.targetType === 'ally' || ability.targetType === 'self' || ability.targetType === 'all_allies') {
+                targetId = unit.id;
+                if (config.skillTargetId) {
+                    const manualTarget = state.registry.get(createUnitId(config.skillTargetId));
+                    if (manualTarget && manualTarget.hp > 0 && !manualTarget.isEnemy) {
+                        targetId = manualTarget.id;
+                    }
+                }
+            }
+            console.log(`[Simulation] ${unit.name} using ONCE_SKILL: rotationIndex is 0, using Skill`);
+            return { type: 'SKILL', sourceId: unit.id, targetId: targetId };
+        } else {
+            console.log(`[Simulation] ${unit.name} using ONCE_SKILL: rotationIndex is ${unit.rotationIndex}, using Basic Attack`);
+            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
+        }
+    }
     const rotation = config.rotation;
     const actionChar = rotation[unit.rotationIndex % rotation.length];
 
 
 
-    let targetId = aliveEnemies[0]?.id; // Default to enemy
+    let targetId = selectEnemyTarget(aliveEnemies); // 最もHPの高い敵を狙う
 
     // ★ SKILL_SILENCE チェック ★
     // エフェクトに 'SKILL_SILENCE' タグがある場合、スキルを使用できない（強制的に通常攻撃へ）
@@ -364,7 +586,7 @@ function determineNextAction(unit: Unit, state: GameState): Action {
     }
 
     // Default to Basic Attack (ENHANCED_BASICタグがあればdispatcher側でenhancedBasicアビリティが使用される)
-    return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: aliveEnemies[0]?.id };
+    return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
 }
 
 function checkAndExecuteInterruptingUltimates(state: GameState): GameState {
@@ -591,6 +813,13 @@ function updateTurnEndState(state: GameState, actingUnit: Unit, action: Action):
     } else if (unitInNewState.config) { // Ultimateではないアクションの場合、ローテーションを進める
         // Only advance rotation on non-ultimate turns for characters with a config
         newRotationIndex = (unitInNewState.rotationIndex + 1) % unitInNewState.config.rotation.length;
+    } else if (unitInNewState.isEnemy) {
+        // 敵ユニットの場合の行動パターン進行
+        if (unitInNewState.turnPatterns && unitInNewState.turnPatterns.length > 0) {
+            newRotationIndex = (unitInNewState.rotationIndex + 1) % unitInNewState.turnPatterns.length;
+        } else if (unitInNewState.actionPattern && unitInNewState.actionPattern.length > 0) {
+            newRotationIndex = (unitInNewState.rotationIndex + 1) % unitInNewState.actionPattern.length;
+        }
     }
 
     unitInNewState.rotationIndex = newRotationIndex;
@@ -970,44 +1199,58 @@ export function stepSimulation(state: GameState): GameState {
                 registry: newState.registry.update(createUnitId(affectedUnit.id), u => affectedUnit)
             };
 
-            // ターンスキップログ
-            newState = {
-                ...newState,
-                log: [...newState.log, {
-                    characterName: affectedUnit.name,
-                    actionTime: newState.time,
-                    actionType: 'ターンスキップ',
-                    details: `${ccType} (ターンスキップ、残り${newDuration}ターン)`,
-                    sourceId: affectedUnit.id,
-                    skillPointsAfterAction: newState.skillPoints,
-                    damageDealt: 0,
-                    healingDone: 0,
-                    shieldApplied: 0,
-                    sourceHpState: `${affectedUnit.hp.toFixed(0)}+${affectedUnit.shield.toFixed(0)}/${affectedUnit.stats.hp.toFixed(0)}`,
-                    targetHpState: '',
-                    targetToughness: '',
-                    currentEp: affectedUnit.ep,
-                    activeEffects: affectedUnit.effects.map(e => ({
-                        name: e.name,
-                        duration: e.durationType === 'PERMANENT' ? '∞' : e.duration,
-                        stackCount: e.stackCount,
-                        owner: e.sourceUnitId
-                    }))
-                } as SimulationLogEntry]
-            };
-
-            // ターン終了処理（他のエフェクトの時間減少、AV リセット）
-            newState = updateTurnEndState(newState, affectedUnit, { type: 'TURN_SKIP', sourceId: affectedUnit.id, reason: ccType });
-
-            newState = updateActionQueue(newState);
-
-            // ★ 割り込みチェックフェーズ (End of Turn Skip) ★
-            newState = checkAndExecuteInterruptingUltimates(newState);
-
-            // ターンスキップ：通常行動をスキップして終了
-            return newState;
+            // ★ 昇華状態の特殊処理: 行動制限抵抗（100%）があればスキップしない
+            if (isNewCrowdControlEffect(ccEffect) && ccEffect.ccType === 'Sublimation') {
+                const ccRes = affectedUnit.stats.crowd_control_res || 0;
+                if (ccRes >= 1.0) {
+                    console.log(`[Simulation] ${affectedUnit.name} resisted Sublimation turn skip (CC RES: ${ccRes * 100}%)`);
+                    // 抵抗がある場合は通常行動に進む（returnせずに抜ける）
+                } else {
+                    // 抵抗がない場合はターンスキップ
+                    return recordCcTurnSkip(newState, affectedUnit, ccType, newDuration);
+                }
+            } else {
+                // 通常のCC（凍結/禁錮/もつれ）は従来通りターンスキップ
+                return recordCcTurnSkip(newState, affectedUnit, ccType, newDuration);
+            }
         }
     }
+
+    // CCによるターンスキップを記録し、ターン終了処理を行うヘルパー関数
+    function recordCcTurnSkip(state: GameState, unit: Unit, ccType: string, newDuration: number): GameState {
+        let s = state;
+        s = {
+            ...s,
+            log: [...s.log, {
+                characterName: unit.name,
+                actionTime: s.time,
+                actionType: 'ターンスキップ',
+                details: `${ccType} (ターンスキップ、残り${newDuration}ターン)`,
+                sourceId: unit.id,
+                skillPointsAfterAction: s.skillPoints,
+                damageDealt: 0,
+                healingDone: 0,
+                shieldApplied: 0,
+                sourceHpState: `${unit.hp.toFixed(0)}+${unit.shield.toFixed(0)}/${unit.stats.hp.toFixed(0)}`,
+                targetHpState: '',
+                targetToughness: '',
+                currentEp: unit.ep,
+                activeEffects: unit.effects.map(e => ({
+                    name: e.name,
+                    duration: e.durationType === 'PERMANENT' ? '∞' : e.duration,
+                    stackCount: e.stackCount,
+                    owner: e.sourceUnitId
+                }))
+            } as SimulationLogEntry]
+        };
+
+        // ターン終了処理
+        s = updateTurnEndState(s, unit, { type: 'TURN_SKIP', sourceId: unit.id, reason: ccType });
+        s = updateActionQueue(s);
+        s = checkAndExecuteInterruptingUltimates(s);
+        return s;
+    }
+
 
     // ★ Enemy Turn Start: Recover Toughness ★
     // Moved after DoT/Freeze processing based on user feedback
@@ -1034,6 +1277,17 @@ export function stepSimulation(state: GameState): GameState {
                     ...currentActingUnit,
                     toughness: currentActingUnit.maxToughness,
                 };
+
+                // ★ 弱点撃破からの復帰時パターンリセット ★
+                // resetPatternOnBreakRecoveryがtrueの敵は1ターン目の行動に戻る
+                const enemyData = currentActingUnit as unknown as Partial<EnemyData>;
+                if (enemyData.resetPatternOnBreakRecovery) {
+                    currentActingUnit = {
+                        ...currentActingUnit,
+                        rotationIndex: 0
+                    };
+                    console.log(`[Simulation] Enemy ${currentActingUnit.name} reset pattern to turn 1 after break recovery`);
+                }
 
                 // 残梅再付与不可マーカーを削除
                 const noReapplyEffect = currentActingUnit.effects.find(e => e.name === '残梅再付与不可');
@@ -1130,6 +1384,48 @@ export function stepSimulation(state: GameState): GameState {
         // 4. Dispatch Action
         newState = dispatch(newState, action);
 
+        // ★ 敵の2ndアクション処理（turnPatternsシステム）★
+        // プライマリアクション後に2ndアクション（secondary）をpendingActionsに追加
+        const actingUnit = newState.registry.get(currentActingUnit.id as UnitId);
+        if (actingUnit && actingUnit.isEnemy && actingUnit.turnPatterns && actingUnit.turnPatterns.length > 0 && actingUnit.enemySkills) {
+            const patternIndex = (actingUnit.rotationIndex || 0) % actingUnit.turnPatterns.length;
+            const pattern = actingUnit.turnPatterns[patternIndex];
+            const primarySkill = actingUnit.enemySkills[pattern.primary];
+
+            // ★ 敵スキル後処理（ロックオン・デバフ等）を実行
+            newState = handleEnemySkillPostEffects(newState, actingUnit, action);
+
+            // ★ 2ndアクションの追加
+            if (pattern.secondary && actingUnit.enemySkills[pattern.secondary]) {
+                const secondarySkill = actingUnit.enemySkills[pattern.secondary];
+                let secondaryTargetId: string = '';
+                if (secondarySkill.targetType === 'lock_on') {
+                    const aliveAllies = newState.registry.getAliveAllies().filter(u => !u.untargetable);
+                    secondaryTargetId = selectTarget(actingUnit, aliveAllies) as string;
+                } else {
+                    const updatedUnit = newState.registry.get(actingUnit.id as UnitId);
+                    if (updatedUnit?.lockedTargetId) {
+                        secondaryTargetId = updatedUnit.lockedTargetId;
+                    } else {
+                        const aliveAllies = newState.registry.getAliveAllies().filter(u => !u.untargetable);
+                        secondaryTargetId = selectTarget(actingUnit, aliveAllies) as string;
+                    }
+                }
+
+                const secondaryAction: SkillAction = {
+                    type: 'SKILL',
+                    sourceId: actingUnit.id,
+                    targetId: secondaryTargetId,
+                    abilityId: secondarySkill.id
+                };
+                newState = {
+                    ...newState,
+                    pendingActions: [...newState.pendingActions, secondaryAction]
+                };
+                console.log(`[stepSimulation] Added secondary action ${secondarySkill.name} to pendingActions`);
+            }
+        }
+
         // ★ 追加攻撃処理（ターン終了前に実行）★
         // pendingActionsをすべて処理してから必殺技チェックとターン終了処理に進む
         let pendingIterations = 0;
@@ -1142,6 +1438,15 @@ export function stepSimulation(state: GameState): GameState {
             };
             if (pendingAction) {
                 newState = dispatch(newState, pendingAction);
+
+                // ★ 敵のpendingAction（2ndアクション等）後の共通処理
+                const combatAction = pendingAction as import('./types').CombatAction;
+                if (combatAction.sourceId) {
+                    const actingEnemy = newState.registry.get(combatAction.sourceId as UnitId);
+                    if (actingEnemy && actingEnemy.isEnemy) {
+                        newState = handleEnemySkillPostEffects(newState, actingEnemy, pendingAction);
+                    }
+                }
             }
             pendingIterations++;
         }

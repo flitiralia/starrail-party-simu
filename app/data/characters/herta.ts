@@ -245,8 +245,8 @@ export const herta: Character = {
     defaultConfig: {
         lightConeId: 'before-dawn',
         superimposition: 1,
-        relicSetId: 'the_ashblazing_grand_duke',
-        ornamentSetId: 'izumo_gensei_and_takama_divine_realm',
+        relicSetId: 'the-ashblazing-grand-duke',
+        ornamentSetId: 'izumo-gensei-and-takama-divine-realm',
         mainStats: {
             body: 'crit_rate',
             feet: 'atk_pct',

@@ -512,3 +512,78 @@ export function consumeHp(
 
     return { state: newState, consumed: actualConsumed };
 }
+
+/**
+ * 削靭処理（キャラクター固有の追加削靭用）
+ * 
+ * 通常のアクションによる削靭はdispatcherが処理するため、
+ * このユーティリティは「ダメージを伴わない追加削靭」（例: ダリアA6、E1）に使用します。
+ * 
+ * @param state ゲーム状態
+ * @param sourceId 削靭のソースユニットID
+ * @param targetId 削靭対象のユニットID
+ * @param baseToughnessReduction 基礎削靭値
+ * @param options オプション設定
+ * @returns 更新後のゲーム状態と撃破フラグ
+ */
+export function reduceToughness(
+    state: GameState,
+    sourceId: string,
+    targetId: string,
+    baseToughnessReduction: number,
+    options?: {
+        /** 弱点を無視して削靭するか（飛霄A2など） */
+        ignoreWeakness?: boolean;
+        /** 撃破時にイベントを発火するか（デフォルト: true） */
+        publishBreakEvent?: boolean;
+    }
+): { state: GameState; wasBroken: boolean } {
+    let newState = state;
+    const source = newState.registry.get(createUnitId(sourceId));
+    const target = newState.registry.get(createUnitId(targetId));
+
+    if (!source || !target) {
+        return { state, wasBroken: false };
+    }
+
+    // 敵でなければ削靭しない
+    if (!target.isEnemy) {
+        return { state, wasBroken: false };
+    }
+
+    // 既に撃破済みなら何もしない
+    if (target.toughness <= 0) {
+        return { state, wasBroken: false };
+    }
+
+    // 弱点チェック（オプションで無視可能）
+    const ignoreWeakness = options?.ignoreWeakness ?? false;
+    if (!ignoreWeakness && !target.weaknesses.has(source.element)) {
+        return { state, wasBroken: false };
+    }
+
+    // 削靭値計算: 基礎 × (1 + break_efficiency_boost)
+    const breakEfficiency = source.stats.break_efficiency_boost || 0;
+    const actualReduction = baseToughnessReduction * (1 + breakEfficiency);
+    const newToughness = Math.max(0, target.toughness - actualReduction);
+
+    // ターゲットの靭性を更新
+    newState = {
+        ...newState,
+        registry: newState.registry.update(createUnitId(targetId), u => ({ ...u, toughness: newToughness }))
+    };
+
+    const wasBroken = target.toughness > 0 && newToughness <= 0;
+
+    // 撃破イベント発火
+    if (wasBroken && (options?.publishBreakEvent !== false)) {
+        newState = publishEvent(newState, {
+            type: 'ON_WEAKNESS_BREAK',
+            sourceId: sourceId,
+            targetId: targetId,
+            value: 0
+        });
+    }
+
+    return { state: newState, wasBroken };
+}

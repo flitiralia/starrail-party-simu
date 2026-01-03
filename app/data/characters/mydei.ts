@@ -775,8 +775,8 @@ export const mydei: Character = {
         eidolonLevel: 0,
         lightConeId: 'the-unreachable-side',
         superimposition: 1,
-        relicSetId: 'longevous_disciple',
-        ornamentSetId: 'rutilant_arena',
+        relicSetId: 'longevous-disciple',
+        ornamentSetId: 'rutilant-arena',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',

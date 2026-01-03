@@ -285,8 +285,8 @@ export const robin: Character = {
         eidolonLevel: 0,
         lightConeId: 'flowing-nightglow',
         superimposition: 1,
-        relicSetId: 'messenger_traversing_hackerspace',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'messenger-traversing-hackerspace',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'atk_pct',
             feet: 'spd',

@@ -311,8 +311,8 @@ export const blade: Character = {
         eidolonLevel: 0,
         lightConeId: 'the-unreachable-side',
         superimposition: 1,
-        relicSetId: 'longevous_disciple',
-        ornamentSetId: 'silent_ossuary',
+        relicSetId: 'longevous-disciple',
+        ornamentSetId: 'bone-collections-serene-demesne',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',

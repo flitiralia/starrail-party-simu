@@ -6,7 +6,7 @@ import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { applyUnifiedDamage, publishEvent, appendAdditionalDamage } from '../../simulator/engine/dispatcher';
 import { calculateSuperBreakDamageWithBreakdown } from '../../simulator/damage';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
-import { advanceAction } from '../../simulator/engine/utils';
+import { advanceAction, reduceToughness } from '../../simulator/engine/utils';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { addSkillPoints } from '../../simulator/effect/relicEffectHelpers';
 import { IAura } from '../../simulator/engine/types';
@@ -234,10 +234,10 @@ export const dahlia: Character = {
         },
     },
     defaultConfig: {
-        lightConeId: 'she-is-not-the-flame', // 仮
+        lightConeId: 'never-forget-her-flame',
         superimposition: 1,
-        relicSetId: 'iron_cavalry_which_tramples_the_raging_flame',
-        ornamentSetId: 'forge_of_kalpagni_lantern',
+        relicSetId: 'iron-cavalry-against-scourge',
+        ornamentSetId: 'forge-of-the-kalpagni-lantern',
         mainStats: {
             body: 'atk_pct',
             feet: 'spd',
@@ -261,7 +261,6 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
     // 内部状態管理用
     let fuaCountForSp = 0;
     const a2TriggeredThisTurn = { value: false };
-    const epRecoveredByA6 = { value: 0 }; // 累計回復量管理 (Max 50%)
 
     /**
      * 「共に舞う者」の更新
@@ -291,8 +290,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     sourceUnitId: sourceUnitId,
                     durationType: 'PERMANENT',
                     duration: -1,
-                   
-                   
+
+
                 };
                 newState = addEffect(newState, bestPartner.id, partnerEffect);
             }
@@ -307,8 +306,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-               
-               
+
+
             };
             newState = addEffect(newState, sourceUnitId, selfPartner);
         }
@@ -341,8 +340,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     type: 'add',
                     source: '追加能力: 葬礼またひとつ'
                 }],
-               
-               
+
+
             };
             newState = addEffect(newState, ally.id, effect);
         }
@@ -401,8 +400,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     type: 'pct',
                     source: '追加能力: A6'
                 }],
-               
-               
+
+
             };
             newState = addEffect(newState, sourceUnitId, spdBuff);
         }
@@ -410,34 +409,6 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
         return newState;
     };
 
-    /**
-     * 削靭処理 (撃破判定含む)
-     */
-    const reduceToughness = (state: GameState, targetId: string, sourceId: string, amount: number): GameState => {
-        let newState = state;
-        const target = newState.registry.get(createUnitId(targetId));
-        const source = newState.registry.get(createUnitId(sourceId));
-        if (!target || !target.isEnemy || !source || amount <= 0 || target.toughness <= 0) return newState;
-
-        const actualReduction = amount * (1 + (source.stats.break_efficiency_boost || 0));
-        const newToughness = Math.max(0, target.toughness - actualReduction);
-
-        newState = {
-            ...newState,
-            registry: newState.registry.update(createUnitId(targetId), u => ({ ...u, toughness: newToughness }))
-        };
-
-        if (newToughness <= 0) {
-            newState = publishEvent(newState, {
-                type: 'ON_WEAKNESS_BREAK',
-                sourceId: sourceId,
-                targetId: targetId,
-                value: 0,
-            });
-        }
-
-        return newState;
-    };
 
     return {
         handlerMetadata: {
@@ -497,8 +468,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '戦闘スキル: 結界'
                         }],
-                       
-                       
+
+
                     };
                     newState = addEffect(newState, sourceUnitId, barrier);
                 }
@@ -509,7 +480,6 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
             if (event.type === 'ON_TURN_START') {
                 if (event.sourceId === sourceUnitId) {
                     a2TriggeredThisTurn.value = false;
-                    epRecoveredByA6.value = 0;
                 }
                 return state;
             }
@@ -529,8 +499,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                         type: 'add',
                         source: '戦闘スキル: 結界'
                     }],
-                   
-                   
+
+
                 };
                 let newState = addEffect(state, sourceUnitId, barrier);
 
@@ -551,8 +521,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '戦闘スキル: 凋落'
                         }],
-                       
-                       
+
+
                     };
                     newState = addEffect(newState, enemy.id, decadence);
                 }
@@ -578,8 +548,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                             type: 'add',
                             source: '必殺技: 凋落'
                         }],
-                       
-                       
+
+
                     };
                     newState = addEffect(newState, enemy.id, decadence);
                     newState = applyWeaknessFromPartners(newState, enemy.id, sourceUnitId, ULT_DURATION);
@@ -623,26 +593,31 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                                 type: 'pct',
                                 source: '追加能力: A6'
                             }],
-                           
-                           
+
+
                         };
                         newState = addEffect(newState, sourceUnitId, spdBuff);
 
                         // 炎属性キャラの場合: 削靭20、EP 5% (Max 50%)
                         if (attacker.element === 'Fire' && effectEvent.targetId) {
-                            newState = reduceToughness(newState, effectEvent.targetId, sourceUnitId, 20);
+                            const { state: stateAfterToughness } = reduceToughness(newState, sourceUnitId, effectEvent.targetId, 20, { ignoreWeakness: true });
+                            newState = stateAfterToughness;
 
                             // EP回復 (属性付与時)
                             const maxEp = unit.stats.max_ep || 0;
-                            if (epRecoveredByA6.value < (maxEp * 0.5)) {
-                                const epGain = maxEp * 0.05;
-                                epRecoveredByA6.value += epGain;
+                            const currentEp = unit.ep || 0;
+                            const epCap = maxEp * 0.5;
+
+                            if (currentEp < epCap) {
+                                // 10%回復するが、50%を超えないようにクランプ
+                                const epGain = Math.min(maxEp * 0.1, epCap - currentEp);
                                 newState = addEnergyToUnit(newState, sourceUnitId, epGain, 0, false, {
                                     sourceId: sourceUnitId,
                                     publishEventFn: publishEvent
                                 });
                             }
                         }
+
                     }
                 }
                 return newState;
@@ -698,7 +673,8 @@ export const dahliaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: 
                     // 攻撃後に最大靭性値25%分の追加削靭 (E1)
                     if (eidolonLevel >= 1 && target && target.isEnemy) {
                         const e1Reduction = target.maxToughness * 0.25;
-                        newState = reduceToughness(newState, target.id, sourceUnitId, e1Reduction);
+                        const { state: stateAfterE1 } = reduceToughness(newState, sourceUnitId, target.id, e1Reduction, { ignoreWeakness: true });
+                        newState = stateAfterE1;
                     }
 
                     for (let i = 0; i < hitCount; i++) {

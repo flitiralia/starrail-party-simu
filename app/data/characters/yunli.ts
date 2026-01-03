@@ -63,7 +63,7 @@ const ABILITY_VALUES = {
     talentDmgAdj: { 10: 0.60, 12: 0.66 } as Record<number, number>, // Counter Slash Adj
 };
 
-// Skill damage assumption (Standard Destruction)
+// Skill damage values (Confirmed from spec)
 const SKILL_DMG_MAIN = { 10: 1.20, 12: 1.32 };
 const SKILL_DMG_ADJ = { 10: 0.60, 12: 0.66 };
 
@@ -261,20 +261,24 @@ function triggerCounter(
     if (isCull) {
         // Intuit: Cull (看破・滅)
         // Main + Adj + Random Hits
-        // Main Hit Action
-        newState = {
-            ...newState,
-            pendingActions: [...newState.pendingActions, {
-                type: 'FOLLOW_UP_ATTACK',
-                sourceId,
-                targetId: targetId || undefined,
-            } as FollowUpAttackAction]
-        };
+        // ベース部分（拡散攻撃）は通常8ヒット
+        for (let i = 0; i < 8; i++) {
+            newState = {
+                ...newState,
+                pendingActions: [...newState.pendingActions, {
+                    type: 'FOLLOW_UP_ATTACK',
+                    sourceId,
+                    targetId: targetId || undefined,
+                } as FollowUpAttackAction]
+            };
+        }
 
-        // Random 6 Hits
+        // Random Hits
+        // E1: 追加ヒット数 +3 (合計 6 + 3 = 9)
+        const additionalHits = 6 + (eidolonLevel >= 1 ? 3 : 0);
         const enemies = state.registry.toArray().filter(u => u.isEnemy && u.hp > 0);
         if (enemies.length > 0) {
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < additionalHits; i++) {
                 const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
                 newState = {
                     ...newState,
@@ -290,9 +294,8 @@ function triggerCounter(
         newState = addEffect(newState, sourceId, {
             id: `yunli-executing-cull-${sourceId}`,
             name: 'Executing Cull',
-            category: 'BUFF', duration: -1, durationType: 'PERMANENT', // Clears after action manually
+            category: 'BUFF', duration: -1, durationType: 'PERMANENT',
             sourceUnitId: sourceId,
-            /* remove removed */
         });
     } else {
         // Intuit: Slash (看破・斬)
@@ -540,6 +543,18 @@ export const yunliHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, p
                 // If Counter Finished (Cull or Slash)
                 const isCull = unit.effects.some(e => e.id === `yunli-executing-cull-${sourceUnitId}`);
                 const isSlash = unit.effects.some(e => e.id === `yunli-executing-slash-${sourceUnitId}`);
+
+                // E6: 敵が能動的にスキルを発動する時、雲璃を攻撃していなくても雲璃は「看破・滅」を発動
+                if (eidolonLevel >= 6 && event.sourceId !== sourceUnitId) {
+                    const sourceUnit = state.registry.get(createUnitId(event.sourceId));
+                    if (sourceUnit?.isEnemy && actionType === 'SKILL') {
+                        const parryEffect = unit.effects.find(e => e.id === EFFECT_IDS.PARRY_STANCE(sourceUnitId));
+                        if (parryEffect) {
+                            newState = triggerCounter(newState, sourceUnitId, event.sourceId, eidolonLevel, true);
+                            newState = removeEffect(newState, sourceUnitId, EFFECT_IDS.PARRY_STANCE(sourceUnitId));
+                        }
+                    }
+                }
 
                 if (isCull || isSlash) {
                     // E4: Effect Res Buff

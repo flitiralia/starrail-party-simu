@@ -241,8 +241,8 @@ export const march7th: Character = {
     eidolonLevel: 6,
     lightConeId: 'day-one-of-my-new-life',
     superimposition: 5,
-    relicSetId: 'knight_of_purity_palace',
-    ornamentSetId: 'belobog_of_the_architects',
+    relicSetId: 'knight-of-purity-palace',
+    ornamentSetId: 'belobog-of-the-architects',
     mainStats: {
       body: 'effect_hit_rate',
       feet: 'spd',

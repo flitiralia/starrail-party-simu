@@ -517,7 +517,7 @@ const onIkarunSkill = (event: ActionEvent, state: GameState, sourceUnitId: strin
 
 };
 
-const onDamageDealt = (event: DamageDealtEvent, state: GameState, sourceUnitId: string): GameState => {
+const onDamageDealt = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
     const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
@@ -917,7 +917,7 @@ export const hianshiHandlerFactory: import('../../simulator/engine/types').IEven
     return {
         handlerMetadata: {
             id: `hianshi - handler - ${sourceUnitId} `,
-            subscribesTo: ['ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ACTION_COMPLETE', 'ON_DAMAGE_DEALT', 'ON_BATTLE_START', 'ON_UNIT_DEATH', 'ON_TURN_START']
+            subscribesTo: ['ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ACTION_COMPLETE', 'ON_BATTLE_START', 'ON_UNIT_DEATH', 'ON_TURN_START']
         },
         handlerLogic: (event, state, handlerId) => {
             if (event.type === 'ON_SKILL_USED') {
@@ -930,9 +930,9 @@ export const hianshiHandlerFactory: import('../../simulator/engine/types').IEven
             } else if (event.type === 'ON_ULTIMATE_USED') {
                 return onUltimateUsed(event, state, sourceUnitId);
             } else if (event.type === 'ON_ACTION_COMPLETE') {
-                return onActionComplete(event, state, sourceUnitId);
-            } else if (event.type === 'ON_DAMAGE_DEALT') {
-                return onDamageDealt(event, state, sourceUnitId);
+                // onActionCompleteとonDamageDealtの両方の処理を実行
+                let newState = onActionComplete(event, state, sourceUnitId);
+                return onDamageDealt(event, newState, sourceUnitId);
             } else if (event.type === 'ON_BATTLE_START') {
                 return onBattleStart(event, state, sourceUnitId);
             } else if (event.type === 'ON_UNIT_DEATH') {

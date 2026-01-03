@@ -11,7 +11,7 @@ import { updatePassiveBuffs, registerRelicEventHandlers } from '../effect/relicH
 import { addEnergy } from './energy';
 import { addSkillPoints } from '../effect/relicEffectHelpers';
 import { updateActionQueue, calculateBaseAV, advanceUnitAction, delayUnitAction } from './actionValue';
-import { ENEMY_DEFEAT_ENERGY_REWARD } from './constants';
+import { ENEMY_DEFEAT_ENERGY_REWARD, DEFAULT_DAMAGE_RECEIVED_ENERGY_REWARD } from './constants';
 import { cleanse, applyShield } from './utils';
 import { getAccumulatedValue } from './accumulator';
 import { recalculateUnitStats } from '../statBuilder';
@@ -35,6 +35,7 @@ export function initializeCurrentActionLog(
   // === リソーススナップショットの取得 ===
   const epSnapshot = new Map<string, { unitName: string; value: number }>();
   const accumulatorSnapshot = new Map<string, { unitName: string; key: string; value: number }>();
+  const hpSnapshot = new Map<string, { unitName: string; value: number }>();
 
   // 全ユニットのEPと蓄積値を収集
   for (const unit of state.registry.toArray()) {
@@ -42,6 +43,9 @@ export function initializeCurrentActionLog(
     if (!unit.isEnemy) {
       epSnapshot.set(unit.id, { unitName: unit.name, value: unit.ep });
     }
+
+    // 全ユニットのHPを収集
+    hpSnapshot.set(unit.id, { unitName: unit.name, value: unit.hp });
 
     // 蓄積値エフェクトを収集（名前が「蓄積: 」で始まるエフェクト）
     for (const effect of unit.effects) {
@@ -78,6 +82,7 @@ export function initializeCurrentActionLog(
     resourceSnapshot: {
       ep: epSnapshot,
       accumulators: accumulatorSnapshot,
+      hp: hpSnapshot,
       sp: state.skillPoints
     }
   };
@@ -925,10 +930,12 @@ function stepPayCost(context: ActionContext): ActionContext {
       newState = addSkillPoints(newState, spGain, source.id);
     }
   } else if (action.type === 'SKILL') {
-    // スキル: SP消費
-    const skillAbility = source.abilities.skill;
-    const cost = skillAbility?.spCost ?? 1;
-    newState = addSkillPoints(newState, -cost, source.id);
+    // スキル: SP消費（味方のみ、敵はSP消費しない）
+    if (!source.isEnemy) {
+      const ability = resolveAbility(source, action as CombatAction);
+      const cost = ability?.spCost ?? 1;
+      newState = addSkillPoints(newState, -cost, source.id);
+    }
   } else if (action.type === 'ULTIMATE') {
     // 必殺技: EP消費
     const epOption = updatedSource.config?.ultEpOption;
@@ -965,6 +972,73 @@ function stepPayCost(context: ActionContext): ActionContext {
   };
 }
 
+/**
+ * アクションに対応するアビリティ情報を解決する
+ * - キャラクターの通常/強化通常/スキル/強化スキル
+ * - 召喚物のスキル
+ * - 敵の独自スキルシステム (EnemySkill)
+ */
+export function resolveAbility(source: Unit, action: CombatAction): IAbility | undefined {
+  let ability: IAbility | undefined;
+
+  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
+    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
+    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
+      ability = source.abilities.enhancedBasic;
+    } else {
+      ability = source.abilities.basic;
+    }
+  } else if (action.type === 'SKILL') {
+    const skillAction = action as SkillAction;
+
+    // 1. 敵の独自スキルシステムを優先
+    if (skillAction.abilityId && source.enemySkills?.[skillAction.abilityId]) {
+      const enemySkill = source.enemySkills[skillAction.abilityId];
+      // EnemySkill を IAbility 互換オブジェクトに変換
+      ability = {
+        id: enemySkill.id,
+        name: enemySkill.name,
+        type: 'Skill',
+        description: '',
+        targetType: enemySkill.targetType === 'lock_on' ? 'single_enemy' :
+          enemySkill.targetType === 'blast' ? 'blast' :
+            enemySkill.targetType === 'aoe' ? 'all_enemies' : 'single_enemy',
+        energyGain: enemySkill.energyGain,
+        damage: enemySkill.damage ? (
+          enemySkill.targetType === 'blast' ? {
+            type: 'blast',
+            scaling: 'atk',
+            mainHits: [{ multiplier: enemySkill.damage.multiplier, toughnessReduction: enemySkill.damage.toughnessReduction }],
+            adjacentHits: [{ multiplier: enemySkill.damage.multiplier, toughnessReduction: enemySkill.damage.toughnessReduction }]
+          } : {
+            type: enemySkill.targetType === 'aoe' ? 'aoe' : 'simple',
+            scaling: 'atk',
+            hits: [{ multiplier: enemySkill.damage.multiplier, toughnessReduction: enemySkill.damage.toughnessReduction }]
+          }
+        ) as any : undefined
+      } as IAbility;
+    } else {
+      // 2. キャラクターまたは召喚ユニット
+      const hasEnhancedSkill = source.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
+      if (hasEnhancedSkill && source.abilities.enhancedSkill) {
+        ability = source.abilities.enhancedSkill;
+      } else if (skillAction.abilityId) {
+        // 召喚用アビリティID（murion- 等）の処理
+        const realId = skillAction.abilityId.replace('murion-', '');
+        ability = (source.abilities as any)[realId] || source.abilities.skill;
+      } else {
+        ability = source.abilities.skill;
+      }
+    }
+  } else if (action.type === 'ULTIMATE') {
+    ability = source.abilities.ultimate;
+  } else if (action.type === 'FOLLOW_UP_ATTACK') {
+    ability = source.abilities.talent;
+  }
+
+  return ability;
+}
+
 function stepGenerateHits(context: ActionContext): ActionContext {
   const { action, state } = context;
   let targets: Unit[] = [];
@@ -975,34 +1049,8 @@ function stepGenerateHits(context: ActionContext): ActionContext {
   const source = state.registry.get(createUnitId(sourceId));
   if (!source) return context;
 
-  let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
-    // ENHANCED_BASICタグがあるかチェック
-    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
-    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
-      ability = source.abilities.enhancedBasic; // 強化通常攻撃
-    } else {
-      ability = source.abilities.basic;
-    }
-  }
-  else if (action.type === 'SKILL') {
-    // ENHANCED_SKILLタグがある場合は強化スキルを使用
-    const hasEnhancedSkill = source.effects.some(e => e.tags?.includes('ENHANCED_SKILL'));
-    if (hasEnhancedSkill && source.abilities.enhancedSkill) {
-      ability = source.abilities.enhancedSkill;
-    } else {
-      // abilityIdが指定されている場合はそのアビリティを使用
-      const skillAction = action as SkillAction;
-      if (skillAction.abilityId && (source.abilities as any)[skillAction.abilityId.replace('murion-', '')]) {
-        ability = (source.abilities as any)[skillAction.abilityId.replace('murion-', '')];
-      } else {
-        ability = source.abilities.skill;
-      }
-    }
-  }
-  else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
-  else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent;
-
+  // アビリティを解決
+  const ability = resolveAbility(source, action as CombatAction);
   if (!ability) return context;
 
   const targetId = (action as CombatAction).targetId;
@@ -1014,33 +1062,34 @@ function stepGenerateHits(context: ActionContext): ActionContext {
   }
 
   // Handle Target Types
+  const opponents = source.isEnemy ? state.registry.getAliveAllies() : state.registry.getAliveEnemies();
+  const teammates = source.isEnemy ? state.registry.getAliveEnemies() : state.registry.getAliveAllies();
+
   if (ability.targetType === 'all_enemies') {
-    targets = state.registry.getAliveEnemies();
+    targets = opponents;
   } else if (ability.targetType === 'blast') {
-    const enemies = state.registry.getAliveEnemies();
-    // primaryTargetがない場合は最初の敵を選択
+    // primaryTargetがない場合は最初の相手を選択
     let blastPrimaryTarget = primaryTarget;
-    if (!blastPrimaryTarget && enemies.length > 0) {
-      blastPrimaryTarget = enemies[0];
+    if (!blastPrimaryTarget && opponents.length > 0) {
+      blastPrimaryTarget = opponents[0];
       targets.push(blastPrimaryTarget);
     }
     if (blastPrimaryTarget) {
-      const enemyIndex = enemies.findIndex(u => u.id === blastPrimaryTarget!.id);
-      if (enemyIndex !== -1) {
-        const adjacentIndices = [enemyIndex - 1, enemyIndex + 1];
+      const primaryIndex = opponents.findIndex(u => u.id === blastPrimaryTarget!.id);
+      if (primaryIndex !== -1) {
+        const adjacentIndices = [primaryIndex - 1, primaryIndex + 1];
         adjacentIndices.forEach(idx => {
-          if (enemies[idx]) targets.push(enemies[idx]);
+          if (opponents[idx]) targets.push(opponents[idx]);
         });
       }
     }
     targets = Array.from(new Set(targets));
   } else if (ability.targetType === 'bounce') {
-    const enemies = state.registry.getAliveEnemies();
-    if (enemies.length > 0) {
+    if (opponents.length > 0) {
       targets = []; // Reset targets for Bounce
     }
   } else if (ability.targetType === 'all_allies') {
-    targets = state.registry.getAliveAllies();
+    targets = teammates;
   } else if (ability.targetType === 'ally' && primaryTarget) {
     targets = [primaryTarget];
   } else if (ability.targetType === 'self') {
@@ -1148,11 +1197,12 @@ function stepGenerateHits(context: ActionContext): ActionContext {
 }
 
 function stepProcessHits(context: ActionContext): ActionContext {
-  const { source, hits, action, state } = context;
+  const { source, hits, action, state, damagedAllies } = context;
   let newState = state;
   let totalDamage = 0;
   let isBroken = false;
   const hitDetails: HitDetail[] = [];
+  const newDamagedAllies = new Set(damagedAllies); // 被弾した味方を追跡
 
   // Determine Ability (Needed for toughness reduction calculation)
   let ability: IAbility | undefined;
@@ -1317,6 +1367,11 @@ function stepProcessHits(context: ActionContext): ActionContext {
     newState = result.state;
     updatedTarget = newState.registry.get(createUnitId(updatedTarget.id))!;
 
+    // ★被弾した味方を追跡（敵からのダメージで味方がダメージを受けた場合）
+    if (source.isEnemy && !currentTarget.isEnemy && (damage + breakDamage + superBreakDamage) > 0) {
+      newDamagedAllies.add(currentTarget.id);
+    }
+
     if (targetIsBroken) {
       const breakEvent: IEvent = {
         type: 'ON_WEAKNESS_BREAK',
@@ -1416,7 +1471,8 @@ function stepProcessHits(context: ActionContext): ActionContext {
     state: newState,
     totalDamage,
     hitDetails,
-    isBroken
+    isBroken,
+    damagedAllies: newDamagedAllies
   };
 }
 
@@ -1478,18 +1534,8 @@ function stepApplyShield(context: ActionContext): ActionContext {
 
 function stepEnergyGain(context: ActionContext): ActionContext {
   const { source, action, state } = context;
-  let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
-    const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
-    if (hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK') {
-      ability = source.abilities.enhancedBasic;
-    } else {
-      ability = source.abilities.basic;
-    }
-  }
-  else if (action.type === 'SKILL') ability = source.abilities.skill;
-  else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
-  else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent; // FuA support
+  // アビリティを解決
+  const ability = resolveAbility(source, action as CombatAction);
 
   if (!ability) return context;
 
@@ -1656,6 +1702,28 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
             unitName: snapshotData.unitName,
             resourceType: 'ep',
             resourceName: 'EP',
+            before,
+            after,
+            change
+          });
+        }
+      }
+    });
+
+    // HP変化を計算
+    snapshot.hp?.forEach((snapshotData, unitId) => {
+      const currentUnit = state.registry.get(createUnitId(unitId));
+      if (currentUnit) {
+        const before = snapshotData.value;
+        const after = currentUnit.hp;
+        const change = after - before;
+        // 変化がある場合のみ追加（浮動小数点の誤差を考慮）
+        if (Math.abs(change) > 0.01) {
+          resourceChanges.push({
+            unitId,
+            unitName: snapshotData.unitName,
+            resourceType: 'hp',
+            resourceName: 'HP',
             before,
             after,
             change
@@ -2030,14 +2098,13 @@ function applySingleEffect(state: GameState, source: Unit, target: Unit, effectD
 
 function stepApplyAbilityEffects(context: ActionContext): ActionContext {
   const { action, source, targets, state } = context;
-  let ability: IAbility | undefined;
-  if (action.type === 'BASIC_ATTACK') ability = source.abilities.basic;
-  else if (action.type === 'SKILL') ability = source.abilities.skill;
-  else if (action.type === 'ULTIMATE') ability = source.abilities.ultimate;
-  else if (action.type === 'FOLLOW_UP_ATTACK') ability = source.abilities.talent;
+  // アビリティを解決
+  const ability = resolveAbility(source, action as CombatAction);
 
   if (!ability || !ability.effects || ability.effects.length === 0) return context;
 
+  const opponents = source.isEnemy ? state.registry.getAliveAllies() : state.registry.getAliveEnemies();
+  const teammates = source.isEnemy ? state.registry.getAliveEnemies() : state.registry.getAliveAllies();
   let newState = state;
 
   for (const effectDef of ability.effects) {
@@ -2045,8 +2112,8 @@ function stepApplyAbilityEffects(context: ActionContext): ActionContext {
     let effectTargets: Unit[] = [];
     if (effectDef.target === 'target') effectTargets = targets;
     else if (effectDef.target === 'self') effectTargets = [source];
-    else if (effectDef.target === 'all_enemies') effectTargets = state.registry.getAliveEnemies();
-    else if (effectDef.target === 'all_allies') effectTargets = state.registry.getAliveAllies();
+    else if (effectDef.target === 'all_enemies') effectTargets = opponents;
+    else if (effectDef.target === 'all_allies') effectTargets = teammates;
 
     // Get hit count from damage definition
     let hits = 1;
@@ -2075,27 +2142,31 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
 
   // 攻撃かどうかを判定
   let isAttackAction = false;
-  let targetId: string | undefined;
+
+  // アビリティを解決
+  const ability = resolveAbility(source, action as CombatAction);
+  const targetId = (action as CombatAction).targetId;
+  const adjacentIds = targets
+    .filter(t => t.id !== targetId)
+    .map(t => t.id);
 
   if (action.type === 'ULTIMATE') {
-    targetId = (action as UltimateAction).targetId;
     newState = publishEvent(newState, {
       type: 'ON_ULTIMATE_USED',
       sourceId: source.id,
       targetId: targetId,
-      targetType: source.abilities.ultimate?.targetType,
+      targetType: ability?.targetType,
+      adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
       value: 0
     });
     // 必殺技がダメージを持つ場合のみ攻撃扱い
-    if (source.abilities.ultimate?.damage) {
+    if (ability?.damage) {
       isAttackAction = true;
     }
   } else if (action.type === 'BASIC_ATTACK' || action.type === 'ENHANCED_BASIC_ATTACK') {
-    targetId = (action as BasicAttackAction).targetId;
     // ENHANCED_BASICタグがあるかチェック
     const hasEnhancedBasic = source.effects.some(e => e.tags?.includes('ENHANCED_BASIC'));
     const isEnhanced = hasEnhancedBasic || action.type === 'ENHANCED_BASIC_ATTACK';
-    const ability = isEnhanced ? source.abilities.enhancedBasic : source.abilities.basic;
 
     // 後方互換性のため、強化通常の場合はON_ENHANCED_BASIC_ATTACKも発行
     if (isEnhanced) {
@@ -2104,6 +2175,7 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
         sourceId: source.id,
         targetId: targetId,
         targetType: ability?.targetType,
+        adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
         value: 0
       });
     }
@@ -2114,30 +2186,31 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
       sourceId: source.id,
       targetId: targetId,
       targetType: ability?.targetType,
+      adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
       value: 0,
       isEnhanced: isEnhanced
     } as any);
     isAttackAction = true;
   } else if (action.type === 'SKILL') {
-    targetId = (action as SkillAction).targetId;
     newState = publishEvent(newState, {
       type: 'ON_SKILL_USED',
       sourceId: source.id,
       targetId: targetId,
-      targetType: source.abilities.skill?.targetType,
+      targetType: ability?.targetType,
+      adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
       value: 0
     });
     // スキルがダメージを持つ場合のみ攻撃扱い
-    if (source.abilities.skill?.damage) {
+    if (ability?.damage) {
       isAttackAction = true;
     }
   } else if (action.type === 'FOLLOW_UP_ATTACK') {
-    targetId = (action as FollowUpAttackAction).targetId;
     newState = publishEvent(newState, {
       type: 'ON_FOLLOW_UP_ATTACK',
       sourceId: source.id,
       targetId: targetId,
-      targetType: source.abilities.talent?.targetType,
+      targetType: ability?.targetType,
+      adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
       value: 0
     });
     isAttackAction = true; // 追加攻撃は常に攻撃
@@ -2145,14 +2218,63 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
 
   // ★ 統合的なON_ATTACKイベント発火（攻撃アクションの場合）
   if (isAttackAction) {
+    const adjacentIds = targets
+      .filter(t => t.id !== targetId)
+      .map(t => t.id);
     newState = publishEvent(newState, {
       type: 'ON_ATTACK',
       sourceId: source.id,
       targetId: targetId,
+      adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
       value: context.totalDamage, // 攻撃のトータルダメージをイベントに含める
       subType: action.type, // どの攻撃タイプかを含める
       targetCount: targets.length
     });
+  }
+
+  return {
+    ...context,
+    state: newState
+  };
+}
+
+/**
+ * Step: 被弾した味方へのEP回復
+ * 敵からダメージを受けた味方にEPを回復させる。
+ * 回復量は敵のdamageReceivedEnergyRewardから取得（未設定時はデフォルト5EP）。
+ */
+function stepDamageReceivedEnergyGain(context: ActionContext): ActionContext {
+  const { source, state, damagedAllies } = context;
+
+  // 敵以外のアクションでは処理しない
+  if (!source.isEnemy) {
+    return context;
+  }
+
+  // 被弾した味方がいない場合は処理しない
+  if (!damagedAllies || damagedAllies.size === 0) {
+    return context;
+  }
+
+  let newState = state;
+
+  // 敵のEP回復量を取得（EnemyData型から取得、未設定時はデフォルト値）
+  const enemyData = source as any; // EnemyData型にキャスト
+  const epReward = enemyData.damageReceivedEnergyReward ?? DEFAULT_DAMAGE_RECEIVED_ENERGY_REWARD;
+
+  // 被弾した各味方にEP回復を適用
+  for (const allyId of damagedAllies) {
+    const ally = newState.registry.get(createUnitId(allyId));
+    if (!ally || ally.hp <= 0) continue;
+
+    // EP回復を適用（ERR適用）
+    const updatedAlly = addEnergy(ally, epReward);
+    newState = {
+      ...newState,
+      registry: newState.registry.update(createUnitId(allyId), u => updatedAlly)
+    };
+
+    console.log(`[被弾EP回復] ${ally.name} に ${epReward}EP を回復 (ERR適用)`);
   }
 
   return {
@@ -2169,13 +2291,27 @@ function stepPublishActionEvents(context: ActionContext): ActionContext {
 function stepPublishActionCompleteEvent(context: ActionContext): ActionContext {
   const { action, source, state, totalDamage, targets } = context;
 
+  // Determine primary target ID and adjacent IDs if any
+  let targetId: string | undefined = undefined;
+  if ('targetId' in action) {
+    targetId = (action as any).targetId;
+  } else if (targets.length > 0) {
+    targetId = targets[0].id; // Fallback to first target
+  }
+
+  const adjacentIds = targets
+    .filter(t => t.id !== targetId)
+    .map(t => t.id);
+
   const event: IEvent = {
     type: 'ON_ACTION_COMPLETE',
     sourceId: source.id,
-    targetId: undefined, // No single target for this event
+    targetId: targetId,
     value: totalDamage,  // Total damage dealt by the action
     subType: action.type,
     targetCount: targets.length,
+    adjacentIds: adjacentIds.length > 0 ? adjacentIds : undefined,
+    targetType: (action as any).targetType, // Try to propagate target type
     actionType: action.type // Added actionType
   };
 
@@ -2235,7 +2371,8 @@ function resolveAction(state: GameState, action: Action): GameState {
     totalHealing: 0,
     totalShield: 0,
     hitDetails: [],
-    isBroken: false
+    isBroken: false,
+    damagedAllies: new Set<string>() // 敵からダメージを受けた味方を追跡
   };
 
   // Validation: Check Skill Points for Skill Actions (召喚ユニットはSP不要)
@@ -2309,6 +2446,7 @@ function resolveAction(state: GameState, action: Action): GameState {
   context = stepPublishActionEvents(context);  // ON_ULTIMATE_USEDなどのイベント発火
   context = stepGenerateLog(context);  // プライマリダメージをcurrentActionLogに記録（ハンドラーが追加した後）
   context = stepApplyAbilityEffects(context);
+  context = stepDamageReceivedEnergyGain(context);  // 被弾した味方のEP回復
   context = stepPublishActionCompleteEvent(context);  // Fire ON_ACTION_COMPLETE
   context = stepCheckEnemySpawn(context);  // Check for newly spawned enemies
   context = stepFinalizeActionLog(context);  // 統合ログを生成

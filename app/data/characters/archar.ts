@@ -247,8 +247,8 @@ export const archar: Character = {
         eidolonLevel: 0,
         lightConeId: 'the-hell-where-ideals-burn',
         superimposition: 1,
-        relicSetId: 'genius_of_brilliant_stars',
-        ornamentSetId: 'rutilant_arena',
+        relicSetId: 'genius-of-brilliant-stars',
+        ornamentSetId: 'rutilant-arena',
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',

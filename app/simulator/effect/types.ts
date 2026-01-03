@@ -123,7 +123,7 @@ export interface BreakStatusEffect extends IEffect {
  */
 export interface CrowdControlEffect extends IEffect {
   readonly type: 'CrowdControl';
-  readonly ccType: 'Freeze' | 'Entanglement' | 'Imprisonment';
+  readonly ccType: 'Freeze' | 'Entanglement' | 'Imprisonment' | 'Sublimation';
 
   /**
    * ダメージ計算方式

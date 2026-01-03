@@ -197,11 +197,13 @@ export function addSkillPoints(state: GameState, amount: number, sourceId: strin
     };
 
     // SP変更イベントを発火
-    if (newSP > currentSP) {
+    // SP増加の場合、rawAmount（試行量）も含める（オーバーフローカウント用）
+    if (amount > 0) {
         newState = publishEvent(newState, {
             type: 'ON_SP_GAINED',
             sourceId: sourceId,
-            value: newSP - currentSP
+            value: newSP - currentSP,
+            rawAmount: amount  // 試行した回復量（上限クランプ前）
         });
     } else if (newSP < currentSP) {
         newState = publishEvent(newState, {

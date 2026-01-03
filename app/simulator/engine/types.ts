@@ -29,7 +29,7 @@ export type UltEpOption = 'argenti_90' | 'argenti_180';
 
 export interface CharacterConfig {
     rotation: string[];
-    rotationMode?: 'sequence' | 'spam_skill' | 'spam_basic';
+    rotationMode?: 'sequence' | 'spam_skill' | 'spam_basic' | 'once_skill';
     spamSkillTriggerSp?: number;
     skillTargetId?: string;
     ultStrategy: UltimateStrategy;
@@ -105,6 +105,14 @@ export interface Unit {
 
     // Enemy behavior
     actionPattern?: string[];
+    /** ロックオン中のターゲットID（敵がターゲットを固定する場合に使用） */
+    lockedTargetId?: UnitId;
+    /** 敵スキル定義（新システム） */
+    enemySkills?: Record<string, import('../../types/enemy').EnemySkill>;
+    /** ターン行動パターン（新システム） */
+    turnPatterns?: import('../../types/enemy').EnemyTurnPattern[];
+    /** 弱点撃破復帰時にパターンをリセットするか */
+    resetPatternOnBreakRecovery?: boolean;
 }
 
 // ターン終了スキップの終了条件タイプ
@@ -174,7 +182,7 @@ export interface GameState {
 export interface ResourceChangeEntry {
     unitId: string;
     unitName: string;
-    resourceType: 'ep' | 'accumulator' | 'sp';
+    resourceType: 'ep' | 'accumulator' | 'sp' | 'hp';
     resourceName: string; // EPの場合は'EP'、蓄積値の場合はキー名
     before: number;
     after: number;
@@ -213,6 +221,7 @@ export interface CurrentActionLog {
     resourceSnapshot?: {
         ep: Map<string, { unitName: string; value: number }>;           // unitId -> EP
         accumulators: Map<string, { unitName: string; key: string; value: number }>;  // effectId -> { key, value }
+        hp: Map<string, { unitName: string; value: number }>;           // unitId -> HP
         sp: number; // アクション開始時のSP
     };
 
@@ -370,7 +379,8 @@ export interface DoTDamageEvent extends BaseEvent {
 
 export interface SpGainEvent extends BaseEvent {
     type: 'ON_SP_GAINED';
-    value: number; // Amount gained
+    value: number; // Amount actually gained (after clamping)
+    rawAmount?: number; // Amount attempted to gain (before clamping, for overflow counting)
 }
 
 export interface SpConsumeEvent extends BaseEvent {
@@ -600,6 +610,9 @@ export interface ActionContext {
 
     // Flags
     isBroken: boolean;
+
+    // 被弾した味方ユニットのIDセット（敵からダメージを受けた味方のEP回復用）
+    damagedAllies: Set<string>;
 }
 
 

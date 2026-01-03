@@ -192,7 +192,7 @@ export const silverWolf: Character = {
             damage: {
                 type: 'simple',
                 scaling: 'atk',
-                hits: [{ multiplier: 1.0, toughnessReduction: 20 }],
+                hits: [{ multiplier: 1.96, toughnessReduction: 20 }],
             },
             energyGain: SKILL_EP,
             spCost: 1,
@@ -207,7 +207,7 @@ export const silverWolf: Character = {
             damage: {
                 type: 'aoe',
                 scaling: 'atk',
-                hits: [{ multiplier: 1.0, toughnessReduction: 30 }],
+                hits: [{ multiplier: 3.8, toughnessReduction: 30 }],
             },
             energyGain: ULT_EP,
             targetType: 'all_enemies',
@@ -241,9 +241,29 @@ export const silverWolf: Character = {
     eidolons: {
         e1: { level: 1, name: '社会工学', description: '必殺技後、敵デバフ数x7EP回復(Max 5回)。' },
         e2: { level: 2, name: 'ボットネット', description: '敵入城時被ダメ+20%。味方被弾時SWが欠陥付与。' },
-        e3: { level: 3, name: 'ペイロード', description: 'Skill+2, Talent+2' },
+        e3: {
+            level: 3,
+            name: 'ペイロード',
+            description: 'Skill+2, Talent+2',
+            abilityModifiers: [
+                // スキル Lv10 (196%) -> Lv12 (215.6%)
+                { abilityName: 'skill', param: 'damage.hits.0.multiplier', value: 2.156 },
+            ]
+        },
         e4: { level: 4, name: 'バウンス攻撃', description: '必殺技追撃(デバフ数x20%)。' },
-        e5: { level: 5, name: '総当たり攻撃', description: 'Ult+2, Basic+1' },
+        e5: {
+            level: 5,
+            name: '総当たり攻撃',
+            description: 'Ult+2, Basic+1',
+            abilityModifiers: [
+                // 必殺技 Lv10 (380%) -> Lv12 (410.4%)
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 4.104 },
+                // 通常攻撃 Lv6 (100%) -> Lv7 (110%)
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 0.275 }, // 0.25 * 1.1
+                { abilityName: 'basic', param: 'damage.hits.1.multiplier', value: 0.275 },
+                { abilityName: 'basic', param: 'damage.hits.2.multiplier', value: 0.55 },
+            ]
+        },
         e6: { level: 6, name: 'オーバーレイ ネットワーク', description: 'デバフ数x20%与ダメ増(Max 100%)。' },
     },
 

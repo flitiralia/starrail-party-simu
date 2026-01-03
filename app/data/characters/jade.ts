@@ -184,8 +184,8 @@ export const jade: Character = {
     defaultConfig: {
         lightConeId: 'yet-hope-is-priceless',
         superimposition: 1,
-        relicSetId: 'genius_of_brilliant_stars',
-        ornamentSetId: 'duran_dynasty_of_running_wolves',
+        relicSetId: 'genius-of-brilliant-stars',
+        ornamentSetId: 'duran-dynasty-of-running-wolves',
         mainStats: {
             body: 'crit_rate',
             feet: 'atk_pct',

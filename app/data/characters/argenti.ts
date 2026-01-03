@@ -254,8 +254,8 @@ export const argenti: Character = {
     defaultConfig: {
         lightConeId: 'an-instant-before-a-gaze',
         superimposition: 1,
-        relicSetId: 'scholar_drowning_in_the_sea_of_knowledge',
-        ornamentSetId: 'inert_salsotto',
+        relicSetId: 'scholar-lost-in-erudition',
+        ornamentSetId: 'inert-salsotto',
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',

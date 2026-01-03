@@ -236,6 +236,48 @@ export function createEntanglementEffect(source: Unit, target: Unit): CrowdContr
 }
 
 /**
+ * 敵スキル用のもつれエフェクトを作成
+ * 
+ * 仕様（Voidranger: Trampler End of Bow）:
+ * - 行動遅延: 50%
+ * - 遅延ダメージ: ATK × 倍率（例: 80%）
+ * - 継続: 1ターン
+ * 
+ * @param source 攻撃元敵ユニット
+ * @param target ターゲット味方ユニット
+ * @param actionDelay 行動遅延（0.5 = 50%）
+ * @param delayedDmgMultiplier 遅延ダメージ倍率（0.8 = ATK 80%）
+ */
+export function createEnemyEntanglementEffect(
+    source: Unit,
+    target: Unit,
+    actionDelay: number,
+    delayedDmgMultiplier: number
+): CrowdControlEffect {
+    // 敵ATKに基づく遅延ダメージ
+    const delayedDamage = source.stats.atk * delayedDmgMultiplier;
+
+    return {
+        id: generateEffectId('Entanglement', source.id, target.id),
+        name: 'もつれ',
+        category: 'DEBUFF',
+        type: 'CrowdControl',
+        ccType: 'Entanglement',
+        sourceUnitId: source.id,
+        durationType: 'TURN_START_BASED',
+        duration: 1,
+        damageCalculation: 'fixed',
+        baseDamagePerStack: delayedDamage,
+        stackCount: 1,
+        maxStacks: 1,  // 敵スキル由来はスタックなし
+        delayAmount: actionDelay,
+        isCleansable: true,
+        apply: (t, s) => s,
+        remove: (t, s) => s
+    };
+}
+
+/**
  * 禁錮エフェクトを作成（弱点撃破由来）
  * 
  * 仕様:

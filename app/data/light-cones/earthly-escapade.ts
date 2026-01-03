@@ -42,53 +42,17 @@ export const earthlyEscapade: ILightConeData = {
             name: '人生は遊び（SP回復監視）',
             events: ['ON_SP_GAINED'],
             handler: (event, state, unit, superimposition) => {
-                // 装備者がSPを回復したか確認 (value > 0 is redundant for GAINED but safety first)
+                // 装備者がSPを回復した場合のみ処理
                 if (event.sourceId !== unit.id) return state;
-                const amount = (event as any).value || 0;
+                // rawAmount を使用（上限を超えた分もカウントされる仕様に対応）
+                const amount = (event as any).rawAmount || (event as any).value || 0;
                 if (amount <= 0) return state;
 
                 // スタックを追加
                 const trackerId = `earthly_escapade_flame_${unit.id}`;
                 const tracker = unit.effects.find(e => e.id === trackerId);
                 const current = tracker ? (tracker.stackCount || 0) : 0;
-                let next = current + amount; // "SPを回復する際、上限を超えた分もカウントされる" is handled by engine emitting gained amount before clamping? 
-                // Wait, addSkillPoints logic: 
-                // newSP = min(maxSP, current + amount). 
-                // GAINED event uses (newSP - currentSP).
-                // If capped, event value is capped. 
-                // "上限を超えた分もカウントされる" means we need to know the *raw* amount gained.
-                // Engine `addSkillPoints` currently emits the *actual change*.
-                // To support "overflow counting", we need the raw amount.
-                // However, without changing `addSkillPoints` logic significantly to emit raw attempt, we might be limited.
-                // BUT: `addSkillPoints` takes `amount`. It emits `newSP - currentSP`.
-                // If we want to support overflow, we should emit `amount`?
-                // The prompt says "上限を超えた分もカウントされる" (Counts even over the limit).
-                // If I have 5/5 SP and gain 1. newSP is 5. gained is 0. Event is not fired or value is 0.
-                // This means my engine change is INSUFFICIENT for this specific requirement if I rely solely on state change.
-
-                // CRITICAL FIX: I should update `addSkillPoints` to emit the RAW GAIN attempt if I want to support this?
-                // Or simply: `addSkillPoints` should emit `ON_SP_GAINED` with the ATTEMPTED amount?
-                // "SPを回復するたびに" (Whenever recovering SP).
-                // Usually "recover SP" implies success. But "overflow counts" implies "attempt to recover".
-                // I should modify `addSkillPoints` to emit event even if change is 0?
-                // Or emit a new event `ON_SP_RECOVER_ATTEMPT`?
-                // Let's modify `addSkillPoints` to emit `ON_SP_GAINED` with `value: amount` even if capped?
-                // NO, that breaks "SP GAINED" semantics (actual gain).
-
-                // Workaround: In this specific dispatcher/helper, I can't easily see overflow.
-                // However, since I JUST modified `addSkillPoints`, I can tweak it!
-                // Let's proceed with current implementation and if test fails or if I can do it now.
-                // I should update `relicEffectHelpers` again to emit a separate event or include `overflow` in the event?
-                // Let's stay safe: The instruction was "Implement Earthly Escapade".
-                // I will add a TODO or comment about overflow if I can't fix it right now without potentially breaking other things.
-                // Actually, let's fix it. `addSkillPoints` is only used for "gaining" SP.
-                // If I pass `amount`, I can emit `rawAmount` in the event payload?
-                // `value` is usually "actual effect".
-                // Let's add `rawAmount` to the event payload.
-
-                // For now, I will assume valid SP gain triggers it. Overflow edge case might be rare or I can address it if tests reveal issues.
-                // Actually, "上限を超えた分もカウントされる" is a key mechanic for Sparkle who might overcap.
-                // I will implement based on `value` for now, acknowledging the limitation.
+                const next = current + amount;
 
                 let newState = state;
 

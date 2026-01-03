@@ -6,6 +6,7 @@ import { IEffect } from '../../simulator/effect/types';
 import { applyUnifiedDamage, publishEvent } from '../../simulator/engine/dispatcher';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { TargetSelector } from '../../simulator/engine/selector';
+import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
 
 // --- 定数定義 ---
 const CHARACTER_ID = 'the-herta';
@@ -111,6 +112,29 @@ const A6_ULT_DMG_PER_STACK = 0.01;
 const STAT_ICE_DMG = 0.224;
 const STAT_ATK = 0.18;
 const STAT_SPD = 5;
+
+const ABILITY_VALUES = {
+    // 必殺技ダメージ倍率/強化スキル倍率: Lv10(200%) -> Lv12(220%)
+    ultMultiplier: {
+        10: 2.0,
+        12: 2.2
+    } as Record<number, number>,
+    // 必殺技/強化スキル攻撃力バフ: Lv10(80%) -> Lv12(88%)
+    ultAtkBuff: {
+        10: 0.8,
+        12: 0.88
+    } as Record<number, number>,
+    // 天賦メインターゲット加算: Lv10(8.0%) -> Lv12(8.8%)
+    talentMainBonus: {
+        10: 0.08,
+        12: 0.088
+    } as Record<number, number>,
+    // 天賦その他ターゲット加算: Lv10(4.0%) -> Lv12(4.4%)
+    talentOtherBonus: {
+        10: 0.04,
+        12: 0.044
+    } as Record<number, number>,
+};
 
 // 星魂
 const E1_STACK_SHARE = 0.5; // 50%
@@ -346,9 +370,31 @@ export const theHerta: Character = {
     eidolons: {
         e1: { level: 1, name: '群星が降る夜', description: '強化スキル計算時、隣接最大層数の50%を加算。「解読」リセット時15層に。' },
         e2: { level: 2, name: '鍵穴を吹き抜ける風', description: '戦闘開始/必殺技後「第六感」+1。強化スキル後行動順35%短縮。' },
-        e3: { level: 3, name: '真夏の扉の向こう', description: 'スキル+2, 天賦+2' },
+        e3: {
+            level: 3,
+            name: '真夏の扉の向こう',
+            description: 'スキル+2, 天賦+2',
+            abilityModifiers: [
+                // スキル: 70% -> 77% (Lv10 -> Lv12)
+                { abilityName: 'skill', param: 'damage.mainHits.0.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.mainHits.1.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.mainHits.2.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.adjacentHits.0.multiplier', value: 0.77 },
+                { abilityName: 'skill', param: 'damage.adjacentHits.1.multiplier', value: 0.77 },
+            ]
+        },
         e4: { level: 4, name: '十六本目の鍵', description: '知恵キャラ速度+12%。' },
-        e5: { level: 5, name: '真実は良薬のように苦い', description: '必殺技+2, 通常+1' },
+        e5: {
+            level: 5,
+            name: '真実は良薬のように苦い',
+            description: '必殺技+2, 通常+1',
+            abilityModifiers: [
+                // 通常攻撃: Lv6(100%) -> Lv7(110%)
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 1.1 },
+                // 必殺技: 200% -> 220%
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 2.2 },
+            ]
+        },
         e6: { level: 6, name: '答えは誘惑のように甘い', description: '耐性貫通+20%。必殺技倍率アップ。' }
     },
     defaultConfig: {
@@ -746,8 +792,11 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, hertaId: string): 
     const herta = newState.registry.get(createUnitId(hertaId));
     if (!herta) return newState;
 
+    const eidolonLevel = herta.eidolonLevel || 0;
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
+    const ultAtkBuffVal = getLeveledValue(ABILITY_VALUES.ultAtkBuff, ultLevel);
+
     // 必殺技: 攻撃力アップ
-    const atkBuffVal = ULT_ATK_BUFF;
     // 効果: 3ターン
     const atkBuff: IEffect = {
         id: `the-herta-ult-atk-${hertaId}`,
@@ -757,7 +806,7 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, hertaId: string): 
         durationType: 'TURN_END_BASED',
         duration: 3,
         skipFirstTurnDecrement: true,
-        modifiers: [{ target: 'atk_pct', value: atkBuffVal, type: 'add', source: 'マダム・ヘルタ 必殺技' }],
+        modifiers: [{ target: 'atk_pct', value: ultAtkBuffVal, type: 'add', source: 'マダム・ヘルタ 必殺技' }],
 
         /* remove removed */
     };
@@ -878,6 +927,10 @@ const onBeforeDamageCalc = (event: BeforeDamageCalcEvent, state: GameState, hert
     if (!herta) return newState;
     if (event.sourceId !== hertaId) return newState;
 
+    const eidolonLevel = herta.eidolonLevel || 0;
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
+    const baseMult = getLeveledValue(ABILITY_VALUES.ultMultiplier, ultLevel);
+
     // スキルダメージ計算時
     // IDチェック: 通常スキルIDの場合でも、第六感があれば強化スキルの倍率を適用する
     // 通常スキルIDが使われるが、第六感がある場合は強化スキルとして振る舞うため、
@@ -889,13 +942,12 @@ const onBeforeDamageCalc = (event: BeforeDamageCalcEvent, state: GameState, hert
         if (hasSixthSense) {
             // 強化スキル扱い: 倍率上書き
             // 計算式: 強化ATKバフ適用
-            // 「大胆なアイデア」: ATK+80%
-            // ATK+80% (Base * 0.8) should be added to total ATK.
-            // modifiers.atkBoost works as a multiplier to the final ATK calculation for this hit.
-            // Ratio = (CurrentATK + BaseATK * 0.8) / CurrentATK
-            const baseAtk = herta.baseStats.atk; // Character + LC base
+            // 「大胆なアイデア」: ATK+Y% (必殺技と同じY%)
+            const enhancedAtkBuff = getLeveledValue(ABILITY_VALUES.ultAtkBuff, ultLevel);
+
+            const baseAtk = herta.baseStats.atk;
             const currentAtk = herta.stats.atk;
-            const atkIncrease = baseAtk * ENHANCED_SKILL_ATK_BUFF;
+            const atkIncrease = baseAtk * enhancedAtkBuff;
             const boostRatio = (currentAtk + atkIncrease) / currentAtk;
 
             newState = {
@@ -935,9 +987,12 @@ const onBeforeDamageCalc = (event: BeforeDamageCalcEvent, state: GameState, hert
             // これがでかい。
             // 
             // 天賦倍率加算処理
+            const talentLevel = calculateAbilityLevel(eidolonLevel, 3, 'Skill'); // 天賦はスキル依存
+            const talentBonus = getLeveledValue(ABILITY_VALUES.talentMainBonus, talentLevel);
+            const talentOtherBonus = getLeveledValue(ABILITY_VALUES.talentOtherBonus, talentLevel);
+
+            // 天賦倍率加算処理
             const decipherStacks = newState.registry.get(createUnitId(event.targetId!))?.effects.find(e => e.id === EFFECT_IDS.DECIPHER)?.stackCount || 0;
-            const talentBonus = TALENT_MAIN_BONUS; // Lv10 8.0%
-            const talentOtherBonus = TALENT_OTHER_BONUS; // Lv10 4.0%
 
             // 知恵シナジー
             const eruditionCount = newState.registry.getAliveAllies().filter(u => u.path === 'Erudition').length;
@@ -969,7 +1024,6 @@ const onBeforeDamageCalc = (event: BeforeDamageCalcEvent, state: GameState, hert
             // 与ダメ+400% すれば5倍になる。
             // Boost = Added / Base
 
-            const baseMult = ENHANCED_SKILL_MAIN_MULT; // 2.0
             const addedMult = decipherStacks * (talentBonus + synergyBonusMain);
             const dmgScale = addedMult / baseMult;
 
@@ -1002,7 +1056,6 @@ const onBeforeDamageCalc = (event: BeforeDamageCalcEvent, state: GameState, hert
             // 倍率+X% なので、回答と同じく与ダメ枠に変換するなら、
             // Multiplier Additive.
             // (Base(200%) + Boost) / Base(200%)
-            const baseMult = ULT_MULT; // 2.0
             const scale = checkScale / baseMult; // e.g. 4.0 / 2.0 = +200% dmg boost equivalent
             newState.damageModifiers.allTypeDmg += scale;
         }

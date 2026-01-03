@@ -285,59 +285,55 @@ export default function PartySlotCard({
                     {/* ローテーション */}
                     <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.8em', color: '#aaa', display: 'block', marginBottom: '2px' }}>ローテーション:</label>
-                        {character.id === 'archar' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <select
-                                    style={selectorStyle}
-                                    value={config.rotationMode || 'sequence'}
-                                    onChange={(e) => {
-                                        if (onConfigUpdate) {
-                                            onConfigUpdate({ ...config, rotationMode: e.target.value as 'sequence' | 'spam_skill' });
-                                        }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <option value="sequence">通常</option>
-                                    <option value="spam_skill">スキル連打</option>
-                                </select>
-
-                                {config.rotationMode === 'spam_skill' ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85em', color: '#ccc' }}>
-                                        <span>SP閾値:</span>
-                                        <input
-                                            type="number"
-                                            style={{ ...selectorStyle, width: '50px', padding: '2px 4px' }}
-                                            value={config.spamSkillTriggerSp ?? 4}
-                                            onChange={(e) => {
-                                                if (onConfigUpdate) {
-                                                    onConfigUpdate({ ...config, spamSkillTriggerSp: Number(e.target.value) });
-                                                }
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            min={0}
-                                        />
-                                    </div>
-                                ) : (
-                                    <RotationInput
-                                        config={config}
-                                        onUpdate={(newRotation) => {
-                                            if (onConfigUpdate) {
-                                                onConfigUpdate({ ...config, rotation: newRotation });
-                                            }
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        ) : (
-                            <RotationInput
-                                config={config}
-                                onUpdate={(newRotation) => {
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <select
+                                style={selectorStyle}
+                                value={config.rotationMode || 'sequence'}
+                                onChange={(e) => {
                                     if (onConfigUpdate) {
-                                        onConfigUpdate({ ...config, rotation: newRotation });
+                                        onConfigUpdate({ ...config, rotationMode: e.target.value as any });
                                     }
                                 }}
-                            />
-                        )}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <option value="sequence">通常</option>
+                                <option value="once_skill">初回スキル</option>
+                                {character.id === 'archar' && (
+                                    <option value="spam_skill">スキル連打</option>
+                                )}
+                            </select>
+
+                            {config.rotationMode === 'spam_skill' && character.id === 'archar' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85em', color: '#ccc' }}>
+                                    <span>SP閾値:</span>
+                                    <input
+                                        type="number"
+                                        style={{ ...selectorStyle, width: '50px', padding: '2px 4px' }}
+                                        value={config.spamSkillTriggerSp ?? 4}
+                                        onChange={(e) => {
+                                            if (onConfigUpdate) {
+                                                onConfigUpdate({ ...config, spamSkillTriggerSp: Number(e.target.value) });
+                                            }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        min={0}
+                                    />
+                                </div>
+                            ) : config.rotationMode === 'once_skill' ? (
+                                <div style={{ fontSize: '0.75em', color: '#888' }}>
+                                    初回:スキル / 以降:通常
+                                </div>
+                            ) : (
+                                <RotationInput
+                                    config={config}
+                                    onUpdate={(newRotation) => {
+                                        if (onConfigUpdate) {
+                                            onConfigUpdate({ ...config, rotation: newRotation });
+                                        }
+                                    }}
+                                />
+                            )}
+                        </div>
                     </div>
                     {/* 必殺技発動方針 */}
                     <div style={{ flex: 1 }}>

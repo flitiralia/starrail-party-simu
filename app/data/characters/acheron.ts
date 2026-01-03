@@ -338,8 +338,8 @@ export const acheron: Character = {
     defaultConfig: {
         lightConeId: 'along-the-passing-shore',  // 流れ逝く岸を歩いて
         superimposition: 1,
-        relicSetId: 'pioneer_diver_of_dead_waters',  // 死水に潜る先駆者
-        ornamentSetId: 'izumo_gensei_and_takama_divine_realm',  // 顕世の出雲と高天の神国
+        relicSetId: 'pioneer-diver-of-dead-waters',  // 死水に潜る先駆者
+        ornamentSetId: 'izumo-gensei-and-takama-divine-realm',  // 顕世の出雲と高天の神国
         mainStats: {
             body: 'crit_dmg',
             feet: 'atk_pct',

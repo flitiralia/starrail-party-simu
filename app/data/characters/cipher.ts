@@ -289,8 +289,8 @@ export const cipher: Character = {
         eidolonLevel: 0,
         lightConeId: 'lies-dance-on-the-breeze',
         superimposition: 1,
-        relicSetId: 'messenger_traversing_hackerspace',
-        ornamentSetId: 'rutilant_arena',
+        relicSetId: 'messenger-traversing-hackerspace',
+        ornamentSetId: 'rutilant-arena',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',

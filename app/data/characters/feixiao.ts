@@ -13,7 +13,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
 import { applyUnifiedDamage } from '../../simulator/engine/dispatcher';
 import { calculateNormalAdditionalDamageWithCritInfo } from '../../simulator/damage';
-import { advanceAction } from '../../simulator/engine/utils';
+import { advanceAction, reduceToughness } from '../../simulator/engine/utils';
 import { calculateAbilityLevel, getLeveledValue } from '../../simulator/utils/abilityLevel';
 import { addAccumulatedValue, getAccumulatedValue, consumeAccumulatedValue } from '../../simulator/engine/accumulator';
 
@@ -310,8 +310,8 @@ export const feixiao: Character = {
     defaultConfig: {
         lightConeId: 'i-venture-forth-to-hunt',  // 重なる万象（仮）
         superimposition: 1,
-        relicSetId: 'eagle_of_twilight_line',  // 風を弄ぶ、荒野の客
-        ornamentSetId: 'rutilant_arena',  // 星々の競技場
+        relicSetId: 'eagle-of-twilight-line',  // 風を弄ぶ、荒野の客
+        ornamentSetId: 'rutilant-arena',  // 星々の競技場
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',
@@ -389,7 +389,7 @@ const setAttackCounter = (state: GameState, sourceUnitId: string, count: number)
             durationType: 'PERMANENT',
             duration: -1,
             stackCount: count,
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, counterEffect);
@@ -442,7 +442,7 @@ const setTalentAvailable = (state: GameState, sourceUnitId: string, available: b
             durationType: 'TURN_END_BASED',
             duration: 1,
             skipFirstTurnDecrement: true,
-           
+
             /* remove removed */
         };
         return addEffect(state, sourceUnitId, effect);
@@ -452,50 +452,6 @@ const setTalentAvailable = (state: GameState, sourceUnitId: string, available: b
 };
 
 
-/**
- * 弱点無視で靭性を削り、必要に応じて弱点撃破効果を発動
- * 必殺技・天賦（A2）で使用
- * @param state ゲーム状態
- * @param source ソースユニット
- * @param target ターゲットユニット
- * @param toughnessReduction 削靭値
- * @param forceWindBreak 風属性で弱点撃破効果を発動するか（A2用）
- * @returns 更新後のゲーム状態とターゲット
- */
-const reduceToughnessIgnoreWeakness = (
-    state: GameState,
-    source: Unit,
-    target: Unit,
-    toughnessReduction: number,
-    forceWindBreak: boolean = false
-): { state: GameState; target: Unit; wasBroken: boolean } => {
-    // 既に撃破済みなら何もしない
-    if (target.toughness <= 0) {
-        return { state, target, wasBroken: false };
-    }
-
-    // 削靭値計算: 基礎 × (1 + break_efficiency)
-    const breakEfficiency = source.stats.break_effect || 0;
-    const actualReduction = toughnessReduction * (1 + breakEfficiency);
-    const newToughness = Math.max(0, target.toughness - actualReduction);
-
-    // ターゲット更新
-    const updatedTarget = { ...target, toughness: newToughness };
-
-    let newState = {
-        ...state,
-        registry: state.registry.update(createUnitId(target.id), () => updatedTarget)
-    };
-
-    // 弱点撃破発生
-    const wasBroken = target.toughness > 0 && newToughness <= 0;
-
-    // 弱点撃破イベントを発火（風属性強制の場合も考慮）
-    // 注: 弱点撃破ダメージや効果は dispatcher の stepApplyDamage で処理されるため、
-    // ここではイベント発火のみ行う。実際の撃破ダメージは別途計算が必要。
-
-    return { state: newState, target: updatedTarget, wasBroken };
-};
 /**
  * 天賦の与ダメージブーストを適用
  */
@@ -524,7 +480,7 @@ const applyTalentDmgBoost = (state: GameState, sourceUnitId: string, eidolonLeve
             type: 'add',
             source: '雷狩'
         }],
-       
+
         /* remove removed */
     };
 
@@ -564,7 +520,7 @@ const onBattleStart = (
                 type: 'add',
                 source: '滅却'
             }],
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4CritBuff);
@@ -587,7 +543,7 @@ const onBattleStart = (
                     type: 'add',
                     source: '飛霄E1'
                 }],
-               
+
                 /* remove removed */
             };
             newState = addEffect(newState, enemy.id, e1Debuff);
@@ -684,7 +640,7 @@ const onUltimateUsed = (
         durationType: 'TURN_END_BASED',
         duration: 1,
         skipFirstTurnDecrement: true,
-       
+
         /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, ultInProgressEffect);
@@ -705,7 +661,7 @@ const onUltimateUsed = (
                 type: 'add',
                 source: '滅却'
             }],
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4CritDmgBuff);
@@ -798,14 +754,14 @@ const onUltimateUsed = (
 
         // 必殺技: 弱点無視で靭性を削る（ヒットあたり削靭値 = 30 / 7 ≈ 4.3）
         const ultToughnessPerHit = 30 / 7;
-        const toughnessResult = reduceToughnessIgnoreWeakness(
+        const { state: stateAfterToughness } = reduceToughness(
             newState,
-            freshFeixiao,
-            result.state.registry.get(createUnitId(event.targetId))!,
+            freshFeixiao.id,
+            event.targetId,
             ultToughnessPerHit,
-            false
+            { ignoreWeakness: true }
         );
-        newState = toughnessResult.state;
+        newState = stateAfterToughness;
     }
 
     // 最終ヒット
@@ -859,14 +815,14 @@ const onUltimateUsed = (
 
         // 最終ヒットの靭性削り（ヒットあたり削靭値 = 30 / 7 ≈ 4.3）
         const finalToughnessPerHit = 30 / 7;
-        const finalToughnessResult = reduceToughnessIgnoreWeakness(
+        const { state: stateAfterFinalToughness } = reduceToughness(
             newState,
-            freshFeixiao,
-            finalResult.state.registry.get(createUnitId(event.targetId))!,
+            freshFeixiao.id,
+            event.targetId,
             finalToughnessPerHit,
-            false
+            { ignoreWeakness: true }
         );
-        newState = finalToughnessResult.state;
+        newState = stateAfterFinalToughness;
     }
 
     // 必殺技実行中フラグを削除
@@ -966,14 +922,14 @@ const onFollowUpAttack = (
         const freshFeixiao = newState.registry.get(createUnitId(sourceUnitId))!;
         if (targetUnit && targetUnit.toughness > 0) {
             const talentToughness = 5;
-            const toughnessResult = reduceToughnessIgnoreWeakness(
+            const { state: stateAfterTalentToughness } = reduceToughness(
                 newState,
-                freshFeixiao,
-                targetUnit,
+                sourceUnitId,
+                event.targetId,
                 talentToughness,
-                true
+                { ignoreWeakness: true }
             );
-            newState = toughnessResult.state;
+            newState = stateAfterTalentToughness;
         }
     }
 

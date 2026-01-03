@@ -242,8 +242,8 @@ export const himeko: Character = {
     defaultConfig: {
         lightConeId: 'night-on-the-milky-way',
         superimposition: 1,
-        relicSetId: 'the_ashblazing_grand_duke',
-        ornamentSetId: 'firmament_frontline_glamoth',
+        relicSetId: 'the-ashblazing-grand-duke',
+        ornamentSetId: 'firmament-frontline-glamoth',
         mainStats: {
             body: 'crit_rate',
             feet: 'atk_pct', // Himeko is slow, maybe ATK or SPD

@@ -246,8 +246,8 @@ export const guinaifen: Character = {
     defaultConfig: {
         lightConeId: 'eyes-of-the-prey',
         superimposition: 5,
-        relicSetId: 'prisoner_in_deep_confinement',
-        ornamentSetId: 'pan_cosmic_commercial_enterprise',
+        relicSetId: 'prisoner-in-deep-confinement',
+        ornamentSetId: 'revelry-by-the-sea',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',
@@ -256,9 +256,8 @@ export const guinaifen: Character = {
         },
         subStats: [
             { stat: 'atk_pct', value: 0.20 },
-            { stat: 'spd', value: 6 },
             { stat: 'effect_hit_rate', value: 0.20 },
-            { stat: 'break_effect', value: 0.20 },
+            { stat: 'spd', value: 6 },
         ],
         rotationMode: 'spam_skill',
         ultStrategy: 'immediate',

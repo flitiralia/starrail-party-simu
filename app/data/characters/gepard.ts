@@ -268,8 +268,8 @@ export const gepard: Character = {
         eidolonLevel: 0,
         lightConeId: 'moment-of-victory',
         superimposition: 1,
-        relicSetId: 'knight_of_purity_palace',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'knight-of-purity-palace',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'def_pct',
             feet: 'spd',

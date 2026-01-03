@@ -98,11 +98,11 @@ export const seele: Character = {
                 type: 'simple',
                 scaling: 'atk',
                 hits: [
-                    { multiplier: 0.2, toughnessReduction: 4 },
-                    { multiplier: 0.1, toughnessReduction: 2 },
-                    { multiplier: 0.1, toughnessReduction: 2 },
-                    { multiplier: 0.6, toughnessReduction: 12 },
-                ], // 4 hits (20/10/10/60 approx)
+                    { multiplier: 0.44, toughnessReduction: 4 },
+                    { multiplier: 0.22, toughnessReduction: 2 },
+                    { multiplier: 0.22, toughnessReduction: 2 },
+                    { multiplier: 1.32, toughnessReduction: 12 },
+                ], // 4 hits (20/10/10/60 split of 220%)
             },
             energyGain: SKILL_EP,
             spCost: 1,
@@ -118,7 +118,7 @@ export const seele: Character = {
                 type: 'simple',
                 scaling: 'atk',
                 hits: [
-                    { multiplier: 1.0, toughnessReduction: ULT_TOUGHNESS }
+                    { multiplier: 4.25, toughnessReduction: ULT_TOUGHNESS }
                 ],
             },
             energyGain: ULT_EP,
@@ -189,9 +189,31 @@ export const seele: Character = {
     eidolons: {
         e1: { level: 1, name: '斬尽', description: '残りHPが80%以下の敵にダメージを与える時、会心率+15%。' },
         e2: { level: 2, name: '蝶舞', description: '戦闘スキルの加速効果が累積できるようになる、最大で2層累積できる。' },
-        e3: { level: 3, name: '繚乱', description: '戦闘スキルのLv.+2、天賦のLv.+2' },
+        e3: {
+            level: 3,
+            name: '繚乱',
+            description: '戦闘スキルのLv.+2、天賦のLv.+2',
+            abilityModifiers: [
+                // スキル Lv10 (220%) -> Lv12 (242%)
+                { abilityName: 'skill', param: 'damage.hits.0.multiplier', value: 0.484 }, // 0.2 * 2.42
+                { abilityName: 'skill', param: 'damage.hits.1.multiplier', value: 0.242 }, // 0.1 * 2.42
+                { abilityName: 'skill', param: 'damage.hits.2.multiplier', value: 0.242 },
+                { abilityName: 'skill', param: 'damage.hits.3.multiplier', value: 1.452 }, // 0.6 * 2.42
+                // 通常攻撃 Lv6 (100%) -> Lv7 (110%)
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 0.33 },  // 0.3 * 1.1
+                { abilityName: 'basic', param: 'damage.hits.1.multiplier', value: 0.77 },  // 0.7 * 1.1
+            ]
+        },
         e4: { level: 4, name: '掠影', description: 'ゼーレが敵を倒した時、EPを15回復する。' },
-        e5: { level: 5, name: '鋒鋭', description: '必殺技のLv.+2、通常攻撃のLv.+1' },
+        e5: {
+            level: 5,
+            name: '鋒鋭',
+            description: '必殺技のLv.+2、通常攻撃のLv.+1',
+            abilityModifiers: [
+                // 必殺技 Lv10 (425%) -> Lv12 (459%)
+                { abilityName: 'ultimate', param: 'damage.hits.0.multiplier', value: 4.59 },
+            ]
+        },
         e6: { level: 6, name: '離析', description: '必殺技を発動した後、敵を「乱れ蝶」状態にする。' },
     },
 
@@ -199,8 +221,8 @@ export const seele: Character = {
         eidolonLevel: 0,
         lightConeId: 'in-the-night',
         superimposition: 1,
-        relicSetId: 'genius_of_brilliant_stars',
-        ornamentSetId: 'firmament_frontline_glamoth',
+        relicSetId: 'genius-of-brilliant-stars',
+        ornamentSetId: 'firmament-frontline-glamoth',
         mainStats: {
             body: 'crit_dmg',
             feet: 'atk_pct', // Commonly played with ATK boots if she has standard Speed + Skill Speed

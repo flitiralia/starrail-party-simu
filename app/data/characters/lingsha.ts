@@ -9,6 +9,7 @@ import { createUnitId } from '../../simulator/engine/unitId';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { advanceUnitAction } from '../../simulator/engine/actionValue';
 import { calculateDamageWithCritInfo } from '../../simulator/damage';
+import { reduceToughness as sharedReduceToughness } from '../../simulator/engine/utils';
 
 // --- Constants ---
 const CHAR_ID = 'lingsha';
@@ -61,42 +62,6 @@ function getFuyuanId(ownerId: string): string {
     return `${ownerId}-${FUYUAN_ID_SUFFIX}`;
 }
 
-/**
- * 靭性を削る（撃破効率を考慮）
- */
-const reduceToughness = (
-    state: GameState,
-    source: Unit,
-    target: Unit,
-    amount: number
-): { state: GameState; target: Unit; wasBroken: boolean } => {
-    if (target.toughness <= 0) {
-        return { state, target, wasBroken: false };
-    }
-
-    const breakEfficiency = source.stats.break_efficiency_boost || 0;
-    const actualReduction = amount * (1 + breakEfficiency);
-    const newToughness = Math.max(0, target.toughness - actualReduction);
-
-    const updatedTarget = { ...target, toughness: newToughness };
-    const newState = {
-        ...state,
-        registry: state.registry.update(createUnitId(target.id), () => updatedTarget)
-    };
-
-    const wasBroken = target.toughness > 0 && newToughness <= 0;
-    // 注意: 弱点撃破イベント/ダメージ/遅延は通常、靭性が0になったときにシステムによって処理されます。
-    // しかし、靭性を手動で変更しているため、手動で撃破をトリガーするか、applyUnifiedDamageに依存してトリガーする必要があるかもしれません。
-    // applyUnifiedDamage は、適切なフラグを渡すか、システムが靭性0を検知した場合に撃破関連のロジックをトリガーします。
-    // しかし通常、撃破は減少の瞬間に発生します。
-    // 「靭性ダメージを与える」ためのシステムサポートが不足しているため、ここで更新します。
-    // 撃破効果の適用（遅延、撃破ダメージ）は複雑で、撃破システムによって処理されます。
-    // 今のところ、この手動減少はシミュレーション状態としては十分であると仮定しますが、
-    // 他で処理されていない場合、実際の撃破ダメージ/遅延のトリガーが欠落している可能性があります。
-    // (将来のTODO: wasBrokenがtrueの場合にシステム撃破ハンドラーを呼び出す)
-
-    return { state: newState, target: updatedTarget, wasBroken };
-};
 
 /**
  * ダメージ計算と適用を行うヘルパー
@@ -112,8 +77,9 @@ const applyAbilityDamage = (
     modifiers: any = {},
     isCritFixed?: boolean
 ): GameState => {
-    // 1. Reduce Toughness
-    const { state: stateAfterToughness, target: freshTarget } = reduceToughness(state, source, target, toughnessReduction);
+    // 1. 削靭処理（共通ユーティリティを使用）
+    const { state: stateAfterToughness, wasBroken } = sharedReduceToughness(state, source.id, target.id, toughnessReduction);
+    const freshTarget = stateAfterToughness.registry.get(createUnitId(target.id)) || target;
 
     // 2. Calculate Damage
     const multiplier = baseDamage / (source.stats.atk > 0 ? source.stats.atk : 1);
@@ -668,7 +634,7 @@ export const lingshaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                 'ON_SKILL_USED',
                 'ON_ULTIMATE_USED',
                 'ON_BASIC_ATTACK',
-                'ON_DAMAGE_DEALT',
+                'ON_ACTION_COMPLETE',
                 'ON_HP_CONSUMED',
                 'ON_WEAKNESS_BREAK'
             ]
@@ -704,12 +670,11 @@ export const lingshaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level,
                 return state;
             }
 
-            if (event.type === 'ON_DAMAGE_DEALT') {
-                const dmgEvent = event as DamageDealtEvent;
-                const target = state.registry.get(createUnitId(dmgEvent.targetId));
-                if (target && !target.isEnemy) {
-                    return checkA6Trigger(event as IEvent, state, sourceUnitId, eidolonLevel);
-                }
+            // A6トリガー (アクション完了時に判定 - 本家仕様準拠)
+            if (event.type === 'ON_ACTION_COMPLETE') {
+                const actionEvent = event as ActionEvent;
+                // 味方がダメージを受けた場合のA6トリガーは、芳元の行動完了時にチェック
+                return checkA6Trigger(event as IEvent, state, sourceUnitId, eidolonLevel);
             }
 
             if (event.type === 'ON_HP_CONSUMED') {
@@ -800,8 +765,8 @@ export const lingsha: Character = {
     defaultConfig: {
         lightConeId: 'scent-alone-stays-true',
         superimposition: 1,
-        relicSetId: 'iron_cavalry_against_scourge',
-        ornamentSetId: 'forge_of_the_kalpagni_lantern',
+        relicSetId: 'iron-cavalry-against-scourge',
+        ornamentSetId: 'forge-of-the-kalpagni-lantern',
         mainStats: {
             body: 'outgoing_healing_boost',
             feet: 'spd',

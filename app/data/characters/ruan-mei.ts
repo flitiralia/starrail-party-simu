@@ -245,8 +245,8 @@ export const ruanMei: Character = {
     defaultConfig: {
         lightConeId: 'past-self-in-mirror',
         superimposition: 1,
-        relicSetId: 'watchmaker_master_of_dream_machinations',
-        ornamentSetId: 'lusaka_by_the_sunken_sea',
+        relicSetId: 'watchmaker-master-of-dream-machinations',
+        ornamentSetId: 'lushaka-the-sunken-seas',
         mainStats: {
             body: 'def_pct',
             feet: 'spd',

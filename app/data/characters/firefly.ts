@@ -15,7 +15,7 @@ import { applyUnifiedDamage, appendAdditionalDamage, publishEvent } from '../../
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { applyHealing, advanceAction, cleanse } from '../../simulator/engine/utils';
 import { getLeveledValue, calculateAbilityLevel } from '../../simulator/utils/abilityLevel';
-import { calculateDamageWithCritInfo } from '../../simulator/damage';
+import { calculateDamageWithCritInfo, calculateSuperBreakDamageWithBreakdown } from '../../simulator/damage';
 import { recalculateUnitStats } from '../../simulator/statBuilder';
 import { calculateActionValue, setUnitActionValue, updateActionQueue } from '../../simulator/engine/actionValue';
 import { insertSummonAfterOwner, removeSummon } from '../../simulator/engine/summonManager';
@@ -353,8 +353,8 @@ export const firefly: Character = {
     defaultConfig: {
         lightConeId: 'whereabouts-should-dreams-rest',  // 夢が帰り着く場所
         superimposition: 1,
-        relicSetId: 'iron_cavalry_which_tramples_the_raging_flame',  // 蝗害を一掃せし鉄騎
-        ornamentSetId: 'forge_of_kalpagni_lantern',  // 劫火と蓮灯の鋳煉宮
+        relicSetId: 'iron-cavalry-against-scourge',  // 蝗害を一掃せし鉄騎
+        ornamentSetId: 'forge-of-the-kalpagni-lantern',  // 劫火と蓮灯の鋳煉宮
         mainStats: {
             body: 'atk_pct',
             feet: 'spd',
@@ -507,7 +507,7 @@ const applyFireWeakness = (
         duration: FIRE_WEAKNESS_DURATION,
         ignoreResistance: true,
         miscData: { element: 'Fire' as Element },
-       
+
         /* remove removed */
     };
 
@@ -606,7 +606,7 @@ const onBattleStart = (
                     type: 'add',
                     source: 'γモジュール'
                 }],
-               
+
                 /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, a6Effect);
@@ -721,7 +721,7 @@ const onUltimateUsed = (
             }
         ],
         tags: ['COMPLETE_COMBUSTION', 'ENHANCED_BASIC', 'ENHANCED_SKILL', 'ULT_SILENCE'],
-       
+
         /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, combustionEffect);
@@ -743,7 +743,7 @@ const onUltimateUsed = (
             type: 'add',
             source: '源火中枢'
         }],
-       
+
         /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, effectResEffect);
@@ -764,7 +764,7 @@ const onUltimateUsed = (
                 type: 'add',
                 source: 'E4'
             }],
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e4Effect);
@@ -786,7 +786,7 @@ const onUltimateUsed = (
                 type: 'add',
                 source: 'E6'
             }],
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, e6Effect);
@@ -1048,7 +1048,7 @@ const checkE2ExtraTurn = (
         sourceUnitId: sourceUnitId,
         durationType: 'TURN_START_BASED',
         duration: 1,
-       
+
         /* remove removed */
     };
     newState = addEffect(newState, sourceUnitId, cooldownEffect);
@@ -1180,17 +1180,19 @@ const onAfterHit = (
         // 簡略化: 強化スキルのメイン削靭30、強化通常の削靭15を基準
         const isSkill = (event as any).actionType === 'SKILL';
         const baseToughness = isSkill ? ENHANCED_SKILL_MAIN_TOUGHNESS : ENHANCED_BASIC_TOUGHNESS;
-        const superBreakBase = baseToughness * conversionRatio;
-        // 超撃破ダメージ計算
-        const LEVEL_CONSTANT_80 = 2628.0;
-        const superBreakDamage = LEVEL_CONSTANT_80 * superBreakBase * (1 + breakEffect);
+        // 超撃破ダメージ計算（汎用ユーティリティを使用）
+        const superBreakResult = calculateSuperBreakDamageWithBreakdown(unit, target, baseToughness, {
+            overrideSuperBreakMultiplier: conversionRatio
+        });
+        const superBreakDamage = superBreakResult.damage;
 
         if (superBreakDamage > 0) {
             const result = applyUnifiedDamage(newState, unit, target, superBreakDamage, {
                 damageType: '超撃破ダメージ',
-                details: `火星オーバーロード: 超撃破 (変換率: ${(conversionRatio * 100).toFixed(0)}%)`,
+                details: `βモジュール: 超撃破 (変換率: ${(conversionRatio * 100).toFixed(0)}%)`,
                 isCrit: false,
-                skipLog: false
+                skipLog: false,
+                breakdownMultipliers: superBreakResult.breakdownMultipliers
             });
             newState = result.state;
         }

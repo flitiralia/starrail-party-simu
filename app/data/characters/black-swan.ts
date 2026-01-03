@@ -262,8 +262,8 @@ export const blackSwan: Character = {
     defaultConfig: {
         lightConeId: 'reforged-remembrance',
         superimposition: 1,
-        relicSetId: 'prisoner_in_deep_confinement',
-        ornamentSetId: 'pan_galactic_commercial_enterprise',
+        relicSetId: 'prisoner-in-deep-confinement',
+        ornamentSetId: 'pan-cosmic-commercial-enterprise',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',

@@ -2,7 +2,7 @@ import { Character, Element, StatKey, ELEMENTS } from '../../types';
 import { IEventHandlerFactory, GameState, IEvent, Unit, ActionEvent, BeforeDamageCalcEvent, BeforeActionEvent } from '../../simulator/engine/types';
 import { publishEvent } from '../../simulator/engine/dispatcher';
 import { addEffect, removeEffect } from '../../simulator/engine/effectManager';
-import { IEffect } from '../../simulator/effect/types';
+import { IEffect, CrowdControlEffect } from '../../simulator/effect/types';
 import { getLeveledValue } from '../../simulator/utils/abilityLevel';
 import { addEnergyToUnit } from '../../simulator/engine/energy';
 import { createUnitId } from '../../simulator/engine/unitId';
@@ -388,16 +388,19 @@ function addSublimationToEnemy(
     // クロージャで追加した弱点を追跡
     const addedElements = new Set<Element>();
 
-    const sublimationEffect: IEffect = {
+    const sublimationEffect: CrowdControlEffect = {
         id: effectId,
         name: '昇華',
         category: 'DEBUFF',
+        type: 'CrowdControl',
+        ccType: 'Sublimation',
+        damageCalculation: 'none',
         sourceUnitId: sourceId,
-        durationType: 'TURN_START_BASED',
-        duration: 1, // 敵のターンが来るまで（敵ターン開始時に削除）
+        durationType: 'TURN_END_BASED',
+        duration: 1, // 敵のターン終了時に削除
         ignoreResistance: true,
         tags: ['SUBLIMATION'],
-        onApply: (t, s) => {
+        onApply: (t: Unit, s: GameState) => {
             // Unit.weaknesses に全属性を追加（ダメージエンジンとの互換性確保）
             const updatedWeaknesses = new Set(t.weaknesses);
             ELEMENTS.forEach(element => {
@@ -409,12 +412,12 @@ function addSublimationToEnemy(
             if (addedElements.size > 0) {
                 return {
                     ...s,
-                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                    registry: s.registry.update(createUnitId(t.id), (u: Unit) => ({ ...u, weaknesses: updatedWeaknesses }))
                 };
             }
             return s;
         },
-        onRemove: (t, s) => {
+        onRemove: (t: Unit, s: GameState) => {
             // 自分が追加した弱点のみ削除
             if (addedElements.size > 0) {
                 const updatedWeaknesses = new Set(t.weaknesses);
@@ -423,13 +426,11 @@ function addSublimationToEnemy(
                 });
                 return {
                     ...s,
-                    registry: s.registry.update(createUnitId(t.id), u => ({ ...u, weaknesses: updatedWeaknesses }))
+                    registry: s.registry.update(createUnitId(t.id), (u: Unit) => ({ ...u, weaknesses: updatedWeaknesses }))
                 };
             }
             return s;
         },
-
-        /* remove removed */
     };
 
     return addEffect(newState, targetId, sublimationEffect);

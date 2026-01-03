@@ -237,8 +237,8 @@ export const trailblazerHarmony: Character = {
         lightConeId: 'in-pursuit-of-the-wind',
         superimposition: 1, // 3* LC usually S5, but spec doesn't say. I'll stick to 5 for 3*. Wait, usually default is 1 or 5. I'll use 5 for 3* LC.
         // Actually, I'll use 5 because it's easy to get.
-        relicSetId: 'watchmaker_master_of_dream_machinations',
-        ornamentSetId: 'talia_kingdom_of_banditry',
+        relicSetId: 'watchmaker-master-of-dream-machinations',
+        ornamentSetId: 'talia-kingdom-of-banditry',
         mainStats: {
             body: 'hp_pct',
             feet: 'spd',

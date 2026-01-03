@@ -701,8 +701,8 @@ export const DanHengToukou: Character = {
         rotationMode: 'sequence',
         ultStrategy: 'immediate',
         ultCooldown: 3,
-        relicSetId: 'hermit_who_hid_the_light_of_the_stars',
-        ornamentSetId: 'lusaka_by_the_sunken_sea',
+        relicSetId: 'self-enshrouded-recluse',
+        ornamentSetId: 'lushaka-the-sunken-seas',
         mainStats: {
             body: 'atk_pct',
             feet: 'spd',

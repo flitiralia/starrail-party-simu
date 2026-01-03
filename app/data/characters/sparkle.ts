@@ -473,8 +473,8 @@ export const sparkle: Character = {
         eidolonLevel: 0,
         lightConeId: 'earthly-escapade',
         superimposition: 1,
-        relicSetId: 'messenger_traversing_hackerspace',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'sacerdos-relived-ordeal',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',

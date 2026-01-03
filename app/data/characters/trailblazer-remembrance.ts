@@ -875,8 +875,8 @@ export const trailblazerRemembrance: Character = {
         eidolonLevel: 0,
         lightConeId: 'fly-into-a-pink-tomorrow',
         superimposition: 1,
-        relicSetId: 'hero_who_raises_the_battle_song',
-        ornamentSetId: 'omphalos_eternal_grounds',
+        relicSetId: 'world-remaking-deliverer',
+        ornamentSetId: 'lushaka-the-sunken-seas',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',

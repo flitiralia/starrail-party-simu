@@ -245,8 +245,8 @@ export const fuXuan: Character = {
         eidolonLevel: 0,
         lightConeId: 'she-already-shut-her-eyes',
         superimposition: 1,
-        relicSetId: 'longevous_disciple',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'longevous-disciple',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'hp_pct',
             feet: 'spd',

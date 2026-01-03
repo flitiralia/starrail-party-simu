@@ -431,8 +431,8 @@ export const jingliu: Character = {
         eidolonLevel: 0,
         lightConeId: 'i-shall-be-my-own-sword',
         superimposition: 1,
-        relicSetId: 'hunter_of_glacial_forest',
-        ornamentSetId: 'rutilant_arena',
+        relicSetId: 'hunter-of-glacial-forest',
+        ornamentSetId: 'rutilant-arena',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',

@@ -34,47 +34,51 @@ export const poisedToBloom: ILightConeData = {
             name: '美しき華よ今咲かん（運命チェック）',
             events: ['ON_BATTLE_START'],
             handler: (event, state, unit, superimposition) => {
-                // "同じ運命の味方が2名以上いる場合"。
-                // これは「装備者と同じ運命」を意味するのか？
-                // それとも「任意の2人の味方が同じ運命」か？
-                // テキスト：「パーティに同じ運命の味方が2名以上いる場合、それらの味方の会心ダメージ...」。
-                // 通常は「装備者の運命」を意味する。
-                // 「同じ運命」は通常、使用法または文脈に関連している。
-                // 「装備者と同じ運命」と仮定する。
-                // 装備者は調和。
-                // したがって「調和キャラが2名以上の場合」。
+                // 仕様: パーティ内で同じ運命の味方が2名以上いる場合、
+                // その運命を持つ全員に会心ダメージバフを付与
+                // (装備者の運命に依存しない)
 
                 const allies = state.registry.getAliveAllies();
-                const harmonyCount = allies.filter(a => a.path === 'Harmony').length;
-                // 待って、「同じ運命」ロジックは通常、チェックの特定の運命を指す。
-                // 「任意のペア」を意味する場合、「各ペアごとに」と言うだろう。
-                // 「同じ運命の味方が2名以上いる場合...」と言っている。
-                // JP: "パーティに同じ運命の味方が2名以上いる場合"。
-                // 通常は「装備者と同じ」を示唆する。
-                // 装備者の運命一致をチェックする実装にする。
+                const cdBuff = [0.16, 0.20, 0.24, 0.28, 0.32][superimposition - 1];
 
-                if (harmonyCount >= 2) {
-                    const cdBuff = [0.16, 0.20, 0.24, 0.28, 0.32][superimposition - 1];
-                    // 誰に適用する？「それらの味方」（同じ運命の者）。
-                    let newState = state;
-                    allies.filter(a => a.path === 'Harmony').forEach(ally => {
-                        newState = addEffect(newState, ally.id, {
-                            id: `poised_to_bloom_cd_${ally.id}`,
-                            name: '忘れることなかれ（会心ダメ）',
-                            category: 'BUFF',
-                            sourceUnitId: unit.id,
-                            durationType: 'PERMANENT',
-                            duration: -1,
-                            stackCount: 1,
-                            modifiers: [{ target: 'crit_dmg', value: cdBuff, type: 'add', source: '美しき華よ今咲かん' }],
-                            apply: (u, s) => s,
-                            remove: (u, s) => s
-                        });
-                    });
-                    return newState;
+                // 各運命ごとにカウント
+                const pathCounts = new Map<string, typeof allies>();
+                for (const ally of allies) {
+                    if (!ally.path) continue;
+                    if (!pathCounts.has(ally.path)) {
+                        pathCounts.set(ally.path, []);
+                    }
+                    pathCounts.get(ally.path)!.push(ally);
                 }
 
-                return state;
+                let newState = state;
+
+                // 2名以上いる運命のキャラ全員にバフ適用
+                for (const [path, pathAllies] of pathCounts.entries()) {
+                    if (pathAllies.length >= 2) {
+                        for (const ally of pathAllies) {
+                            // 重複チェック（同系統スキルは重ね掛け不可）
+                            // IDを光円錐名のみにすることで、誰が付与しても重複しない
+                            const effectId = 'poised_to_bloom_cd';
+                            if (ally.effects.some(e => e.id === effectId)) continue;
+
+                            newState = addEffect(newState, ally.id, {
+                                id: effectId,
+                                name: '美しき華よ今咲かん（会心ダメ）',
+                                category: 'BUFF',
+                                sourceUnitId: unit.id,
+                                durationType: 'PERMANENT',
+                                duration: -1,
+                                stackCount: 1,
+                                modifiers: [{ target: 'crit_dmg', value: cdBuff, type: 'add', source: '美しき華よ今咲かん' }],
+                                apply: (u, s) => s,
+                                remove: (u, s) => s
+                            });
+                        }
+                    }
+                }
+
+                return newState;
             }
         }
     ]

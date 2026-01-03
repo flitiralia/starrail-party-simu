@@ -119,14 +119,21 @@ export const Huohuo: Character = {
         e2: { level: 2, name: "邪霊を宿した尻尾", description: "「厄払い」中、味方の戦闘不能を防ぎ回復(2回)。" },
         e3: { level: 3, name: "貞凶の燭火", description: "必殺技Lv+2, 天賦Lv+2" },
         e4: { level: 4, name: "離れぬ悪鬼、絶えぬ揉め事", description: "HPが低いほど治癒量アップ。" },
-        e5: { level: 5, name: "勅令のままに妖魔退治", description: "スキルLv+2, 通常Lv+1" },
+        e5: {
+            level: 5,
+            name: "勅令のままに妖魔退治",
+            description: "スキルLv+2, 通常Lv+1",
+            abilityModifiers: [
+                { abilityName: 'basic', param: 'damage.hits.0.multiplier', value: 0.55 },
+            ]
+        },
         e6: { level: 6, name: "苦楽を共にする仲間", description: "治癒時、与ダメージ+50%(2ターン)。" }
     },
     defaultConfig: {
         lightConeId: 'night-of-fright',
         superimposition: 1,
-        relicSetId: 'passerby_of_wandering_cloud',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'passerby-of-wandering-cloud',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'outgoing_healing_boost',
             feet: 'spd',

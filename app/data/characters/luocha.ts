@@ -168,8 +168,8 @@ export const luocha: Character = {
     defaultConfig: {
         lightConeId: 'echoes-of-the-coffin',
         superimposition: 1,
-        relicSetId: 'warlord_of_blazing_sun_and_thunderous_roar',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'warrior-goddess-of-sun-and-thunder',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'outgoing_healing_boost',
             feet: 'spd',
@@ -254,7 +254,7 @@ function addAbyssFlowerStack(state: GameState, sourceId: string): GameState {
                 durationType: 'PERMANENT',
                 duration: -1,
                 stackCount: currentStacks,
-               
+
                 /* remove removed */
             };
             state = addEffect(state, sourceId, newStackEffect);
@@ -324,7 +324,7 @@ function deployField(state: GameState, sourceId: string): GameState {
             }
             return newState;
         },
-       
+
     };
     return addEffect(state, sourceId, fieldEffect);
 }
@@ -348,7 +348,7 @@ function onAutoSkillCheck(event: GeneralEvent, state: GameState, sourceUnitId: s
                 durationType: 'TURN_END_BASED',
                 skipFirstTurnDecrement: true,
                 duration: 2,
-               
+
                 /* remove removed */
             };
             state = addEffect(state, sourceUnitId, cooldownEffect);
@@ -414,7 +414,7 @@ function onUltimateUsed(event: ActionEvent, state: GameState, sourceUnitId: stri
                 ignoreResistance: true,
                 isCleansable: true,
                 modifiers: resElements.map(key => ({ target: key, type: 'add' as const, value: -E6_RES_DOWN, source: '羅刹 E6' })),
-               
+
                 /* remove removed */
             };
             state = addEffect(state, enemy.id, resDownEffect);
@@ -423,12 +423,14 @@ function onUltimateUsed(event: ActionEvent, state: GameState, sourceUnitId: stri
     return state;
 }
 
-function onFieldHeal(event: DamageDealtEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState {
+function onFieldHeal(event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState {
     const source = state.registry.get(createUnitId(sourceUnitId));
     if (!source) return state;
 
+    // ON_ACTION_COMPLETEイベントからsourceIdを取得（攻撃者）
     const attacker = state.registry.get(createUnitId(event.sourceId));
     if (!attacker || attacker.isEnemy) return state; // 味方の攻撃のみ
+
 
     const fieldActive = source.effects.some(e => e.id === EFFECT_IDS.FIELD_BUFF(sourceUnitId));
     if (fieldActive) {
@@ -461,7 +463,7 @@ function onFieldHeal(event: DamageDealtEvent, state: GameState, sourceUnitId: st
 // --- ハンドラーファクトリ ---
 export const luochaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, eidolonLevel = 0) => {
     return {
-        handlerMetadata: { id: `luocha-handler-${sourceUnitId}`, subscribesTo: ['ON_BATTLE_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_DAMAGE_DEALT', 'ON_TURN_START'] },
+        handlerMetadata: { id: `luocha-handler-${sourceUnitId}`, subscribesTo: ['ON_BATTLE_START', 'ON_SKILL_USED', 'ON_ULTIMATE_USED', 'ON_ACTION_COMPLETE', 'ON_TURN_START'] },
         handlerLogic: (event: IEvent, state: GameState, _handlerId: string): GameState => {
             const source = state.registry.get(createUnitId(sourceUnitId));
             if (!source) return state;
@@ -469,7 +471,7 @@ export const luochaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, 
             let newState = state;
 
             // オートスキル
-            if (event.type === 'ON_DAMAGE_DEALT' || event.type === 'ON_TURN_START') {
+            if (event.type === 'ON_ACTION_COMPLETE' || event.type === 'ON_TURN_START') {
                 newState = onAutoSkillCheck(event as GeneralEvent, newState, sourceUnitId);
             }
 
@@ -488,10 +490,9 @@ export const luochaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, 
                 newState = onUltimateUsed(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
-            // 結界回復 (ON_DAMAGE_DEALT is also used for autoskill check... check both?)
-            // Note: onAutoSkillCheck is called first. newState is updated.
-            if (event.type === 'ON_DAMAGE_DEALT') {
-                newState = onFieldHeal(event as DamageDealtEvent, newState, sourceUnitId, eidolonLevel);
+            // 結界回復 (アクション完了時に発動 - 本家仕様準拠)
+            if (event.type === 'ON_ACTION_COMPLETE') {
+                newState = onFieldHeal(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             return newState;

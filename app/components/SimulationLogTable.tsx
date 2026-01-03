@@ -619,6 +619,7 @@ const ResourceChangesDetails: React.FC<{ entries: ResourceChangeEntry[] }> = ({ 
   const epChanges = entries.filter(e => e.resourceType === 'ep');
   const accumulatorChanges = entries.filter(e => e.resourceType === 'accumulator');
   const spChanges = entries.filter(e => e.resourceType === 'sp');
+  const hpChanges = entries.filter(e => e.resourceType === 'hp');
 
   const formatChange = (change: number) => {
     if (change > 0) return `+${change.toFixed(1)}`;
@@ -685,6 +686,39 @@ const ResourceChangesDetails: React.FC<{ entries: ResourceChangeEntry[] }> = ({ 
                   {entry.before.toFixed(1)} → {entry.after.toFixed(1)}
                 </span>
                 <span className={`font-bold ${entry.change > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-orange-600 dark:text-orange-400'
+                  }`}>
+                  ({formatChange(entry.change)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* HP変化 */}
+      {hpChanges.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+            ❤️ HP変化:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {hpChanges.map((entry, idx) => (
+              <div
+                key={`hp-${idx}`}
+                className={`flex items-center gap-2 px-2 py-1 rounded text-xs border-l-2 ${entry.change > 0
+                  ? 'bg-green-50 dark:bg-green-900/30 border-green-500'
+                  : entry.change < 0
+                    ? 'bg-red-50 dark:bg-red-900/30 border-red-500'
+                    : 'bg-gray-100 dark:bg-gray-900/50 border-gray-400'
+                  }`}
+              >
+                <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[80px]">
+                  {entry.unitName}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {Math.round(entry.before).toLocaleString()} → {Math.round(entry.after).toLocaleString()}
+                </span>
+                <span className={`font-bold ${entry.change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}>
                   ({formatChange(entry.change)})
                 </span>

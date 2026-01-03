@@ -1,4 +1,5 @@
 import { ILightConeData } from '../../types';
+import { advanceAction } from '../../simulator/engine/utils';
 
 export const multiplication: ILightConeData = {
     id: 'multiplication',
@@ -29,28 +30,8 @@ export const multiplication: ILightConeData = {
 
                 const advance = [0.12, 0.14, 0.16, 0.18, 0.20][superimposition - 1];
 
-                // 行動順短縮をトリガー
-                // ActionQueue/Action Logicを使用？
-                // 通常、ACTION_ADVANCE アクションをプッシュするか、AVを直接変更することで行動順短縮をシミュレートする？
-                // "次の行動順が...早まる"。
-                // 現在のアクションが終了すると、AVはリセットされる。
-                // *今*短縮すると、*次の*ターンのAVが減少する。
-                // `advanceAction` ヘルパー？
-                // シミュレータは `ACTION_ADVANCE` アクションタイプをサポートしている。
-                // エンキューできるか？それとも状態を直接変更するか？
-                // `pendingActions` に `ActionAdvanceAction` を提供する？
-
-                return {
-                    ...state,
-                    pendingActions: [
-                        ...state.pendingActions,
-                        {
-                            type: 'ACTION_ADVANCE',
-                            targetId: unit.id,
-                            percent: advance
-                        }
-                    ]
-                };
+                // 汎用ユーティリティを使用して行動順を短縮
+                return advanceAction(state, unit.id as string, advance, 'percent');
             }
         }
     ]

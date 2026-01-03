@@ -69,5 +69,6 @@ export class TargetSelector {
 
     // Predefined Sorters
     static SortByLowestHP = (a: Unit, b: Unit) => (a.hp / a.stats.hp) - (b.hp / b.stats.hp);
+    static SortByHighestHP = (a: Unit, b: Unit) => b.hp - a.hp;
     static SortByHighestATK = (a: Unit, b: Unit) => b.stats.atk - a.stats.atk;
 }

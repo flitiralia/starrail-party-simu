@@ -119,6 +119,37 @@ const weaknessGridStyle: React.CSSProperties = {
   marginTop: '8px',
 };
 
+// --- SAVE DATA TYPES ---
+interface CharacterSaveData {
+  id: string; // Character ID
+  eidolon: number;
+  lightCone?: {
+    id: string;
+    level: number;
+    superimposition: number;
+  };
+  relics: {
+    setId: string;
+    type: string;
+    level: number;
+    mainStat: { stat: string; value: number };
+    subStats: { stat: string; value: number }[];
+  }[];
+  ornaments: {
+    setId: string;
+    type: string;
+    level: number;
+    mainStat: { stat: string; value: number };
+    subStats: { stat: string; value: number }[];
+  }[];
+  config: CharacterRotationConfig;
+}
+
+interface PartySaveData {
+  version: string;
+  members: CharacterSaveData[];
+}
+
 export default function Home() {
   // --- HYDRATION FIX ---
   const [mounted, setMounted] = useState(false);
@@ -196,6 +227,22 @@ export default function Home() {
   const handleRemoveEnemy = (index: number) => {
     const newMembers = [...enemyMembers];
     newMembers.splice(index, 1);
+    setEnemyMembers(newMembers);
+  };
+
+  // 敵の順番を上に移動
+  const handleMoveEnemyUp = (index: number) => {
+    if (index <= 0) return; // 既に先頭
+    const newMembers = [...enemyMembers];
+    [newMembers[index - 1], newMembers[index]] = [newMembers[index], newMembers[index - 1]];
+    setEnemyMembers(newMembers);
+  };
+
+  // 敵の順番を下に移動
+  const handleMoveEnemyDown = (index: number) => {
+    if (index >= enemyMembers.length - 1) return; // 既に末尾
+    const newMembers = [...enemyMembers];
+    [newMembers[index], newMembers[index + 1]] = [newMembers[index + 1], newMembers[index]];
     setEnemyMembers(newMembers);
   };
 
@@ -312,6 +359,220 @@ export default function Home() {
     // キャラクター削除時はシミュレーション結果をクリア
     setBattleResult(null);
     setSimulationLog([]);
+  };
+
+  // --- EXPORT / IMPORT ---
+  const handleExportParty = () => {
+    if (partyMembers.length === 0) {
+      alert('エクスポートするパーティがいません。');
+      return;
+    }
+
+    const saveData: PartySaveData = {
+      version: '1.0',
+      members: partyMembers.map(m => ({
+        id: m.character.id,
+        eidolon: m.eidolonLevel,
+        lightCone: m.character.equippedLightCone ? {
+          id: m.character.equippedLightCone.lightCone.id,
+          level: m.character.equippedLightCone.level,
+          superimposition: m.character.equippedLightCone.superimposition
+        } : undefined,
+        relics: (m.character.relics || []).map(r => ({
+          setId: r.set.id,
+          type: r.type,
+          level: r.level,
+          mainStat: r.mainStat,
+          subStats: r.subStats
+        })),
+        ornaments: (m.character.ornaments || []).map(o => ({
+          setId: o.set.id,
+          type: o.type,
+          level: o.level,
+          mainStat: o.mainStat,
+          subStats: o.subStats
+        })),
+        config: m.config
+      }))
+    };
+
+    navigator.clipboard.writeText(JSON.stringify(saveData))
+      .then(() => alert('パーティ情報をクリップボードにコピーしました。'))
+      .catch(err => {
+        console.error('Export failed:', err);
+        alert('クリップボードへのコピーに失敗しました。');
+      });
+  };
+
+  const handleImportParty = () => {
+    const input = prompt('エクスポートされたJSONを貼り付けてください');
+    if (!input) return;
+
+    try {
+      const data: PartySaveData = JSON.parse(input);
+      if (!data.members || !Array.isArray(data.members)) {
+        throw new Error('Invalid format');
+      }
+
+      const newMembers: PartyMember[] = data.members.map(saved => {
+        const charBase = characterList.find(c => c.id === saved.id);
+        if (!charBase) throw new Error(`キャラが見つかりません: ${saved.id}`);
+
+        const lightCone = saved.lightCone ? {
+          lightCone: lightConeList.find(lc => lc.id === saved.lightCone?.id)!,
+          level: saved.lightCone.level,
+          superimposition: saved.lightCone.superimposition as any
+        } : undefined;
+
+        const relics = saved.relics.map(r => {
+          const set = relicSetList.find(s => s.id === r.setId);
+          if (!set) throw new Error(`遺物セットが見つかりません: ${r.setId}`);
+          return {
+            type: r.type as any,
+            level: r.level,
+            mainStat: r.mainStat as any,
+            subStats: r.subStats as any,
+            set: set
+          };
+        });
+
+        const ornaments = saved.ornaments.map(o => {
+          const set = ornamentSetList.find(s => s.id === o.setId);
+          if (!set) throw new Error(`オーナメントセットが見つかりません: ${o.setId}`);
+          return {
+            type: o.type as any,
+            level: o.level,
+            mainStat: o.mainStat as any,
+            subStats: o.subStats as any,
+            set: set
+          };
+        });
+
+        return {
+          character: {
+            ...charBase,
+            equippedLightCone: lightCone,
+            relics: relics as any,
+            ornaments: ornaments as any
+          },
+          config: saved.config,
+          enabled: true,
+          eidolonLevel: saved.eidolon
+        };
+      });
+
+      setPartyMembers(newMembers);
+      setActiveCharacterIndex(null);
+      setBattleResult(null);
+      setSimulationLog([]);
+      alert('パーティ情報をインポートしました。');
+    } catch (e: any) {
+      console.error(e);
+      alert(`インポートに失敗しました: ${e.message}`);
+    }
+  };
+
+  const handleExportCharacter = (index: number) => {
+    const m = partyMembers[index];
+    if (!m) return;
+
+    const saveData: CharacterSaveData = {
+      id: m.character.id,
+      eidolon: m.eidolonLevel,
+      lightCone: m.character.equippedLightCone ? {
+        id: m.character.equippedLightCone.lightCone.id,
+        level: m.character.equippedLightCone.level,
+        superimposition: m.character.equippedLightCone.superimposition
+      } : undefined,
+      relics: (m.character.relics || []).map(r => ({
+        setId: r.set.id,
+        type: r.type,
+        level: r.level,
+        mainStat: r.mainStat,
+        subStats: r.subStats
+      })),
+      ornaments: (m.character.ornaments || []).map(o => ({
+        setId: o.set.id,
+        type: o.type,
+        level: o.level,
+        mainStat: o.mainStat,
+        subStats: o.subStats
+      })),
+      config: m.config
+    };
+
+    navigator.clipboard.writeText(JSON.stringify(saveData))
+      .then(() => alert(`${m.character.name}の情報をクリップボードにコピーしました。`))
+      .catch(err => {
+        console.error('Export failed:', err);
+        alert('クリップボードへのコピーに失敗しました。');
+      });
+  };
+
+  const handleImportCharacter = (index: number) => {
+    const input = prompt('キャラクター情報を貼り付けてください (単体JSON)');
+    if (!input) return;
+
+    try {
+      const saved: CharacterSaveData = JSON.parse(input);
+      if (!saved.id || !saved.relics) {
+        throw new Error('Invalid character format');
+      }
+
+      const charBase = characterList.find(c => c.id === saved.id);
+      if (!charBase) throw new Error(`キャラが見つかりません: ${saved.id}`);
+
+      const lightCone = saved.lightCone ? {
+        lightCone: lightConeList.find(lc => lc.id === saved.lightCone?.id)!,
+        level: saved.lightCone.level,
+        superimposition: saved.lightCone.superimposition as any
+      } : undefined;
+
+      const relics = saved.relics.map(r => {
+        const set = relicSetList.find(s => s.id === r.setId);
+        if (!set) throw new Error(`遺物セットが見つかりません: ${r.setId}`);
+        return {
+          type: r.type as any,
+          level: r.level,
+          mainStat: r.mainStat as any,
+          subStats: r.subStats as any,
+          set: set
+        };
+      });
+
+      const ornaments = saved.ornaments.map(o => {
+        const set = ornamentSetList.find(s => s.id === o.setId);
+        if (!set) throw new Error(`オーナメントセットが見つかりません: ${o.setId}`);
+        return {
+          type: o.type as any,
+          level: o.level,
+          mainStat: o.mainStat as any,
+          subStats: o.subStats as any,
+          set: set
+        };
+      });
+
+      const newMembers = [...partyMembers];
+      newMembers[index] = {
+        character: {
+          ...charBase,
+          equippedLightCone: lightCone,
+          relics: relics as any,
+          ornaments: ornaments as any
+        },
+        config: saved.config,
+        enabled: true,
+        eidolonLevel: saved.eidolon
+      };
+
+      setPartyMembers(newMembers);
+      setBattleResult(null);
+      setSimulationLog([]);
+      alert(`${charBase.name}の情報をインポートしました。`);
+    } catch (e: any) {
+      console.error(e);
+      alert(`インポートに失敗しました: ${e.message}`);
+    }
   };
 
   const handleCharacterSelect = (index: number, charId: string) => {
@@ -476,9 +737,9 @@ export default function Home() {
         id: 'custom_enemy',
         name: customEnemyName || 'Custom Enemy',
         rank: 'Elite',
-        hpMultiplier: 0,
-        atkMultiplier: 0,
-        baseSpd: customEnemySpd,
+        hpMultiplier: 0,  // 未使用（isCustom時はoverride値を使用）
+        atkMultiplier: 0, // 未使用
+        baseSpd: customEnemySpd, // 未使用（isCustom時はoverride値を使用）
         toughness: customEnemyToughness,
         // Default to standard resistance
         elementalRes: {
@@ -494,6 +755,12 @@ export default function Home() {
           talent: { id: 'talent', name: 'Talent', type: 'Talent', description: 'None' },
           technique: { id: 'tech', name: 'Technique', type: 'Technique', description: 'None' }
         },
+        // ★ カスタム敵用オーバーライドフィールド ★
+        isCustom: true,
+        overrideHp: customEnemyHp,
+        overrideSpd: customEnemySpd,
+        overrideAtk: customEnemyAtk,
+        overrideDef: customEnemyDef,
       };
       targetEnemies.push(customEnemy);
     } else {
@@ -631,9 +898,47 @@ export default function Home() {
                         const data = enemyPresetList.find(e => e.id === member.enemyId);
                         return (
                           <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#333', padding: '6px', borderRadius: '4px' }}>
-                            <div>
-                              <div style={{ fontWeight: 'bold', fontSize: '0.9em' }}>{data?.name || member.enemyId}</div>
-                              <div style={{ fontSize: '0.8em', color: '#aaa' }}>{data?.rank}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {/* 並び替えボタン */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <button
+                                  onClick={() => handleMoveEnemyUp(index)}
+                                  disabled={index === 0}
+                                  style={{
+                                    backgroundColor: index === 0 ? '#444' : '#555',
+                                    border: 'none',
+                                    color: index === 0 ? '#666' : '#ccc',
+                                    borderRadius: '2px',
+                                    padding: '1px 4px',
+                                    cursor: index === 0 ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.7em',
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  onClick={() => handleMoveEnemyDown(index)}
+                                  disabled={index === enemyMembers.length - 1}
+                                  style={{
+                                    backgroundColor: index === enemyMembers.length - 1 ? '#444' : '#555',
+                                    border: 'none',
+                                    color: index === enemyMembers.length - 1 ? '#666' : '#ccc',
+                                    borderRadius: '2px',
+                                    padding: '1px 4px',
+                                    cursor: index === enemyMembers.length - 1 ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.7em',
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  ▼
+                                </button>
+                              </div>
+                              {/* 敵情報 */}
+                              <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '0.9em' }}>{data?.name || member.enemyId}</div>
+                                <div style={{ fontSize: '0.8em', color: '#aaa' }}>{data?.rank}</div>
+                              </div>
                             </div>
                             <button
                               onClick={() => handleRemoveEnemy(index)}
@@ -756,7 +1061,23 @@ export default function Home() {
           {/* 中央: パーティ編成 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={sectionStyle}>
-              <h2 style={{ margin: '0 0 16px 0' }}>パーティ編成</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ margin: 0 }}>パーティ編成</h2>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={handleExportParty}
+                    style={{ ...buttonStyle, width: 'auto', padding: '4px 12px', fontSize: '0.85em', backgroundColor: '#34495e', borderColor: '#2c3e50' }}
+                  >
+                    エクスポート
+                  </button>
+                  <button
+                    onClick={handleImportParty}
+                    style={{ ...buttonStyle, width: 'auto', padding: '4px 12px', fontSize: '0.85em', backgroundColor: '#34495e', borderColor: '#2c3e50' }}
+                  >
+                    インポート
+                  </button>
+                </div>
+              </div>
               <div style={partyGridStyle}>
                 {Array.from({ length: MAX_PARTY_SIZE }).map((_, index) => {
                   const member = partyMembers[index];
@@ -864,6 +1185,8 @@ export default function Home() {
                   eidolonLevel={partyMembers[activeCharacterIndex].eidolonLevel} // Pass Eidolon Level
                   onCharacterUpdate={(updatedChar) => handleCharacterUpdate(activeCharacterIndex, updatedChar)}
                   onConfigUpdate={(updatedConfig) => handleConfigUpdate(activeCharacterIndex, updatedConfig)}
+                  onExport={() => handleExportCharacter(activeCharacterIndex)}
+                  onImport={() => handleImportCharacter(activeCharacterIndex)}
                   onEidolonChange={(level) => { // Handle Eidolon Change
                     const newMembers = [...partyMembers];
                     newMembers[activeCharacterIndex] = {

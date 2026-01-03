@@ -177,29 +177,63 @@ export function createInitialGameState(
   const enemyUnits: Unit[] = enemies.map((enemy, index) => {
     // Enemy stats logic using new EnemyData structure and level table
     const targetLevel = enemyConfig.level; // User defined level
+    const enemyData = enemy as any as EnemyData; // Cast for compatibility with existing Enemy type
 
     // Calculate stats based on EnemyData and Level
-    const calculatedStats = calculateEnemyStats(enemy as any as EnemyData, targetLevel); // Cast for compatibility with existing Enemy type
-    const def = calculateEnemyDef(targetLevel);
+    const calculatedStats = calculateEnemyStats(enemyData, targetLevel);
+    const calculatedDef = calculateEnemyDef(targetLevel);
+
+    // ★ カスタム敵のオーバーライド処理 ★
+    // isCustomがtrueの場合、overrideフィールドの値を優先使用する
+    const finalHp = enemyData.isCustom && enemyData.overrideHp !== undefined
+      ? enemyData.overrideHp
+      : calculatedStats.hp;
+    const finalAtk = enemyData.isCustom && enemyData.overrideAtk !== undefined
+      ? enemyData.overrideAtk
+      : calculatedStats.atk;
+    const finalSpd = enemyData.isCustom && enemyData.overrideSpd !== undefined
+      ? enemyData.overrideSpd
+      : calculatedStats.spd;
+    const finalDef = enemyData.isCustom && enemyData.overrideDef !== undefined
+      ? enemyData.overrideDef
+      : calculatedDef;
 
     const stats: FinalStats = {
       ...createEmptyStatRecord(),
-      hp: calculatedStats.hp,
-      atk: calculatedStats.atk,
-      def: def,
-      spd: calculatedStats.spd,
+      hp: finalHp,
+      atk: finalAtk,
+      def: finalDef,
+      spd: finalSpd,
       effect_hit_rate: calculatedStats.effectHitRate,
       effect_res: calculatedStats.effectRes,
     };
 
+    // ★ 敵データから弱点をSetに変換 ★
+    // EnemyData.weaknesses (配列) を使用し、なければ config.weaknesses にフォールバック
+    const enemyWeaknesses: Set<Element> = enemyData.weaknesses && enemyData.weaknesses.length > 0
+      ? new Set(enemyData.weaknesses)
+      : weaknesses;
+
     // Apply resistances
     ELEMENTS.forEach(element => {
       const resKey = `${element.toLowerCase()}_res` as StatKey;
-      const isWeak = weaknesses.has(element);
+      const isWeak = enemyWeaknesses.has(element);
       // Weakness = 0% RES, Element Res = Enemy Data (default 20%)
-      const baseRes = (enemy as any as EnemyData).elementalRes?.[element] ?? 0.2;
+      const baseRes = enemyData.elementalRes?.[element] ?? 0.2;
       stats[resKey] = isWeak ? 0 : baseRes;
     });
+
+    // Apply debuff resistances
+    if (enemyData.debuffRes) {
+      stats.frozen_res = enemyData.debuffRes.freeze ?? 0;
+      stats.burn_res = enemyData.debuffRes.burn ?? 0;
+      stats.shock_res = enemyData.debuffRes.shock ?? 0;
+      stats.wind_shear_res = enemyData.debuffRes.windShear ?? 0;
+      stats.bleed_res = enemyData.debuffRes.bleed ?? 0;
+      stats.entanglement_res = enemyData.debuffRes.entanglement ?? 0;
+      stats.imprisonment_res = enemyData.debuffRes.imprisonment ?? 0;
+      stats.crowd_control_res = enemyData.debuffRes.crowdControl ?? 0;
+    }
 
     const unit: Unit = {
       id: UnitIdGenerator.generateEnemyId(enemy.id, index),
@@ -214,15 +248,19 @@ export function createInitialGameState(
       hp: stats.hp,
       ep: 0,
       shield: 0,
-      toughness: (enemy as any as EnemyData).toughness || enemyConfig.toughness, // Prefer EnemyData toughness
-      maxToughness: (enemy as any as EnemyData).toughness || enemyConfig.toughness,
-      weaknesses: weaknesses,
+      toughness: enemyData.toughness || enemyConfig.toughness, // Prefer EnemyData toughness
+      maxToughness: enemyData.toughness || enemyConfig.toughness,
+      weaknesses: enemyWeaknesses,
       modifiers: [],
       effects: [],
       actionValue: Math.floor(10000 / stats.spd),
       rotationIndex: 0,
       ultCooldown: 0,
       actionPattern: (enemy as any as EnemyData).actionPattern, // Copy action pattern
+      // ★ 新しい敵スキルシステム用データをコピー ★
+      enemySkills: enemyData.enemySkills,
+      turnPatterns: enemyData.turnPatterns,
+      resetPatternOnBreakRecovery: enemyData.resetPatternOnBreakRecovery,
     };
     return unit;
   });

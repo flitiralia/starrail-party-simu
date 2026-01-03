@@ -285,8 +285,8 @@ export const aventurine: Character = {
         eidolonLevel: 0,
         lightConeId: 'inherently-unjust-destiny',
         superimposition: 1,
-        relicSetId: 'the_ashblazing_grand_duke',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'the-ashblazing-grand-duke',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'def_pct',
             feet: 'spd',

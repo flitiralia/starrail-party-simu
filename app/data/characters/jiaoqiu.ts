@@ -174,8 +174,8 @@ export const jiaoqiu: Character = {
     defaultConfig: {
         lightConeId: 'those-many-springs', // 幾度目かの春
         superimposition: 1,
-        relicSetId: 'prisoner_in_deep_confinement', // 深い牢獄の囚人
-        ornamentSetId: 'pan_galactic_commercial_enterprise', // 汎銀河商事会社
+        relicSetId: 'prisoner-in-deep-confinement', // 深い牢獄の囚人
+        ornamentSetId: 'pan-cosmic-commercial-enterprise', // 汎銀河商事会社
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',

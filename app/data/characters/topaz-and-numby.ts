@@ -423,8 +423,8 @@ export const topazAndNumby: Character = {
         eidolonLevel: 0,
         lightConeId: 'worrisome-blissful', // 悩んで笑って
         superimposition: 1,
-        relicSetId: 'pioneer_diver_of_dead_waters', // 死水に潜る先駆者
-        ornamentSetId: 'duran_dynasty_of_running_wolves', // 奔狼の都藍王朝
+        relicSetId: 'pioneer-diver-of-dead-waters', // 死水に潜る先駆者
+        ornamentSetId: 'duran-dynasty-of-running-wolves', // 奔狼の都藍王朝
         rotation: ['s'], rotationMode: 'spam_skill', ultStrategy: 'immediate', ultCooldown: 0,
         mainStats: {
             body: 'crit_rate',

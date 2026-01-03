@@ -92,4 +92,12 @@ export const FLAMESPAWN: EnemyData = {
     // Action Pattern
     // Only has one skill: Distract
     actionPattern: ['Basic ATK'],
+
+    // 被弾時EP回復量（通常敵より高め）
+    damageReceivedEnergyReward: 10,
+
+    // デバフ抵抗（仕様書より）
+    debuffRes: {
+        burn: 1.0,  // 燃焼抵抗 100%（自属性のため）
+    },
 };

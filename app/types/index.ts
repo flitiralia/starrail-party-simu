@@ -275,8 +275,8 @@ export interface CharacterDefaultConfig {
   subStats?: { stat: StatKey; value: number }[];
   /** デフォルトローテーション */
   rotation?: string[];
-  /** ローテーションモード ('sequence' | 'spam_skill') */
-  rotationMode?: 'sequence' | 'spam_skill';
+  /** ローテーションモード ('sequence' | 'spam_skill' | 'once_skill') */
+  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill';
   /** スパムスキル発動SP閾値 */
   spamSkillTriggerSp?: number;
   /** デフォルト必殺技発動方針 */
@@ -342,7 +342,7 @@ export interface IAction {
  */
 export interface CharacterRotationConfig {
   rotation: string[]; // 行動パターン（例: ['s', 'b', 'b']）
-  rotationMode?: 'sequence' | 'spam_skill'; // 'sequence' (default) or 'spam_skill'
+  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill'; // 'sequence' (default), 'spam_skill' or 'once_skill'
   spamSkillTriggerSp?: number; // SP Threshold to start spamming skill (for 'spam_skill' mode)
   skillTargetId?: string; // Target Character ID (or name-based ID)
   ultStrategy: 'immediate' | 'cooldown'; // 必殺技発動戦略
@@ -532,7 +532,7 @@ export interface EquipmentEffectEntry {
 export interface ResourceChangeEntry {
   unitId: string;
   unitName: string;
-  resourceType: 'ep' | 'accumulator' | 'sp';
+  resourceType: 'ep' | 'accumulator' | 'sp' | 'hp';
   resourceName: string; // EPの場合は'EP'、蓄積値の場合はキー名
   before: number;
   after: number;

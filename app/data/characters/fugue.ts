@@ -305,8 +305,8 @@ export const fugue: Character = {
     defaultConfig: {
         lightConeId: 'long-road-leads-home',
         superimposition: 1,
-        relicSetId: 'iron_cavalry_which_tramples_the_raging_flame',
-        ornamentSetId: 'talia_kingdom_of_banditry',
+        relicSetId: 'iron-cavalry-against-scourge',
+        ornamentSetId: 'talia-kingdom-of-banditry',
         mainStats: {
             body: 'effect_hit_rate',
             feet: 'spd',
@@ -364,7 +364,7 @@ const applyCloudflame = (
             currentValue: cloudflameMax,
             maxValue: cloudflameMax
         },
-       
+
         /* remove removed */
     };
 
@@ -431,7 +431,7 @@ const applyFoxPrayer = (
             ignoreWeaknessRatio: FOX_PRAYER_IGNORE_WEAKNESS_RATIO,
             defDown: skillValues.defDown
         },
-       
+
         /* remove removed */
     };
 
@@ -472,7 +472,7 @@ const applyScorching = (
         duration: SKILL_DURATION,
         modifiers,
         tags: ['SCORCHING', 'ENHANCED_BASIC'],
-       
+
         /* remove removed */
     };
 
@@ -511,7 +511,7 @@ const applyDefDown = (
         modifiers: [
             { target: 'def' as StatKey, value: -skillValues.defDown, type: 'pct', source: '狐の祈り' }
         ],
-       
+
         /* remove removed */
     };
 
@@ -555,7 +555,7 @@ const onBattleStart = (
             modifiers: [
                 { target: 'break_effect' as StatKey, value: A4_BREAK_EFFECT_BONUS, type: 'add', source: '塗山の玄設' }
             ],
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4Effect);
@@ -568,7 +568,7 @@ const onBattleStart = (
             sourceUnitId: sourceUnitId,
             durationType: 'PERMANENT',
             duration: -1,
-           
+
             /* remove removed */
         };
         newState = addEffect(newState, sourceUnitId, a4FlagEffect);
@@ -701,7 +701,7 @@ const onWeaknessBreak = (
                 sourceUnitId: sourceUnitId,
                 durationType: 'PERMANENT',
                 duration: -1,
-               
+
                 /* remove removed */
             };
             newState = addEffect(newState, sourceUnitId, cooldownEffect);
@@ -742,7 +742,7 @@ const onWeaknessBreak = (
                     modifiers: [
                         { target: 'break_effect' as StatKey, value: bonusValue * (currentStacks + 1), type: 'add', source: '璣星の太素' }
                     ],
-                   
+
                     /* remove removed */
                 };
                 newState = addEffect(newState, allyId, a6Effect);
@@ -789,7 +789,7 @@ const onBeforeDamageCalculation = (
 };
 
 /**
- * ヒット前: 必殺技の弱点無視靭性削りと炎属性撃破効果
+ * ヒット前: 必殺技の弱点無視靭性削りと炎属性撃破効果、狐の祈りによる弱点無視削靭
  */
 const onBeforeHit = (
     event: IEvent,
@@ -797,27 +797,50 @@ const onBeforeHit = (
     sourceUnitId: string,
     eidolonLevel: number
 ): GameState => {
-    if ((event as any).sourceId !== sourceUnitId) return state;
-
+    let newState = state;
+    const attackerId = (event as any).sourceId;
+    const targetId = (event as any).targetId;
     const actionType = (event as any).actionType;
 
-    // 必殺技使用時のみ弱点無視靭性削り
-    if (actionType !== 'ULTIMATE') return state;
+    // === Fugue自身の必殺技: 弱点無視靭性削り + 炎属性撃破効果 ===
+    if (attackerId === sourceUnitId && actionType === 'ULTIMATE') {
+        newState = {
+            ...newState,
+            damageModifiers: {
+                ...newState.damageModifiers,
+                ignoreToughnessWeakness: true,
+                forceBreakElement: 'Fire' as Element
+            }
+        };
+        return newState;
+    }
 
-    let newState = state;
+    // === 狐の祈り状態の味方による攻撃: 弱点無視時は削靭値50% ===
+    const attacker = newState.registry.get(createUnitId(attackerId));
+    const target = targetId ? newState.registry.get(createUnitId(targetId)) : null;
 
-    // 弱点属性を無視して靭性を削る + 炎属性撃破効果を発動
-    newState = {
-        ...newState,
-        damageModifiers: {
-            ...newState.damageModifiers,
-            ignoreToughnessWeakness: true,
-            forceBreakElement: 'Fire' as Element
-        }
-    };
+    if (!attacker || attacker.isEnemy || !target || !target.isEnemy) return newState;
+
+    // 狐の祈りエフェクトを持っているかチェック
+    const foxPrayerEffect = attacker.effects.find(e => e.id.startsWith(EFFECT_IDS.FOX_PRAYER_PREFIX));
+    if (!foxPrayerEffect) return newState;
+
+    // 対象の敵が攻撃者の属性に弱点を持っていない場合、弱点無視削靭を適用
+    if (!target.weaknesses.has(attacker.element)) {
+        const ignoreWeaknessRatio = foxPrayerEffect.miscData?.ignoreWeaknessRatio || FOX_PRAYER_IGNORE_WEAKNESS_RATIO;
+        newState = {
+            ...newState,
+            damageModifiers: {
+                ...newState.damageModifiers,
+                ignoreToughnessWeakness: true,
+                toughnessMultiplier: ignoreWeaknessRatio
+            }
+        };
+    }
 
     return newState;
 };
+
 
 // =============================================================================
 // ハンドラーファクトリ

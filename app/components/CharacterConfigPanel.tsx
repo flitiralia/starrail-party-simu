@@ -26,6 +26,8 @@ interface CharacterConfigPanelProps {
     config: CharacterRotationConfig;
     onCharacterUpdate: (updatedChar: Character) => void;
     onConfigUpdate: (updatedConfig: CharacterRotationConfig) => void;
+    onExport: () => void;
+    onImport: () => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -82,6 +84,8 @@ export default function CharacterConfigPanel({
     onCharacterUpdate,
     onConfigUpdate,
     onEidolonChange,
+    onExport,
+    onImport,
 }: CharacterConfigPanelProps) {
     const selectedLightCone = character.equippedLightCone?.lightCone;
     const superimposition = character.equippedLightCone?.superimposition || 1;
@@ -133,6 +137,36 @@ export default function CharacterConfigPanel({
                 <h3 style={{ margin: 0 }}>
                     {character.name} の設定
                 </h3>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    <button
+                        onClick={onExport}
+                        style={{
+                            backgroundColor: '#34495e',
+                            color: 'white',
+                            border: '1px solid #2c3e50',
+                            borderRadius: '4px',
+                            padding: '4px 10px',
+                            fontSize: '0.8em',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        エクスポート
+                    </button>
+                    <button
+                        onClick={onImport}
+                        style={{
+                            backgroundColor: '#34495e',
+                            color: 'white',
+                            border: '1px solid #2c3e50',
+                            borderRadius: '4px',
+                            padding: '4px 10px',
+                            fontSize: '0.8em',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        インポート
+                    </button>
+                </div>
             </div>
 
             {/* 星魂（Eidolon）設定 */}
@@ -202,38 +236,42 @@ export default function CharacterConfigPanel({
                 )}
             </div>
 
-            {/* Rotation Settings (Archer Specific for now) */}
-            {
-                character.id === 'archar' && (
-                    <div style={sectionStyle}>
-                        <label style={labelStyle}>行動ロジック設定</label>
-                        <select
-                            style={selectorStyle}
-                            value={config.rotationMode || 'sequence'}
-                            onChange={(e) => onConfigUpdate({ ...config, rotationMode: e.target.value as 'sequence' | 'spam_skill' })}
-                        >
-                            <option value="sequence">通常ローテーション</option>
-                            <option value="spam_skill">スキル連続使用 (SP条件)</option>
-                        </select>
+            {/* Rotation Settings */}
+            <div style={sectionStyle}>
+                <label style={labelStyle}>行動ロジック設定</label>
+                <select
+                    style={selectorStyle}
+                    value={config.rotationMode || 'sequence'}
+                    onChange={(e) => onConfigUpdate({ ...config, rotationMode: e.target.value as any })}
+                >
+                    <option value="sequence">通常ローテーション</option>
+                    <option value="once_skill">初回スキル・以降通常</option>
+                    {character.id === 'archar' && (
+                        <option value="spam_skill">スキル連続使用 (SP条件)</option>
+                    )}
+                </select>
 
-                        {config.rotationMode === 'spam_skill' && (
-                            <div style={{ marginTop: '8px' }}>
-                                <label style={{ ...labelStyle, fontSize: '0.9em' }}>発動開始SP閾値</label>
-                                <input
-                                    type="number"
-                                    style={selectorStyle}
-                                    value={config.spamSkillTriggerSp ?? 4}
-                                    onChange={(e) => onConfigUpdate({ ...config, spamSkillTriggerSp: Number(e.target.value) })}
-                                    min={0}
-                                />
-                                <div style={descriptionStyle}>
-                                    SPがこの値以上、かつスキルコスト(2)が払える場合、ローテーションを無視してスキルを使用し続けます。
-                                </div>
-                            </div>
-                        )}
+                {config.rotationMode === 'spam_skill' && character.id === 'archar' && (
+                    <div style={{ marginTop: '8px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.9em' }}>発動開始SP閾値</label>
+                        <input
+                            type="number"
+                            style={selectorStyle}
+                            value={config.spamSkillTriggerSp ?? 4}
+                            onChange={(e) => onConfigUpdate({ ...config, spamSkillTriggerSp: Number(e.target.value) })}
+                            min={0}
+                        />
+                        <div style={descriptionStyle}>
+                            SPがこの値以上、かつスキルコスト(2)が払える場合、ローテーションを無視してスキルを使用し続けます。
+                        </div>
                     </div>
-                )
-            }
+                )}
+                {config.rotationMode === 'once_skill' && (
+                    <div style={descriptionStyle}>
+                        初動のみスキルを使用し、それ以降は通常攻撃を行います。
+                    </div>
+                )}
+            </div>
 
             {/* 遺物編集 */}
             <div style={sectionStyle}>

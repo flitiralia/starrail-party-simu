@@ -307,8 +307,8 @@ export const boothill: Character = {
         eidolonLevel: 0,
         lightConeId: 'sailing-towards-a-second-life',
         superimposition: 1,
-        relicSetId: 'thief_of_shooting_meteor',
-        ornamentSetId: 'talia_kingdom_of_banditry',
+        relicSetId: 'iron-cavalry-against-scourge',
+        ornamentSetId: 'talia-kingdom-of-banditry',
         mainStats: {
             body: 'crit_rate',
             feet: 'spd',

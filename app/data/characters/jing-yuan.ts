@@ -593,8 +593,8 @@ export const jingYuan: Character = {
         eidolonLevel: 0,
         lightConeId: 'before-dawn',
         superimposition: 1,
-        relicSetIds: ['the_ashblazing_grand_duke', 'prisoner_in_deep_confinement'],
-        ornamentSetId: 'inert_salsotto',
+        relicSetIds: ['the-ashblazing-grand-duke', 'prisoner-in-deep-confinement'],
+        ornamentSetId: 'inert-salsotto',
         mainStats: {
             body: 'crit_rate',
             feet: 'atk_pct', // 神君のSPDを景元が上げる必要がある場合もあるが、一般的には攻撃靴か速度靴。ここでは一旦攻撃靴。

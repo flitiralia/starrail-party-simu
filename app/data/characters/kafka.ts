@@ -39,15 +39,11 @@ const TRACE_IDS = {
     THORNS: 'kafka-trace-thorns',
 } as const;
 
-// 必殺技
-const ULT_DETONATE_MULT = 1.2;
-
 // 天賦
 const TALENT_DETONATE_MULT = 0.80; // いばら
 
 // 秘技
 const TECHNIQUE_DMG_MULT = 0.5;
-const SKILL_ADJ_DETONATE_MULT = 0.50; // 隣接ターゲットDoT起爆倍率
 
 // E2
 const E2_DOT_BOOST = 0.33;
@@ -68,10 +64,22 @@ const ABILITY_VALUES = {
         10: 2.9,
         12: 3.18
     } as Record<number, number>,
+    // 必殺技起爆倍率: Lv10(120%) -> Lv12(124%)
+    ultDetonateMultiplier: {
+        10: 1.20,
+        12: 1.24
+    } as Record<number, number>,
+    // スキル起爆倍率: Lv10(75%) -> Lv12(78%)
+    skillMainDetonateMultiplier: {
+        10: 0.75,
+        12: 0.78
+    } as Record<number, number>,
+    // スキル隣接起爆倍率: Lv10(50%) -> Lv12(52%)
+    skillAdjDetonateMultiplier: {
+        10: 0.50,
+        12: 0.52
+    } as Record<number, number>,
 };
-
-// スキル
-const SKILL_DETONATE_MULT = 0.75;
 
 const E6_SHOCK_DURATION = 3;
 
@@ -281,8 +289,8 @@ export const kafka: Character = {
     defaultConfig: {
         lightConeId: 'patience-is-all-you-need',
         superimposition: 1,
-        relicSetId: 'prisoner_in_deep_confinement',
-        ornamentSetId: 'space_sealing_station',
+        relicSetId: 'prisoner-in-deep-confinement',
+        ornamentSetId: 'revelry-by-the-sea',
         mainStats: {
             body: 'atk_pct',
             feet: 'spd',
@@ -290,9 +298,9 @@ export const kafka: Character = {
             rope: 'atk_pct',
         },
         subStats: [
-            { stat: 'atk_pct', value: 0.20 },
             { stat: 'spd', value: 6 },
             { stat: 'effect_hit_rate', value: 0.20 },
+            { stat: 'atk_pct', value: 0.20 },
             { stat: 'break_effect', value: 0.20 },
         ],
         rotationMode: 'spam_skill',
@@ -576,21 +584,26 @@ const applyShockToEnemy = (state: GameState, source: Unit, target: Unit, eidolon
 };
 
 // 4. スキル使用時: DoT起爆（メイン75%、隣接50%）
-const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string): GameState => {
+const onSkillUsed = (event: ActionEvent, state: GameState, sourceUnitId: string, eidolonLevel: number): GameState => {
     let newState = state;
 
-    // メインターゲットDoT起爆（75%）
+    // スキルLvを計算 (E3で+2)
+    const skillLevel = calculateAbilityLevel(eidolonLevel, 3, 'Skill');
+    const mainDetonateMult = getLeveledValue(ABILITY_VALUES.skillMainDetonateMultiplier, skillLevel);
+    const adjDetonateMult = getLeveledValue(ABILITY_VALUES.skillAdjDetonateMultiplier, skillLevel);
+
+    // メインターゲットDoT起爆
     const targetId = event.targetId;
     if (targetId) {
-        const { state: afterDetonate } = detonateDoTs(newState, targetId, SKILL_DETONATE_MULT, sourceUnitId);
+        const { state: afterDetonate } = detonateDoTs(newState, targetId, mainDetonateMult, sourceUnitId);
         newState = afterDetonate;
     }
 
-    // 隣接ターゲットDoT起爆（50%）
+    // 隣接ターゲットDoT起爆
     const adjacentIds = event.adjacentIds;
     if (adjacentIds && adjacentIds.length > 0) {
         adjacentIds.forEach(adjId => {
-            const { state: afterAdjDetonate } = detonateDoTs(newState, adjId, SKILL_ADJ_DETONATE_MULT, sourceUnitId);
+            const { state: afterAdjDetonate } = detonateDoTs(newState, adjId, adjDetonateMult, sourceUnitId);
             newState = afterAdjDetonate;
         });
     }
@@ -611,9 +624,12 @@ const onUltimateUsed = (event: ActionEvent, state: GameState, sourceUnitId: stri
         newState = applyShockToEnemy(newState, kafkaUnit, enemy, eidolonLevel);
     });
 
-    // 2. 敵全体にDoT起爆（120%）
+    // 2. 敵全体にDoT起爆
+    const ultLevel = calculateAbilityLevel(eidolonLevel, 5, 'Ultimate');
+    const ultDetonateMult = getLeveledValue(ABILITY_VALUES.ultDetonateMultiplier, ultLevel);
+
     enemies.forEach(enemy => {
-        const { state: afterDetonate } = detonateDoTs(newState, enemy.id, ULT_DETONATE_MULT, sourceUnitId);
+        const { state: afterDetonate } = detonateDoTs(newState, enemy.id, ultDetonateMult, sourceUnitId);
         newState = afterDetonate;
     });
 
@@ -787,7 +803,7 @@ export const kafkaHandlerFactory: IEventHandlerFactory = (sourceUnitId, level: n
 
             // カフカのスキル使用時: DoT起爆（スタック回復はターン終了時）
             if (event.type === 'ON_SKILL_USED' && event.sourceId === sourceUnitId) {
-                return onSkillUsed(event as ActionEvent, newState, sourceUnitId);
+                return onSkillUsed(event as ActionEvent, newState, sourceUnitId, eidolonLevel);
             }
 
             // カフカのターン終了時: 天賦スタック+1回復

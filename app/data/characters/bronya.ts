@@ -259,8 +259,8 @@ export const bronya: Character = {
         eidolonLevel: 0,
         lightConeId: 'but-the-battle-isnt-over',
         superimposition: 1,
-        relicSetId: 'messenger_traversing_hackerspace',
-        ornamentSetId: 'broken_keel',
+        relicSetId: 'messenger-traversing-hackerspace',
+        ornamentSetId: 'broken-keel',
         mainStats: {
             body: 'crit_dmg',
             feet: 'spd',
