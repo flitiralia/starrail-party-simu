@@ -487,6 +487,47 @@ function determineNextAction(unit: Unit, state: GameState): Action {
             return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
         }
     }
+
+    // 4. Spirit-based Mode: Skill if no spirit, Basic Attack if spirit exists
+    // 記憶キャラクター（アグライア、開拓者-記憶、ヒアンシー）用ローテーション
+    if (config.rotationMode === 'spirit_based') {
+        // 精霊ID命名規則に基づいてオーナーの精霊を検索
+        // raftra-{ownerId}, murion-{ownerId}, ikarun-{ownerId}
+        const spiritPrefixes = ['raftra', 'murion', 'ikarun'];
+
+        const hasSpirit = state.registry.toArray().some(u =>
+            u.isSummon &&
+            spiritPrefixes.some(prefix => u.id.startsWith(prefix)) &&
+            u.ownerId === unit.id
+        );
+
+        if (hasSpirit) {
+            // 精霊あり → 通常攻撃（SP温存）
+            console.log(`[Simulation] ${unit.name} using SPIRIT_BASED: Spirit exists, using Basic Attack`);
+            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
+        } else {
+            // 精霊なし → スキル使用（精霊召喚）
+            if (state.skillPoints > 0) {
+                const ability = unit.abilities.skill;
+                let targetId = selectEnemyTarget(aliveEnemies);
+                if (ability.targetType === 'ally' || ability.targetType === 'self' || ability.targetType === 'all_allies') {
+                    targetId = unit.id;
+                    if (config.skillTargetId) {
+                        const manualTarget = state.registry.get(createUnitId(config.skillTargetId));
+                        if (manualTarget && manualTarget.hp > 0 && !manualTarget.isEnemy) {
+                            targetId = manualTarget.id;
+                        }
+                    }
+                }
+                console.log(`[Simulation] ${unit.name} using SPIRIT_BASED: No spirit, using Skill`);
+                return { type: 'SKILL', sourceId: unit.id, targetId };
+            }
+            // SPがない場合は通常攻撃にフォールバック
+            console.log(`[Simulation] ${unit.name} using SPIRIT_BASED: No spirit but no SP, falling back to Basic Attack`);
+            return { type: 'BASIC_ATTACK', sourceId: unit.id, targetId: selectEnemyTarget(aliveEnemies) };
+        }
+    }
+
     const rotation = config.rotation;
     const actionChar = rotation[unit.rotationIndex % rotation.length];
 

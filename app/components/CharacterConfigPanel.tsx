@@ -250,6 +250,9 @@ export default function CharacterConfigPanel({
                     {character.id === 'archar' && (
                         <option value="spam_skill">スキル連続使用 (SP条件)</option>
                     )}
+                    {['aglaea', 'trailblazer-remembrance', 'hianshi'].includes(character.id) && (
+                        <option value="spirit_based">精霊依存 (精霊あり→通常/なし→スキル)</option>
+                    )}
                 </select>
 
                 {config.rotationMode === 'spam_skill' && character.id === 'archar' && (
@@ -270,6 +273,11 @@ export default function CharacterConfigPanel({
                 {config.rotationMode === 'once_skill' && (
                     <div style={descriptionStyle}>
                         初動のみスキルを使用し、それ以降は通常攻撃を行います。
+                    </div>
+                )}
+                {config.rotationMode === 'spirit_based' && (
+                    <div style={descriptionStyle}>
+                        記憶の精霊がいる場合は通常攻撃でSP温存、いない場合はスキルで精霊を召喚します。
                     </div>
                 )}
             </div>

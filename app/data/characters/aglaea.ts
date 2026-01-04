@@ -355,7 +355,7 @@ function createRaftraDefinition(owner: Unit, eidolonLevel: number): IMemorySpiri
         },
         debuffImmune: false,  // 至高の姿時のみ
         untargetable: false,
-        initialDuration: 999  // カウントダウンで管理
+        initialDuration: -1  // カウントダウンで管理するため永続扱い
     };
 }
 
@@ -474,6 +474,108 @@ const syncAglaeaUltimateSpeed = (state: GameState, ownerId: string, stacks: numb
 };
 
 /**
+ * A2「短見への裁き」: 至高の姿状態時の攻撃力バフを同期
+ * ATKアップ = アグライア速度 × 7.2 + ラフトラ速度 × 3.6
+ */
+const syncA2AtkBuff = (state: GameState, ownerId: string): GameState => {
+    const owner = state.registry.get(createUnitId(ownerId));
+    if (!owner) return state;
+
+    // A2トレースを保持しているか確認
+    if (!owner.traces?.some(t => t.id === TRACE_IDS.A2_JUDGEMENT)) return state;
+
+    // 至高の姿状態でなければ何もしない
+    if (!isInSupremeStance(state, ownerId)) return state;
+
+    // ラフトラを取得
+    const raftra = getActiveSpirit(state, ownerId, SUMMON_ID_PREFIX);
+    if (!raftra) return state;
+
+    // 攻撃力アップ量を計算
+    const aglaeaSpd = owner.stats.spd;
+    const raftraSpd = raftra.stats.spd;
+    const atkBoost = aglaeaSpd * 7.2 + raftraSpd * 3.6;
+
+    const a2Modifiers: Modifier[] = [{
+        target: 'atk' as StatKey,
+        value: atkBoost,
+        type: 'add' as const,
+        source: '短見への裁き (A2)'
+    }];
+
+    let newState = state;
+
+    // アグライアにA2バフを適用/更新
+    const ownerA2EffectId = EFFECT_IDS.A2_ATK_BUFF(ownerId);
+    const existingOwnerA2 = owner.effects.find(e => e.id === ownerA2EffectId);
+
+    if (existingOwnerA2) {
+        // 既存のバフを更新
+        const updatedEffects = owner.effects.map(e =>
+            e.id === ownerA2EffectId ? { ...e, modifiers: a2Modifiers } : e
+        );
+        let updatedOwner = { ...owner, effects: updatedEffects };
+        updatedOwner.stats = recalculateUnitStats(updatedOwner, state.registry.toArray());
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(ownerId), u => updatedOwner)
+        };
+    } else {
+        // 新規バフを追加
+        const a2Effect: IEffect = {
+            id: ownerA2EffectId,
+            name: '短見への裁き (A2)',
+            category: 'BUFF',
+            sourceUnitId: ownerId,
+            durationType: 'LINKED',
+            duration: 0,
+            linkedEffectId: EFFECT_IDS.SUPREME_STANCE(ownerId),
+            modifiers: a2Modifiers,
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
+        };
+        newState = addEffect(newState, ownerId, a2Effect);
+    }
+
+    // ラフトラにもA2バフを適用/更新
+    const raftraA2EffectId = `${EFFECT_IDS.A2_ATK_BUFF(ownerId)}-raftra`;
+    const updatedRaftra = newState.registry.get(createUnitId(raftra.id as string));
+    if (!updatedRaftra) return newState;
+
+    const existingRaftraA2 = updatedRaftra.effects.find(e => e.id === raftraA2EffectId);
+
+    if (existingRaftraA2) {
+        // 既存のバフを更新
+        const updatedEffects = updatedRaftra.effects.map(e =>
+            e.id === raftraA2EffectId ? { ...e, modifiers: a2Modifiers } : e
+        );
+        let newRaftra = { ...updatedRaftra, effects: updatedEffects };
+        newRaftra.stats = recalculateUnitStats(newRaftra, newState.registry.toArray());
+        newState = {
+            ...newState,
+            registry: newState.registry.update(createUnitId(raftra.id as string), u => newRaftra)
+        };
+    } else {
+        // 新規バフを追加
+        const raftraA2Effect: IEffect = {
+            id: raftraA2EffectId,
+            name: '短見への裁き (A2)',
+            category: 'BUFF',
+            sourceUnitId: ownerId,
+            durationType: 'LINKED',
+            duration: 0,
+            linkedEffectId: EFFECT_IDS.SUPREME_STANCE(ownerId),
+            modifiers: a2Modifiers,
+            onApply: (t: Unit, s: GameState) => s,
+            onRemove: (t: Unit, s: GameState) => s
+        };
+        newState = addEffect(newState, raftra.id as string, raftraA2Effect);
+    }
+
+    return newState;
+};
+
+/**
  * 速度スタックを加算
  */
 const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number): GameState => {
@@ -552,6 +654,8 @@ const addSpeedStack = (state: GameState, spiritId: string, eidolonLevel: number)
     if (spirit.ownerId) {
         const ownerIdStr = typeof spirit.ownerId === 'string' ? spirit.ownerId : (spirit.ownerId as any).id || JSON.stringify(spirit.ownerId);
         newState = syncAglaeaUltimateSpeed(newState, ownerIdStr, newStacks);
+        // A2: 速度変動に伴い攻撃力バフも再計算
+        newState = syncA2AtkBuff(newState, ownerIdStr);
         newState = updateActionQueue(newState); // アグライアのAV変更を反映
     }
 
@@ -997,6 +1101,9 @@ const onUltimateUsed = (
     // カウントダウン挿入
     newState = insertCountdown(newState, sourceUnitId);
 
+    // A2: 至高の姿状態になったので攻撃力バフを適用
+    newState = syncA2AtkBuff(newState, sourceUnitId);
+
     // 即座に行動
     newState = advanceAction(newState, sourceUnitId, 1.0, 'percent');
 
@@ -1396,6 +1503,64 @@ const onEnhancedBasicAttack = (
         }
     }
 
+    // === 強化通常攻撃時の追加処理 ===
+
+    // 1. メインターゲットに隙を縫う糸を付与
+    newState = applyThreadingPeril(newState, sourceUnitId, mainTargetId, eidolonLevel);
+
+    // 2. 隙を縫う糸ターゲット確認（付与後の状態を取得）
+    const threadingPerilTargetId = getThreadingPerilTarget(newState, sourceUnitId);
+    const updatedRaftra = getActiveSpirit(newState, sourceUnitId, SUMMON_ID_PREFIX);
+
+    // 隙を縫う糸の敵を攻撃した場合（メインターゲットが対象）
+    if (threadingPerilTargetId && mainTargetId === threadingPerilTargetId) {
+        // 天賦: 付加ダメージ（アグライア攻撃後）
+        const talentLevel = calculateAbilityLevel(eidolonLevel, 5, 'Talent');
+        const additionalDmgMult = getLeveledValue(ABILITY_VALUES.talentAdditionalDmg, talentLevel);
+        const updatedSource = newState.registry.get(createUnitId(sourceUnitId));
+        const damagedTarget = newState.registry.get(createUnitId(threadingPerilTargetId));
+
+        if (updatedSource && damagedTarget && damagedTarget.hp > 0) {
+            const additionalDmg = updatedSource.stats.atk * additionalDmgMult;
+            const addResult = applyUnifiedDamage(newState, updatedSource, damagedTarget, additionalDmg, {
+                damageType: '付加ダメージ',
+                details: '天賦: 薔薇色の指先',
+                skipLog: true
+            });
+            newState = addResult.state;
+
+            newState = appendAdditionalDamage(newState, {
+                source: updatedSource.name,
+                name: '薔薇色の指先',
+                damage: addResult.totalDamage,
+                target: damagedTarget.name,
+                damageType: 'additional',
+                isCrit: addResult.isCrit,
+                breakdownMultipliers: addResult.breakdownMultipliers
+            });
+        }
+
+        // 精霊天賦: 速度スタック獲得
+        // 強化通常攻撃ではアグライアとラフトラ両方が攻撃しているので、
+        // アグライア分（E4必要）+ ラフトラ分 = 最大2回獲得
+        if (updatedRaftra) {
+            // ラフトラ攻撃分: 無条件で獲得
+            newState = addSpeedStack(newState, updatedRaftra.id as string, eidolonLevel);
+            // E4: アグライア攻撃後もラフトラが速度スタック獲得
+            if (eidolonLevel >= 4) {
+                newState = addSpeedStack(newState, updatedRaftra.id as string, eidolonLevel);
+            }
+        }
+
+        // E1: EP+20（アグライアとラフトラ両方の攻撃として2回発動）
+        if (eidolonLevel >= 1) {
+            // アグライア攻撃分
+            newState = addEnergyToUnit(newState, sourceUnitId, 20);
+            // ラフトラ攻撃分
+            newState = addEnergyToUnit(newState, sourceUnitId, 20);
+        }
+    }
+
     return newState;
 };
 
@@ -1447,9 +1612,14 @@ const onAttack = (
     const evt = event as any;
     const subType = evt.subType || '';
 
-    // アグライアの攻撃: 通常、強化通常、スキル
+    // 強化通常攻撃は onEnhancedBasicAttack で処理するためスキップ
+    if (subType === 'ENHANCED_BASIC_ATTACK' && evt.sourceId === sourceUnitId) {
+        return state;
+    }
+
+    // アグライアの攻撃: 通常、スキル（強化通常は上で除外）
     const isAglaaeaAttack = evt.sourceId === sourceUnitId &&
-        (subType === 'BASIC_ATTACK' || subType === 'ENHANCED_BASIC_ATTACK' || subType === 'SKILL');
+        (subType === 'BASIC_ATTACK' || subType === 'SKILL');
 
     // ラフトラの攻撃
     const isRaftraAttack = raftra && evt.sourceId === raftra.id;

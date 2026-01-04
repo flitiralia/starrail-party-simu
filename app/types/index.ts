@@ -275,8 +275,8 @@ export interface CharacterDefaultConfig {
   subStats?: { stat: StatKey; value: number }[];
   /** デフォルトローテーション */
   rotation?: string[];
-  /** ローテーションモード ('sequence' | 'spam_skill' | 'once_skill') */
-  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill';
+  /** ローテーションモード ('sequence' | 'spam_skill' | 'once_skill' | 'spirit_based') */
+  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill' | 'spirit_based';
   /** スパムスキル発動SP閾値 */
   spamSkillTriggerSp?: number;
   /** デフォルト必殺技発動方針 */
@@ -347,7 +347,7 @@ export type RelicMode = '4pc' | '2+2';
  */
 export interface CharacterRotationConfig {
   rotation: string[]; // 行動パターン（例: ['s', 'b', 'b']）
-  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill'; // 'sequence' (default), 'spam_skill' or 'once_skill'
+  rotationMode?: 'sequence' | 'spam_skill' | 'once_skill' | 'spirit_based'; // 'sequence' (default), 'spam_skill', 'once_skill' or 'spirit_based'
   spamSkillTriggerSp?: number; // SP Threshold to start spamming skill (for 'spam_skill' mode)
   skillTargetId?: string; // Target Character ID (or name-based ID)
   ultStrategy: 'immediate' | 'cooldown'; // 必殺技発動戦略

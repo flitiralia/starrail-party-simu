@@ -114,14 +114,14 @@ export function getAuraModifiersForUnit(
 export function getAurasForLog(
     state: GameState,
     unitId: string
-): { name: string; modifiers: { stat: string; value: number }[] }[] {
+): { name: string; sourceName: string; modifiers: { stat: string; value: number }[] }[] {
     const unit = state.registry.get(createUnitId(unitId));
     if (!unit) return [];
 
-    const result: { name: string; modifiers: { stat: string; value: number }[] }[] = [];
+    const result: { name: string; sourceName: string; modifiers: { stat: string; value: number }[] }[] = [];
 
     for (const aura of state.auras) {
-        // ソースユニットが生存しているか確認
+        // ソースユニットを取得
         const source = state.registry.get(createUnitId(aura.sourceUnitId));
         if (!source || source.hp <= 0) continue;
 
@@ -145,6 +145,7 @@ export function getAurasForLog(
         if (applies) {
             result.push({
                 name: `[オーラ] ${aura.name}`,
+                sourceName: source.name,
                 modifiers: aura.modifiers.map(m => ({
                     stat: m.target,
                     value: m.value

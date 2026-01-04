@@ -29,7 +29,7 @@ export type UltEpOption = 'argenti_90' | 'argenti_180';
 
 export interface CharacterConfig {
     rotation: string[];
-    rotationMode?: 'sequence' | 'spam_skill' | 'spam_basic' | 'once_skill';
+    rotationMode?: 'sequence' | 'spam_skill' | 'spam_basic' | 'once_skill' | 'spirit_based';
     spamSkillTriggerSp?: number;
     skillTargetId?: string;
     ultStrategy: UltimateStrategy;

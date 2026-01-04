@@ -232,17 +232,18 @@ function addSpiritDurationEffect(
     ownerId: string,
     duration: number
 ): GameState {
+    const isPermanent = duration >= 999 || duration < 0;
+
     const effect: IEffect = {
         id: `spirit-duration-${spiritId}`,
         name: '精霊持続',
-        type: 'Buff',
         category: 'OTHER' as any,
         sourceUnitId: ownerId,
-        duration,
-        durationType: 'TURN_END_BASED',
+        duration: isPermanent ? -1 : duration,
+        durationType: isPermanent ? 'PERMANENT' : 'TURN_END_BASED',
         modifiers: [],
-        apply: (t: Unit, s: GameState) => s,
-        remove: (t: Unit, s: GameState) => s
+        onApply: (t: Unit, s: GameState) => s,
+        onRemove: (t: Unit, s: GameState) => s
     };
 
     return addEffect(state, spiritId, effect);

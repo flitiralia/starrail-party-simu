@@ -301,6 +301,9 @@ export default function PartySlotCard({
                                 {character.id === 'archar' && (
                                     <option value="spam_skill">スキル連打</option>
                                 )}
+                                {['aglaea', 'trailblazer-remembrance', 'hianshi'].includes(character.id) && (
+                                    <option value="spirit_based">精霊依存</option>
+                                )}
                             </select>
 
                             {config.rotationMode === 'spam_skill' && character.id === 'archar' ? (
@@ -322,6 +325,10 @@ export default function PartySlotCard({
                             ) : config.rotationMode === 'once_skill' ? (
                                 <div style={{ fontSize: '0.75em', color: '#888' }}>
                                     初回:スキル / 以降:通常
+                                </div>
+                            ) : config.rotationMode === 'spirit_based' ? (
+                                <div style={{ fontSize: '0.75em', color: '#888' }}>
+                                    精霊あり:通常 / なし:スキル
                                 </div>
                             ) : (
                                 <RotationInput

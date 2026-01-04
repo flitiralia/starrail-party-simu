@@ -372,7 +372,7 @@ export function appendEquipmentEffect(
   };
 }
 
-function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): EffectSummary[] {
+function extractBuffsForLog(unit: Unit, state: GameState): EffectSummary[] {
   // 1. unit.effectsからの抽出
   const effectSummaries = unit.effects.map(effect => {
     const stackCount = (effect as any).stackCount;
@@ -394,9 +394,10 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
         modifiers = effect.modifiers.map((m: Modifier) => {
           // dynamicValueの評価
           let baseValue = typeof m.value === 'number' ? m.value : (m.value as any)?.value || 0;
-          if (m.dynamicValue && allUnits) {
+          if (m.dynamicValue) {
             try {
-              baseValue = m.dynamicValue(unit, allUnits);
+              // 全ユニットリストを渡す
+              baseValue = m.dynamicValue(unit, state.registry.toArray());
             } catch (e) {
               // フォールバック
             }
@@ -414,13 +415,16 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
       }
     }
 
+    // 付与源の名前を取得
+    const sourceUnit = state.registry.get(createUnitId(effect.sourceUnitId));
+
     return {
       name: name,
       duration: effect.durationType === 'PERMANENT' ? '∞' as const : effect.duration,
       stackCount: stackCount,
       value: effectValue, // 蓄積値を追加
       modifiers: modifiers.length > 0 ? modifiers : undefined,
-      owner: ownerName,
+      owner: sourceUnit?.name || effect.sourceUnitId, // ownerフィールドに付与源名を入れる
     };
   });
 
@@ -471,7 +475,7 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
       name: `${label} ${getEquipmentNameById(setId)}`,
       duration: '∞' as const,
       modifiers: Array.from(aggregatedMods.entries()).map(([stat, value]) => ({ stat, value })),
-      owner: ownerName,
+      owner: unit.name, // 遺物パッシブの付与源はユニット自身
     });
   });
 
@@ -484,19 +488,17 @@ function extractBuffsForLog(unit: Unit, ownerName: string, allUnits?: Unit[]): E
  */
 export function extractBuffsForLogWithAuras(
   unit: Unit,
-  ownerName: string,
-  state: GameState,
-  allUnits?: Unit[]
+  state: GameState
 ): EffectSummary[] {
   // 通常のエフェクトとmodifiersを抽出
-  const baseSummaries = extractBuffsForLog(unit, ownerName, allUnits);
+  const baseSummaries = extractBuffsForLog(unit, state);
 
   // オーラ効果を抽出
   const auraSummaries = getAurasForLog(state, unit.id).map(aura => ({
     name: aura.name,
     duration: '∞' as const,
     modifiers: aura.modifiers,
-    owner: ownerName,
+    owner: aura.sourceName, // オーラの付与源名を使用
   }));
 
   return [...baseSummaries, ...auraSummaries];
@@ -841,7 +843,7 @@ export function applyUnifiedDamage(
       targetHpState: `${targetAfterDamage.hp.toFixed(0)}/${target.stats.hp.toFixed(0)}`,
       targetToughness: '',
       currentEp: source.ep,
-      activeEffects: extractBuffsForLogWithAuras(source, source.name, newState, newState.registry.toArray()),
+      activeEffects: extractBuffsForLogWithAuras(source, newState),
       details: options.details || ''
     } as any);
   }
@@ -1713,17 +1715,17 @@ function stepFinalizeActionLog(context: ActionContext): ActionContext {
   const updatedTarget = state.registry.get(createUnitId(primaryTarget.id)) || primaryTarget; // Get updated target state
 
   const activeEffects = [
-    ...extractBuffsForLogWithAuras(updatedSource, updatedSource.name, state),
-    ...(primaryTarget.id !== updatedSource.id ? extractBuffsForLogWithAuras(updatedTarget, primaryTarget.name, state) : [])
+    ...extractBuffsForLogWithAuras(updatedSource, state),
+    ...(primaryTarget.id !== updatedSource.id ? extractBuffsForLogWithAuras(updatedTarget, state) : [])
   ];
 
   // 新しい形式の効果収集
   const sourceEffects = [
-    ...extractBuffsForLogWithAuras(updatedSource, updatedSource.name, state, state.registry.toArray()),
+    ...extractBuffsForLogWithAuras(updatedSource, state),
     ...extractRelicStatsForLog(updatedSource)
   ];
   const targetEffects = primaryTarget.id !== updatedSource.id ? [
-    ...extractBuffsForLogWithAuras(updatedTarget, primaryTarget.name, state, state.registry.toArray()),
+    ...extractBuffsForLogWithAuras(updatedTarget, state),
     ...extractRelicStatsForLog(updatedTarget)
   ] : [];
 
