@@ -398,7 +398,7 @@ const applyThreadingPeril = (state: GameState, sourceUnitId: string, targetId: s
 
     // 新しいターゲットに付与
     const modifiers: Modifier[] = eidolonLevel >= 1 ? [{
-        target: 'all_type_vuln' as StatKey,
+        target: 'all_dmg_taken_boost' as StatKey,
         value: E1_VULN,
         type: 'add' as const,
         source: '隙を縫う糸 (E1)'
@@ -1105,7 +1105,7 @@ const onActionComplete = (
 
             const defIgnoreModifiers: Modifier[] = [{
                 target: 'def_ignore' as StatKey,
-                value: E2_DEF_IGNORE * newStacks,
+                value: E2_DEF_IGNORE,  // 1層あたりの値（statBuilderがstackCount倍を自動適用）
                 type: 'add' as const,
                 source: 'E2'
             }];

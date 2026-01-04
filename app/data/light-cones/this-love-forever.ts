@@ -96,7 +96,7 @@ export const THIS_LOVE_FOREVER: ILightConeData = {
                                 name: '空白（被ダメ）',
                                 sourceUnitId: u.id,
                                 target: 'all_enemies',
-                                modifiers: [{ target: 'all_type_vuln', value: auraValue, type: 'add', source: '空白' }]
+                                modifiers: [{ target: 'all_dmg_taken_boost', value: auraValue, type: 'add', source: '空白' }]
                             });
 
                             // 詩句が存在する場合、それも更新
@@ -163,7 +163,7 @@ export const THIS_LOVE_FOREVER: ILightConeData = {
                                     name: '空白（被ダメ）',
                                     sourceUnitId: u.id,
                                     target: 'all_enemies',
-                                    modifiers: [{ target: 'all_type_vuln', value: blankValue, type: 'add', source: '空白' }]
+                                    modifiers: [{ target: 'all_dmg_taken_boost', value: blankValue, type: 'add', source: '空白' }]
                                 });
                             }
                             return s;
@@ -178,7 +178,7 @@ export const THIS_LOVE_FOREVER: ILightConeData = {
                                     name: '空白（被ダメ）',
                                     sourceUnitId: u.id,
                                     target: 'all_enemies',
-                                    modifiers: [{ target: 'all_type_vuln', value: msgVuln, type: 'add', source: '空白' }]
+                                    modifiers: [{ target: 'all_dmg_taken_boost', value: msgVuln, type: 'add', source: '空白' }]
                                 });
                             }
                             return s;

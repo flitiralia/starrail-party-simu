@@ -81,7 +81,7 @@ export const scentAloneStaysTrue: ILightConeData = {
                     durationType: 'TURN_END_BASED',
                     duration: 2,
                     modifiers: [{
-                        target: 'all_type_vuln', // Vulnerability
+                        target: 'all_dmg_taken_boost', // Vulnerability
                         value: finalVuln,
                         type: 'add',
                         source: '昔日の香りは今も猶'

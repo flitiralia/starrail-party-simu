@@ -34,7 +34,7 @@ export function createInitialGameState(
   const { characters, enemies, weaknesses, partyConfig, enemyConfig } = config;
 
   const characterUnits: Unit[] = characters.map((char, index) => {
-    const stats = calculateFinalStats(char, true); // Exclude conditional buffs for initial state (handled by handlers)
+    const stats = calculateFinalStats(char); // Base calculation
 
     // パーティ設定から個別キャラの設定を取得（なければデフォルトまたは後方互換用のcharacterConfigを使用）
     let charConfig: CharacterConfig | undefined;

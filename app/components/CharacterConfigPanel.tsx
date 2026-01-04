@@ -14,6 +14,7 @@ import { RelicEditor } from './RelicEditor';
 import { getLightConeDescription } from '@/app/utils/lightConeUtils';
 import { getAssetUrl, getCharacterIconPath, getLightConeIconPath, PATH_NAME_MAP } from '@/app/utils/assetUtils';
 import { IconPicker, IconPickerItem } from './IconPicker';
+import { StatImportPanel } from './StatImportPanel';
 
 interface CharacterConfigPanelProps {
     character: Character;
@@ -271,6 +272,16 @@ export default function CharacterConfigPanel({
                         初動のみスキルを使用し、それ以降は通常攻撃を行います。
                     </div>
                 )}
+            </div>
+
+            {/* 最終ステータス逆算入力 */}
+            <div style={sectionStyle}>
+                <label style={labelStyle}>最終ステータス逆算（簡易入力）</label>
+                <StatImportPanel
+                    character={character}
+                    onUpdate={onCharacterUpdate}
+                    relicSetList={relicSetList}
+                />
             </div>
 
             {/* 遺物編集 */}

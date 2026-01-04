@@ -37,7 +37,7 @@ function initializeCharacterStats(): CharacterStats {
  * @param character The character object with all their equipment.
  * @returns The calculated FinalStats object.
  */
-export function calculateFinalStats(character: Character, excludeConditional: boolean = false): FinalStats {
+export function calculateFinalStats(character: Character): FinalStats {
   const stats = initializeCharacterStats();
 
   // 1. Apply base stats from the character and their light cone
@@ -63,7 +63,7 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
     // 新形式のpassiveEffectsを優先的に処理
     if (character.equippedLightCone.lightCone.passiveEffects) {
       character.equippedLightCone.lightCone.passiveEffects.forEach(effect => {
-        // 条件なし＆計算なし効果のみ第1パスで処理
+        // 条件なし＆計算なし効果のみ処理
         if (effect.condition || effect.calculateValue) return;
 
         const statValue = effect.effectValue[superimposition - 1] || 0;
@@ -84,6 +84,7 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
     else if (character.equippedLightCone.lightCone.effects) {
       character.equippedLightCone.lightCone.effects.forEach(effect => {
         if (effect.customHandler) return; // Skip custom handlers
+        if (effect.condition) return; // 条件付きはスキップ
         if (effect.targetStat && Array.isArray(effect.effectValue)) {
           const statValue = effect.effectValue[superimposition - 1] || 0;
           const targetStatKey = effect.targetStat;
@@ -166,109 +167,6 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
     });
   });
 
-  // Helper function to apply Conditional Relic effects (New)
-  const applyConditionalRelicEffects = (currentStats: CharacterStats, preliminaryFinalStats: FinalStats) => {
-    setCounts.forEach((count, setId) => {
-      const relicOrOrnament = allRelics.find(r => r.set?.id === setId);
-      if (!relicOrOrnament?.set) return;
-
-      const setBonuses = relicOrOrnament.set.setBonuses;
-      setBonuses.forEach(bonus => {
-        if (count >= bonus.pieces && bonus.passiveEffects) {
-          bonus.passiveEffects.forEach(effect => {
-            if (effect.condition && effect.condition(preliminaryFinalStats, {} as any, character.id)) {
-              const stat = effect.stat;
-              const value = effect.value;
-
-              if (stat.endsWith('_pct') || stat.endsWith('_boost') ||
-                stat.includes('dmg') || stat === 'crit_rate' || stat === 'crit_dmg' ||
-                stat.includes('ignore') || stat.includes('pen') || stat.includes('res')) {
-                currentStats.pct[stat as StatKey] = (currentStats.pct[stat as StatKey] || 0) + value;
-              } else {
-                currentStats.add[stat as StatKey] = (currentStats.add[stat as StatKey] || 0) + value;
-              }
-            }
-          });
-        }
-      });
-    });
-  };
-
-  // Helper function to apply Light Cone effects (Conditional)
-  const applyLightConeEffects = (currentStats: CharacterStats, isSecondPass: boolean, preliminaryFinalStats?: FinalStats) => {
-    if (!character.equippedLightCone) return;
-
-    const superimposition = character.equippedLightCone.superimposition;
-
-    // 新形式のpassiveEffects処理
-    if (character.equippedLightCone.lightCone.passiveEffects) {
-      character.equippedLightCone.lightCone.passiveEffects.forEach(effect => {
-        // 第2パスでは条件付きまたは計算付き効果のみ処理
-        const hasCondition = !!effect.condition;
-        const hasCalculateValue = !!effect.calculateValue;
-        if (isSecondPass !== (hasCondition || hasCalculateValue)) return;
-
-        // excludeConditionalがtrueなら条件付き効果をスキップ
-        if (excludeConditional && hasCondition) return;
-
-        // 第2パスで条件チェック
-        if (isSecondPass && effect.condition && preliminaryFinalStats) {
-          if (!effect.condition(preliminaryFinalStats)) return;
-        }
-
-        // 値の計算
-        let statValue: number;
-        if (effect.calculateValue && preliminaryFinalStats) {
-          // 動的計算
-          statValue = effect.calculateValue(preliminaryFinalStats, superimposition);
-        } else {
-          // 固定値（effectValue使用）
-          statValue = effect.effectValue[superimposition - 1] || 0;
-        }
-
-        const targetStatKey = effect.targetStat;
-
-        if (STAT_KEYS.includes(targetStatKey)) {
-          if (targetStatKey.endsWith('_pct')) {
-            currentStats.pct[targetStatKey] += statValue;
-          } else {
-            currentStats.add[targetStatKey] += statValue;
-          }
-        }
-      });
-    }
-    // 後方互換性: 旧effects処理
-    else if (character.equippedLightCone.lightCone.effects) {
-      character.equippedLightCone.lightCone.effects.forEach(effect => {
-        if (effect.customHandler) return; // Skip custom handlers
-        // Check if effect is applicable in this pass
-        const hasCondition = !!effect.condition;
-        if (isSecondPass !== hasCondition) return;
-
-        // If excludeConditional is true, skip conditional effects
-        if (excludeConditional && hasCondition) return;
-
-        // If second pass, check condition against preliminary stats
-        if (isSecondPass && effect.condition && preliminaryFinalStats) {
-          if (!effect.condition(preliminaryFinalStats)) return;
-        }
-
-        // Apply effect
-        if (effect.targetStat && Array.isArray(effect.effectValue)) {
-          const statValue = effect.effectValue[superimposition - 1] || 0;
-          const targetStatKey = effect.targetStat;
-
-          if (STAT_KEYS.includes(targetStatKey)) {
-            if (targetStatKey.endsWith('_pct')) {
-              currentStats.pct[targetStatKey] += statValue;
-            } else {
-              currentStats.add[targetStatKey] += statValue;
-            }
-          }
-        }
-      });
-    }
-  };
 
   // 3.5. Aggregate stat bonuses from Traces
   if (character.traces) {
@@ -300,27 +198,14 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
 
   let finalStats = calculateStatsFromRecord(stats);
 
-  // Second Pass: Conditional Bonuses
-  applyLightConeEffects(stats, true, finalStats);
-
-  // Apply Conditional Relic Effects
-  applyConditionalRelicEffects(stats, finalStats);
-
-  // Recalculate Final Stats with Conditional Bonuses
-  finalStats = calculateStatsFromRecord(stats);
-
-
   // 5. Apply dynamic effects from the character's active effects list
   for (const effect of character.effects || []) {
-    // Currently, only handle IStatEffect
+    // Handle IStatEffect (legacy)
     if ('stat' in effect && 'value' in effect && 'isPercentage' in effect) {
       const statEffect = effect as IStatEffect;
       const statKey = statEffect.stat;
 
       if (statEffect.isPercentage) {
-        // This is a simplification. A real implementation would need to distinguish
-        // between base stat pct increases and final stat pct increases.
-        // For now, we'll assume it modifies the final stat.
         if (statKey === 'hp_pct' || statKey === 'atk_pct' || statKey === 'def_pct') {
           const baseStatKey = statKey.split('_')[0] as 'hp' | 'atk' | 'def';
           finalStats[baseStatKey] *= (1 + statEffect.value);
@@ -329,6 +214,33 @@ export function calculateFinalStats(character: Character, excludeConditional: bo
         }
       } else {
         finalStats[statKey as StatKey] += statEffect.value;
+      }
+    }
+    // Handle IEffect with modifiers (new/standard)
+    if (effect.modifiers) {
+      const stackCount = effect.stackCount || 1;
+      for (const mod of effect.modifiers) {
+        const effectiveStackCount = (mod.scalingStrategy === 'fixed') ? 1 : stackCount;
+        const effectiveValue = mod.value * effectiveStackCount;
+
+        if (mod.type === 'base') {
+          // Note: modifying base in finalStats is tricky, but let's follow the simple addition for now
+          // In a more complex builder, we'd need to re-run the calculation or handle tiers.
+          // For final stat view, just add the value.
+          finalStats[mod.target] += effectiveValue;
+        } else if (mod.target.endsWith('_pct')) {
+          // If it's a percentage modifier, apply it to the base
+          const baseKey = mod.target.replace('_pct', '') as 'hp' | 'atk' | 'def' | 'spd';
+          if (finalStats[baseKey] !== undefined) {
+            const baseVal = stats.base[baseKey] || 0;
+            finalStats[baseKey] += baseVal * effectiveValue;
+          } else {
+            // For other stats like crit_rate, just add the percentage
+            finalStats[mod.target] += effectiveValue;
+          }
+        } else {
+          finalStats[mod.target] += effectiveValue;
+        }
       }
     }
   }

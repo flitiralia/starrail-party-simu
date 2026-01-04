@@ -75,8 +75,8 @@ function createMockUnit(overrides: Partial<Unit> = {}): Unit {
             all_type_dmg_boost: 0,
             def_ignore: 0,
             dmg_taken_reduction: 0,
-            all_type_vuln: 0,
-            physical_vuln: 0,
+            all_dmg_taken_boost: 0,
+            physical_dmg_taken_boost: 0,
         } as any,
         effects: [],
         modifiers: [],
@@ -408,7 +408,7 @@ describe('Vulnerability Calculation', () => {
         });
         const target = createMockUnit({
             isEnemy: true,
-            stats: { ...createMockUnit().stats, physical_vuln: 0.2 } // 20% Phys Vuln
+            stats: { ...createMockUnit().stats, physical_dmg_taken_boost: 0.2 } // 20% Phys Vuln
         });
 
         const ability: IAbility = {
@@ -435,7 +435,7 @@ describe('Vulnerability Calculation', () => {
         });
         const target = createMockUnit({
             isEnemy: true,
-            stats: { ...createMockUnit().stats, all_type_vuln: 0.15 } // 15% All Vuln
+            stats: { ...createMockUnit().stats, all_dmg_taken_boost: 0.15 } // 15% All Vuln
         });
 
         const ability: IAbility = {

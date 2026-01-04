@@ -442,7 +442,7 @@ function startStandoff(
         linkedEffectId: EFFECT_IDS.STANDOFF_SELF(sourceId),
         tags: ['TAUNT', 'STANDOFF'],
         modifiers: [
-            { target: 'dmg_taken' as StatKey, value: STANDOFF_ENEMY_DMG_TAKEN_INCREASE, type: 'add', source: '九死の決闘' }
+            { target: 'all_dmg_taken_boost' as StatKey, value: STANDOFF_ENEMY_DMG_TAKEN_INCREASE, type: 'add', source: '九死の決闘' }
         ],
 
         /* remove removed */

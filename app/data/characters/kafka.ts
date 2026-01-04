@@ -695,7 +695,7 @@ const onFollowUpAttack = (event: ActionEvent, state: GameState, sourceUnitId: st
             durationType: 'TURN_END_BASED',
             duration: 2,
             skipFirstTurnDecrement: true,
-            modifiers: [{ target: 'dot_taken' as StatKey, value: 0.30, type: 'add', source: 'E1' }],
+            modifiers: [{ target: 'dot_dmg_taken_boost' as StatKey, value: 0.30, type: 'add', source: 'E1' }],
 
             /* remove removed */
         };

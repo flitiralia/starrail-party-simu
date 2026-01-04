@@ -322,7 +322,7 @@ const onBattleStart: IEventHandlerFactory = (sourceUnitId, level, param) => {
                         duration: -1,
                         modifiers: [{
                             source: 'ボットネット',
-                            target: 'all_type_vuln',
+                            target: 'all_dmg_taken_boost',
                             type: 'add',
                             value: 0.20
                         }],

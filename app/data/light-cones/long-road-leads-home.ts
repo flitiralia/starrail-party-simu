@@ -67,7 +67,7 @@ export const longRoadLeadsHome: ILightConeData = {
                     duration: 2,
                     stackCount: next,
                     modifiers: [
-                        { target: 'break_dmg_taken', value: val * next, type: 'add', source: '長途はやがて帰途へと続く' }
+                        { target: 'break_dmg_taken_boost', value: val * next, type: 'add', source: '長途はやがて帰途へと続く' }
                     ],
                     apply: (u, s) => s,
                     remove: (u, s) => s

@@ -209,8 +209,8 @@ function spawnFuyuan(state: GameState, ownerId: string, initialCount: number = F
             physical_res_pen: 0, fire_res_pen: 0, ice_res_pen: 0, lightning_res_pen: 0, wind_res_pen: 0, quantum_res_pen: 0, imaginary_res_pen: 0, all_type_res_pen: 0,
             physical_res: 0, fire_res: 0, ice_res: 0, lightning_res: 0, wind_res: 0, quantum_res: 0, imaginary_res: 0, crowd_control_res: 0,
             bleed_res: 0, burn_res: 0, frozen_res: 0, shock_res: 0, wind_shear_res: 0, entanglement_res: 0, imprisonment_res: 0,
-            all_type_vuln: 0, break_dmg_taken: 0, dot_dmg_taken: 0,
-            physical_vuln: 0, fire_vuln: 0, ice_vuln: 0, lightning_vuln: 0, wind_vuln: 0, quantum_vuln: 0, imaginary_vuln: 0,
+            all_dmg_taken_boost: 0, break_dmg_taken_boost: 0, dot_dmg_taken_boost: 0,
+            physical_dmg_taken_boost: 0, fire_dmg_taken_boost: 0, ice_dmg_taken_boost: 0, lightning_dmg_taken_boost: 0, wind_dmg_taken_boost: 0, quantum_dmg_taken_boost: 0, imaginary_dmg_taken_boost: 0,
             def_reduction: 0, def_ignore: 0,
             break_efficiency_boost: 0, break_dmg_boost: 0, super_break_dmg_boost: 0,
             fua_dmg_boost: 0, dot_dmg_boost: 0, dot_def_ignore: 0,
@@ -418,7 +418,7 @@ function applyBefog(state: GameState, ownerId: string, targetId: string, eidolon
         durationType: 'TURN_END_BASED',
         duration: 2,
         modifiers: [
-            { source: '芳酔', target: 'break_dmg_taken', type: 'add', value: breakDmgUp }
+            { source: '芳酔', target: 'break_dmg_taken_boost', type: 'add', value: breakDmgUp }
         ],
 
         /* remove removed */

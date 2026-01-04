@@ -189,7 +189,7 @@ const onSkillUsed: IEventHandlerLogic = (event, state, _handlerId) => {
     }
     // E4: 同袍の被ダメージ -20%
     if ((source.eidolonLevel || 0) >= 4) {
-        comradeModifiers.push({ target: 'all_type_vuln', value: -0.20, type: 'add', source: 'E4 Damage Reduction' });
+        comradeModifiers.push({ target: 'dmg_taken_reduction', value: 0.20, type: 'add', source: 'E4 Damage Reduction' });
     }
     // E6: 同袍の防御無視 12%
     if ((source.eidolonLevel || 0) >= 6) {
@@ -218,7 +218,7 @@ const onSkillUsed: IEventHandlerLogic = (event, state, _handlerId) => {
                 newState = addEffect(newState, e.id, {
                     id: EFFECT_IDS.E6_VULN(e.id), name: 'E6 Vuln', category: 'DEBUFF', type: 'Debuff',
                     sourceUnitId: source.id, duration: 100, durationType: 'TURN_END_BASED', skipFirstTurnDecrement: true,
-                    modifiers: [{ target: 'all_type_vuln', value: 0.20, type: 'add', source: 'E6 Vuln' }],
+                    modifiers: [{ target: 'all_dmg_taken_boost', value: 0.20, type: 'add', source: 'E6 Vuln' }],
                     /* remove removed */
                 });
             }

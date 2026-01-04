@@ -69,7 +69,7 @@ function applyProofOfDebt(state: GameState, sourceId: string, targetId: string, 
         duration: -1,
         durationType: 'PERMANENT',
         modifiers: [
-            { target: 'fua_vuln', value: fuaVuln, type: 'add', source: '負債証明' }
+            { target: 'fua_dmg_taken_boost', value: fuaVuln, type: 'add', source: '負債証明' }
         ],
 
 

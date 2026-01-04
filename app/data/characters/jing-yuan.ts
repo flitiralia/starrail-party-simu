@@ -56,11 +56,11 @@ const DEFAULT_STATS: FinalStats = {
     physical_res: 0, fire_res: 0, ice_res: 0, lightning_res: 0, wind_res: 0, quantum_res: 0, imaginary_res: 0,
     crowd_control_res: 0,
     bleed_res: 0, burn_res: 0, frozen_res: 0, shock_res: 0, wind_shear_res: 0, entanglement_res: 0, imprisonment_res: 0,
-    all_type_vuln: 0, break_dmg_taken: 0, dot_dmg_taken: 0,
-    physical_vuln: 0, fire_vuln: 0, ice_vuln: 0, lightning_vuln: 0, wind_vuln: 0, quantum_vuln: 0, imaginary_vuln: 0,
+    all_dmg_taken_boost: 0, break_dmg_taken_boost: 0, dot_dmg_taken_boost: 0,
+    physical_dmg_taken_boost: 0, fire_dmg_taken_boost: 0, ice_dmg_taken_boost: 0, lightning_dmg_taken_boost: 0, wind_dmg_taken_boost: 0, quantum_dmg_taken_boost: 0, imaginary_dmg_taken_boost: 0,
     def_reduction: 0, def_ignore: 0,
     break_efficiency_boost: 0, break_dmg_boost: 0, super_break_dmg_boost: 0,
-    fua_dmg_boost: 0, fua_crit_dmg: 0, fua_vuln: 0, dot_dmg_boost: 0, dot_def_ignore: 0,
+    fua_dmg_boost: 0, fua_crit_dmg: 0, fua_dmg_taken_boost: 0, dot_dmg_boost: 0, dot_def_ignore: 0,
     all_dmg_dealt_reduction: 0, dmg_taken_reduction: 0,
     basic_atk_dmg_boost: 0, skill_dmg_boost: 0, ult_dmg_boost: 0
 };
@@ -259,7 +259,7 @@ function executeLightningLordAttack(state: GameState, llUnitId: string, ownerId:
                     durationType: 'TURN_START_BASED',
                     duration: 1,
                     stackCount: newE6Stacks,
-                    modifiers: [{ source: 'E6 Vulnerability', target: 'all_type_vuln' as StatKey, type: 'add', value: 0.12 * newE6Stacks }],
+                    modifiers: [{ source: 'E6 Vulnerability', target: 'all_dmg_taken_boost' as StatKey, type: 'add', value: 0.12 * newE6Stacks }],
 
                     /* remove removed */
                 };

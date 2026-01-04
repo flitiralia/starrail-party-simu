@@ -466,7 +466,7 @@ const onWeaknessBreak = (event: ActionEvent, state: GameState, sourceId: string,
         const bonus = Math.min(0.08, Math.floor(excess / 100) * 0.01);
         const a6Effect: IEffect = {
             id: EFFECT_IDS.A6_BUFF(event.targetId || ''), name: 'A6', category: 'DEBUFF', sourceUnitId: sourceId, durationType: 'TURN_START_BASED', duration: 2,
-            modifiers: [{ target: 'break_dmg_taken', value: 0.02 + bonus, type: 'add', source: 'A6' }],
+            modifiers: [{ target: 'break_dmg_taken_boost', value: 0.02 + bonus, type: 'add', source: 'A6' }],
             /* remove removed */
         };
         newState = addEffect(newState, event.targetId || '', a6Effect);

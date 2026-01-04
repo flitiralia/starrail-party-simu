@@ -94,7 +94,7 @@ export const inherentlyUnjustDestiny: ILightConeData = {
                         durationType: 'TURN_END_BASED', // 敵のターン終了時
                         duration: 2,
                         modifiers: [{
-                            target: 'all_type_vuln',
+                            target: 'all_dmg_taken_boost',
                             value: vuln,
                             type: 'add',
                             source: '運命は常に不公平'

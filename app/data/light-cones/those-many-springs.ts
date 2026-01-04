@@ -74,7 +74,7 @@ export const thoseManySprings: ILightConeData = {
                         duration: 2,
                         stackCount: 1,
                         modifiers: [
-                            { target: 'all_type_vuln', value: baseDmgTaken + extraDmgTaken, type: 'add', source: '幾度目かの春' }
+                            { target: 'all_dmg_taken_boost', value: baseDmgTaken + extraDmgTaken, type: 'add', source: '幾度目かの春' }
                         ],
                         apply: (u, s) => s,
                         remove: (u, s) => s
@@ -90,7 +90,7 @@ export const thoseManySprings: ILightConeData = {
                         duration: 2,
                         stackCount: 1,
                         modifiers: [
-                            { target: 'all_type_vuln', value: baseDmgTaken, type: 'add', source: '幾度目かの春' }
+                            { target: 'all_dmg_taken_boost', value: baseDmgTaken, type: 'add', source: '幾度目かの春' }
                         ],
                         apply: (u, s) => s,
                         remove: (u, s) => s

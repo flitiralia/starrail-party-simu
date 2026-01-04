@@ -568,7 +568,7 @@ export const weltHandlerFactory: IEventHandlerFactory = (sourceUnitId, level, pa
                             durationType: 'TURN_END_BASED',
                             duration: 2,
                             modifiers: [{
-                                target: 'all_type_vuln',
+                                target: 'all_dmg_taken_boost',
                                 source: '懲戒',
                                 type: 'add',
                                 value: 0.12

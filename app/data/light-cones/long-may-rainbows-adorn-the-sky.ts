@@ -149,7 +149,7 @@ export const LONG_MAY_RAINBOWS_ADORN_THE_SKY: ILightConeData = {
                         durationType: 'TURN_START_BASED',
                         duration: 2,
                         modifiers: [{
-                            target: 'all_type_vuln',
+                            target: 'all_dmg_taken_boost',
                             value: vulnBoost,
                             type: 'add',
                             source: '空の虹が消えぬように'

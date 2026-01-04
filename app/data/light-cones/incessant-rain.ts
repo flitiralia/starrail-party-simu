@@ -81,7 +81,7 @@ export const incessantRain: ILightConeData = {
                         duration: 1,
                         stackCount: 1,
                         modifiers: [
-                            { target: 'all_type_vuln', value: codeVal, type: 'add', source: '降りやまぬ雨' }
+                            { target: 'all_dmg_taken_boost', value: codeVal, type: 'add', source: '降りやまぬ雨' }
                         ],
                         apply: (u, s) => s,
                         remove: (u, s) => s

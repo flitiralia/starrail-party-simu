@@ -159,6 +159,75 @@ export function finalizeSpiritTurnLog(state: GameState): GameState {
 
   const totalHealing = currentActionLog.healing.reduce((sum, e) => sum + e.amount, 0);
 
+  // === リソース変化の計算 ===
+  const resourceChanges: import('../../types/index').ResourceChangeEntry[] = [];
+  const snapshot = currentActionLog.resourceSnapshot;
+
+  if (snapshot) {
+    // EP変化を計算
+    snapshot.ep.forEach((snapshotData, unitId) => {
+      const currentUnit = state.registry.get(createUnitId(unitId));
+      if (currentUnit) {
+        const before = snapshotData.value;
+        const after = currentUnit.ep;
+        const change = after - before;
+        // 変化がある場合のみ追加
+        if (Math.abs(change) > 0.01) {
+          resourceChanges.push({
+            unitId,
+            unitName: snapshotData.unitName,
+            resourceType: 'ep',
+            resourceName: 'EP',
+            before,
+            after,
+            change
+          });
+        }
+      }
+    });
+
+    // HP変化を計算
+    snapshot.hp?.forEach((snapshotData, unitId) => {
+      const currentUnit = state.registry.get(createUnitId(unitId));
+      if (currentUnit) {
+        const before = snapshotData.value;
+        const after = currentUnit.hp;
+        const change = after - before;
+        // 変化がある場合のみ追加（浮動小数点の誤差を考慮）
+        if (Math.abs(change) > 0.01) {
+          resourceChanges.push({
+            unitId,
+            unitName: snapshotData.unitName,
+            resourceType: 'hp',
+            resourceName: 'HP',
+            before,
+            after,
+            change
+          });
+        }
+      }
+    });
+
+    // SP変化を計算
+    if (snapshot.sp !== undefined) {
+      const before = snapshot.sp;
+      const after = state.skillPoints;
+      const change = after - before;
+
+      if (change !== 0) {
+        resourceChanges.push({
+          unitId: 'party',
+          unitName: 'Party',
+          resourceType: 'sp',
+          resourceName: 'SP',
+          before,
+          after,
+          change
+        });
+      }
+    }
+  }
+
   const logEntry: SimulationLogEntry = {
     characterName: currentActionLog.primarySourceName,
     actionTime: currentActionLog.startTime,
@@ -176,6 +245,7 @@ export function finalizeSpiritTurnLog(state: GameState): GameState {
       additionalDamage: currentActionLog.additionalDamage.length > 0 ? currentActionLog.additionalDamage : undefined,
       healing: currentActionLog.healing.length > 0 ? currentActionLog.healing : undefined,
       shields: currentActionLog.shields.length > 0 ? currentActionLog.shields : undefined,
+      resourceChanges: resourceChanges.length > 0 ? resourceChanges : undefined,
     },
 
     details: currentActionLog.details,

@@ -66,7 +66,7 @@ export const WHY_DOES_THE_OCEAN_SING: ILightConeData = {
 
                 // モディファイアを計算
                 const modifiers = [{
-                    target: 'dot_dmg_taken' as const,
+                    target: 'all_dmg_taken_boost' as const,
                     value: step * nextStacks,
                     type: 'add' as const,
                     source: '海の歌は何がため'
